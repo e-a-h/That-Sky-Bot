@@ -1,0 +1,8 @@
+{
+	"token": "",
+	"sentry_dsn": "",
+	"log_channel": 0,
+	"cogs": [
+		"Basic"
+	]
+}
