@@ -1,26 +1,26 @@
-import discord
-from discord import client, Member
-from discord.ext.commands import command, Context
-
-from utils import Configuration, Logging
+from discord import Message, Member, client
+from discord.ext import commands
+from discord.ext.commands import Context
 
 from cogs.BaseCog import BaseCog
+from utils import Configuration, Logging
 
 
 class Welcomer(BaseCog):
-    @command()
     async def welcome(self, ctx: Context):
         """welcomer_help"""
         txt = Configuration.get_var("welcome_msg")
         Logging.info(ctx)
         await ctx.send(txt.format(ctx.author.mention))
 
-    c = discord.Client()
+    @commands.Cog.listener()
+    async def on_message(self, message: Message):
+        print(message)
 
-    @c.event
+    @commands.Cog.listener()
     async def on_member_join(member: Member):
         message = "it looks like {} has joined".format(member.mention)
-        await client.send_message("general", message)
+        Logging.info(message)
 
 
 def setup(bot):
