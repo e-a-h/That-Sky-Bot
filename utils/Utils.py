@@ -1,14 +1,25 @@
+import re
 import time
 import traceback
+from collections import OrderedDict, namedtuple
 from datetime import datetime
 
+import discord
 import sentry_sdk
 from aiohttp import ClientOSError, ServerDisconnectedError
-from discord import Embed, Colour, ConnectionClosed
+from discord import Embed, Colour, ConnectionClosed, NotFound
 from discord.abc import PrivateChannel
 
 from utils import Logging
 
+BOT = None
+ID_MATCHER = re.compile("<@!?([0-9]+)>")
+ROLE_ID_MATCHER = re.compile("<@&([0-9]+)>")
+CHANNEL_ID_MATCHER = re.compile("<#([0-9]+)>")
+MENTION_MATCHER = re.compile("<@[!&]?\\d+>")
+URL_MATCHER = re.compile(r'((?:https?://)[a-z0-9]+(?:[-._][a-z0-9]+)*\.[a-z]{2,5}(?::[0-9]{1,5})?(?:/[^ \n<>]*)?)', re.IGNORECASE)
+EMOJI_MATCHER = re.compile('<(a?):([^: \n]+):([0-9]+)>')
+NUMBER_MATCHER = re.compile(r"\d+")
 
 def extract_info(o):
     info = ""
@@ -135,3 +146,93 @@ def trim_message(message, limit):
     if len(message) < limit - 3:
         return message
     return f"{message[:limit - 3]}..."
+
+known_invalid_users = []
+user_cache = OrderedDict()
+
+async def get_user(uid, fetch=True):
+    UserClass = namedtuple("UserClass", "name id discriminator bot avatar_url created_at is_avatar_animated mention")
+    user = BOT.get_user(uid)
+    if user is None:
+        if uid in known_invalid_users:
+            return None
+        if uid in user_cache:
+            return user_cache[uid]
+        if fetch:
+            try:
+                user = await BOT.fetch_user(uid)
+                if len(user_cache) >= 10:  # Limit the cache size to the most recent 10
+                    user_cache.popitem()
+                user_cache[uid] = user
+            except NotFound:
+                known_invalid_users.append(uid)
+                return None
+    return user
+
+def clean_user(user):
+    if user is None:
+        return "UNKNOWN USER"
+    return f"{escape_markdown(user.name)}#{user.discriminator}"
+
+async def username(uid, fetch=True, clean=True):
+    user = await get_user(uid, fetch)
+    if user is None:
+        return "UNKNOWN USER"
+    if clean:
+        return clean_user(user)
+    else:
+        return f"{user.name}#{user.discriminator}"
+
+async def clean(text, guild=None, markdown=True, links=True, emoji=True):
+    text = str(text)
+    if guild is not None:
+        # resolve user mentions
+        for uid in set(ID_MATCHER.findall(text)):
+            name = "@" + await username(int(uid), False, False)
+            text = text.replace(f"<@{uid}>", name)
+            text = text.replace(f"<@!{uid}>", name)
+
+        # resolve role mentions
+        for uid in set(ROLE_ID_MATCHER.findall(text)):
+            role = discord.utils.get(guild.roles, id=int(uid))
+            if role is None:
+                name = "@UNKNOWN ROLE"
+            else:
+                name = "@" + role.name
+            text = text.replace(f"<@&{uid}>", name)
+
+        # resolve channel names
+        for uid in set(CHANNEL_ID_MATCHER.findall(text)):
+            channel = guild.get_channel(uid)
+            if channel is None:
+                name = "#UNKNOWN CHANNEL"
+            else:
+                name = "#" + channel.name
+            text = text.replace(f"<@#{uid}>", name)
+
+        # re-assemble emoji so such a way that they don't turn into twermoji
+
+    urls = set(URL_MATCHER.findall(text))
+
+    if markdown:
+        text = escape_markdown(text)
+    else:
+        text = text.replace("@", "@\u200b").replace("**", "*​*").replace("``", "`​`")
+
+    if emoji:
+        for e in set(EMOJI_MATCHER.findall(text)):
+            a, b, c = zip(e)
+            text = text.replace(f"<{a[0]}:{b[0]}:{c[0]}>", f"<{a[0]}\\:{b[0]}\\:{c[0]}>")
+
+    if links:
+        #find urls last so the < escaping doesn't break it
+        for url in urls:
+            text = text.replace(escape_markdown(url), f"<{url}>")
+
+    return text
+
+def escape_markdown(text):
+    text = str(text)
+    for c in ["\\", "`", "*", "_", "~", "|", "{", ">"]:
+        text = text.replace(c, f"\\{c}")
+    return text.replace("@", "@\u200b")
