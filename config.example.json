@@ -3,6 +3,8 @@
 	"sentry_dsn": "",
 	"log_channel": 0,
 	"cogs": [
-		"Basic"
+		"Basic",
+		"Bugs",
+		"Welcomer"
 	]
 }
