@@ -77,7 +77,7 @@ if __name__ == '__main__':
     if dsn != '':
         sentry_sdk.init(dsn, before_send=before_send)
 
-    skybot = Skybot(command_prefix="?", case_insensitive=True, guild_subscriptions=False)
+    skybot = Skybot(command_prefix="?", case_insensitive=True)
 
     Utils.BOT = skybot
 
