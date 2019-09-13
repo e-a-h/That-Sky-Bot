@@ -1,12 +1,13 @@
 from discord import Message, Member, client
 from discord.ext import commands
-from discord.ext.commands import Context
+from discord.ext.commands import Context, command
 
 from cogs.BaseCog import BaseCog
 from utils import Configuration, Logging
 
 
 class Welcomer(BaseCog):
+    @command()
     async def welcome(self, ctx: Context):
         """welcomer_help"""
         txt = Configuration.get_var("welcome_msg")
@@ -18,9 +19,13 @@ class Welcomer(BaseCog):
         print(message)
 
     @commands.Cog.listener()
-    async def on_member_join(member: Member):
-        message = "it looks like {} has joined".format(member.mention)
-        Logging.info(message)
+    async def on_member_join(self, member):
+        print('{} joined'.format(member.mention))
+        # channel = member.guild.system_channel
+        # message = 'it looks like {} has joined'.format(member.mention)
+        # Logging.info(message)
+        # if channel is not None:
+        #     await channel.send(message)
 
 
 def setup(bot):
