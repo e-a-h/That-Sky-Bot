@@ -1,4 +1,4 @@
-from discord import Message, Member, client
+from discord import Message
 from discord.ext import commands
 from discord.ext.commands import Context, command
 
@@ -12,7 +12,8 @@ class Welcomer(BaseCog):
         """welcomer_help"""
         txt = Configuration.get_var("welcome_msg")
         Logging.info(ctx)
-        await ctx.send(txt.format(ctx.author.mention))
+        rules = self.bot.get_channel(Configuration.get_var('rules_channel'))
+        await ctx.send(txt.format(ctx.author.mention, rules.mention))
 
     @commands.Cog.listener()
     async def on_message(self, message: Message):
@@ -20,12 +21,14 @@ class Welcomer(BaseCog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        print('{} joined'.format(member.mention))
-        # channel = member.guild.system_channel
-        # message = 'it looks like {} has joined'.format(member.mention)
-        # Logging.info(message)
-        # if channel is not None:
-        #     await channel.send(message)
+        channel = member.guild.system_channel
+        txt = Configuration.get_var("welcome_msg")
+        rules_channel = self.bot.get_channel(Configuration.get_var('rules_channel'))
+        welcome_channel = self.bot.get_channel(Configuration.get_var('welcome_channel'))
+        txt = txt.format(member.mention, rules_channel.mention)
+        Logging.info(txt)
+        if welcome_channel is not None:
+            await welcome_channel.send(txt)
 
 
 def setup(bot):
