@@ -1,0 +1,25 @@
+on:
+  push:
+    branches:
+      - master
+name: Deploy thatskybot
+jobs:
+  deploy:
+    name: Deploy thatskybot
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - name: Executing remote ssh commands
+      uses: AEnterprise/execute-ssh@master
+      env:
+        DEPLOY_KEY: ${{ secrets.KEY }}
+        SERVER_CONNECTION_STRING: ${{ secrets.SERVER_CONNECTION_STRING }}
+        COMMAND: "cd ~/That-Sky-Bot && /usr/bin/git pull && sudo /bin/systemctl stop skybot.service && sudo /bin/systemctl start skybot.service && sleep 60s && /bin/systemctl is-active --quiet skybot.service"
+        PORT: ${{ secrets.PORT }}
+    - name: Send discord notification
+      uses: AEnterprise/discord-webhook@master
+      env:
+        DATA: '{"content": "Skybot deployment failed catastrophically and died, poking <@106354106196570112> and <@295762764234752000> to hit things with a wrench!"}'
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      if: failure()
+²
