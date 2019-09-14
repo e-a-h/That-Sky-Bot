@@ -1,3 +1,5 @@
+import asyncio
+import signal
 import time
 from datetime import datetime
 
@@ -7,7 +9,7 @@ from discord.ext.commands import Bot
 from aiohttp import ClientOSError, ServerDisconnectedError
 from discord import ConnectionClosed, Embed, Colour
 
-from utils import Logging, Configuration, Utils, Emoji
+from utils import Logging, Configuration, Utils, Emoji, Database
 
 
 class Skybot(Bot):
@@ -77,9 +79,18 @@ if __name__ == '__main__':
     if dsn != '':
         sentry_sdk.init(dsn, before_send=before_send)
 
+    Database.init()
+
     skybot = Skybot(command_prefix=Configuration.get_var("bot_prefix"), case_insensitive=True)
 
     Utils.BOT = skybot
+
+    try:
+        for signame in ('SIGINT', 'SIGTERM'):
+            asyncio.get_event_loop().add_signal_handler(getattr(signal, signame),
+                                                        lambda: asyncio.ensure_future(Utils.shutdown(signame)))
+    except Exception:
+        pass  # doesn't work on windows
 
     skybot.run(Configuration.get_var("token"))
     Logging.info("Shutdown complete")

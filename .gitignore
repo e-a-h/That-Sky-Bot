@@ -107,3 +107,4 @@ venv.bak/
 .idea
 config.json
 logs
+persistent.json
