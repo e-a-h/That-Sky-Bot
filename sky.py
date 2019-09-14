@@ -31,6 +31,18 @@ class Skybot(Bot):
 
         await Logging.bot_log("Sky bot soaring through the skies!")
 
+    async def close(self):
+        await Logging.bot_log(f"Skybot shutting down!")
+        temp = []
+        for cog in self.cogs:
+            temp.append(cog)
+        for cog in temp:
+            c = self.get_cog(cog)
+            if hasattr(c, "shutdown"):
+                await c.shutdown()
+            self.unload_extension(f"cogs.{cog}")
+        return await super().close()
+
     async def on_command_error(bot, ctx: commands.Context, error):
         if isinstance(error, commands.BotMissingPermissions):
             await ctx.send(error)
@@ -81,16 +93,20 @@ if __name__ == '__main__':
 
     Database.init()
 
-    skybot = Skybot(command_prefix=Configuration.get_var("bot_prefix"), case_insensitive=True)
+    loop = asyncio.get_event_loop()
+
+    skybot = Skybot(command_prefix=Configuration.get_var("bot_prefix"), case_insensitive=True, loop=loop)
 
     Utils.BOT = skybot
 
-    try:
-        for signame in ('SIGINT', 'SIGTERM'):
-            asyncio.get_event_loop().add_signal_handler(getattr(signal, signame),
-                                                        lambda: asyncio.ensure_future(Utils.shutdown(signame)))
-    except Exception:
-        pass  # doesn't work on windows
 
-    skybot.run(Configuration.get_var("token"))
+    try:
+        loop.run_until_complete(skybot.start(Configuration.get_var("token")))
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if not skybot.is_closed():
+            loop.run_until_complete(skybot.close())
+        loop.close()
+
     Logging.info("Shutdown complete")

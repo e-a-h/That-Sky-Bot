@@ -264,16 +264,3 @@ def fetch_from_disk(filename, alternative=None):
 def save_to_disk(filename, dict):
     with open(f"{filename}.json", "w", encoding="UTF-8") as file:
         json.dump(dict, file, indent=4, skipkeys=True, sort_keys=True)
-
-
-async def shutdown(trigger):
-    await Logging.bot_log(f"Shutdown triggered by {trigger}.")
-    temp = []
-    for cog in BOT.cogs:
-        temp.append(cog)
-    for cog in temp:
-        c = BOT.get_cog(cog)
-        if hasattr(c, "shutdown"):
-            await c.shutdown()
-        BOT.unload_extension(f"cogs.{cog}")
-    await BOT.close()

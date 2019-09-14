@@ -69,7 +69,7 @@ class Reload(BaseCog):
     async def restart(self, ctx):
         """Restarts the bot"""
         await ctx.send("Restarting...")
-        await Utils.shutdown(ctx.author)
+        await self.bot.close()
 
 
 def setup(bot):
