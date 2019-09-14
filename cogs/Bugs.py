@@ -110,7 +110,7 @@ class Bugs(BaseCog):
         async def send_report():
             # save report in the database
             br = BugReport.create(reporter=user.id, platform=platform, platform_version=platform_version, branch=branch,
-                                  app_version=app_version, title=title, steps=steps, expected=expected, actual=actual,
+                                  app_version=app_version, title=title, steps=steps, expected=expected,
                                   additional=additional)
             for a in attachment_links:
                 Attachements.create(report=br, url=a)
@@ -165,7 +165,11 @@ Are you ready to proceed?
 
                 # question 4: sky app version
                 app_version = await Questions.ask_text(self.bot, channel, user,
-                                                       "What version of the sky app where you using when you experienced the bug?",
+                                                       "What version of the sky app were you using when you experienced the bug?",
+                                                       validator=verify_version)
+
+                app_build = await Questions.ask_text(self.bot, channel, user,
+                                                       "What build number of the sky app were you using?",
                                                        validator=verify_version)
 
                 # question 5: short description
@@ -181,10 +185,6 @@ Are you ready to proceed?
                 expected = await Questions.ask_text(self.bot, channel, user,
                                                     "When following the steps above, what did you expect to happen?",
                                                     validator=max_length(100))
-
-                actual = await Questions.ask_text(self.bot, channel, user,
-                                                  "When following the steps above, what happened instead?",
-                                                  validator=max_length(100))
 
                 await Questions.ask(self.bot, channel, user,
                                     "Do you have any **additional info** to add to this report?",
@@ -211,25 +211,31 @@ Are you ready to proceed?
                 # assemble the report
                 report = Embed()
                 report.set_author(name=f"{user} ({user.id})", icon_url=user.avatar_url_as(size=32))
-                report.add_field(name="Short description", value=title, inline=False)
-                report.add_field(name="Steps to reproduce", value=steps, inline=False)
-                report.add_field(name="Expected outcome", value=expected)
-                report.add_field(name="Reality", value=actual)
-                report.add_field(name=f"{platform} version", value=platform_version)
+
+                report.add_field(name="Platform", value=f"{platform} {platform_version}")
                 report.add_field(name="Sky app version", value=app_version)
+                report.add_field(name="Sky app build", value=app_build)
+                report.add_field(name="Title/Topic", value=title, inline=False)
+                report.add_field(name="Description & steps to reproduce", value=steps, inline=False)
+                report.add_field(name="Expected outcome", value=expected)
                 if additional:
-                    report.add_field(name="Additional information", value=additional_text)
+                    report.add_field(name="Additional information", value=additional_text, inline=False)
                 if attachments:
                     report.add_field(name="Attachment(s)", value="\n".join(attachment_links))
 
-                await channel.send(embed=report)
+                # TODO: get bug id from database (latest id+1) and format so it's easy to search
+                await channel.send(content=f"**Bug Report # {1} - submitted by {user.mention}**", embed=report)
+
+                # TODO: detect video attachment and send it outside the embed
+                # TODO: add formatted bug report ID to this message as well
+                # txt = '**Attachment to report #12345**\n https://cdn.discordapp.com/attachments/620772242883739678/622203403115692052/Screenrecorder-2019-09-13-18-46-42-51800.mp4'
+                # await channel.send(txt)
 
                 await Questions.ask(self.bot, channel, user, "Does the above report look alright?",
                                     [
                                         Questions.Option("YES", "Yes, send this report", send_report),
                                         Questions.Option("NO", "Nope, i made a mistake. Start over", restart)
                                     ])
-
 
 
             else:

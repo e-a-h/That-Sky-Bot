@@ -4,7 +4,7 @@ from collections import namedtuple
 
 from discord import Embed, Reaction
 
-from utils import Emoji, Utils
+from utils import Emoji, Utils, Configuration
 
 Option = namedtuple("Option", "emoji text handler", defaults=(None, None, None))
 
@@ -36,7 +36,14 @@ async def ask(bot, channel, author, text, options, timeout=60, show_embed=False)
             h()
 
 
-async def ask_text(bot, channel, user, text, validator=None, timeout=300, confirm=True):
+async def ask_text(
+        bot,
+        channel,
+        user,
+        text,
+        validator=None,
+        timeout=Configuration.get_var("question_timeout_seconds"),
+        confirm=True):
 
     def check(message):
         return user == message.author and message.channel == channel
@@ -72,8 +79,13 @@ async def ask_text(bot, channel, user, text, validator=None, timeout=300, confir
     return content
 
 
-
-async def ask_attachements(bot, channel, user, timeout=300, confirm=True, max=3):
+async def ask_attachements(
+        bot,
+        channel,
+        user,
+        timeout=Configuration.get_var("question_timeout_seconds"),
+        confirm=True,
+        max=Configuration.get_var('max_attachments')):
     def check(message):
         return user == message.author and message.channel == channel
 
@@ -102,8 +114,8 @@ async def ask_attachements(bot, channel, user, timeout=300, confirm=True, max=3)
                     links = Utils.URL_MATCHER.findall(message.content)
                     attachment_links = [str(a.url) for a in message.attachments]
                     if len(links) is not 0 or len(message.attachments) is not 0:
-                        if (len(links) + len(message.attachments)) > 3:
-                            await channel.send("You can only add up to 3 attachments")
+                        if (len(links) + len(message.attachments)) > max:
+                            await channel.send(f"You can only add up to {max} attachments")
                         else:
                             final_attachments += links + attachment_links
                             count += len(links) + len(attachment_links)
