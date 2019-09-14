@@ -103,7 +103,8 @@ if __name__ == '__main__':
     Utils.BOT = skybot
 
     try:
-        loop.add_signal_handler(signal.SIGTERM, lambda: asyncio.ensure_future(skybot.close()))
+        for signame in ('SIGINT', 'SIGTERM'):
+           loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(skybot.close()))
     except NotImplementedError:
         pass
 
