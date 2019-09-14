@@ -22,4 +22,3 @@ jobs:
         DATA: '{"content": "Skybot deployment failed catastrophically and died, poking <@106354106196570112> and <@295762764234752000> to hit things with a wrench!"}'
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
       if: failure()
-²
