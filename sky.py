@@ -14,6 +14,7 @@ from utils import Logging, Configuration, Utils, Emoji, Database
 
 class Skybot(Bot):
     loaded = False
+    shutting_down = False
 
     async def on_ready(self):
         if not self.loaded:
@@ -32,15 +33,17 @@ class Skybot(Bot):
         await Logging.bot_log("Sky bot soaring through the skies!")
 
     async def close(self):
-        await Logging.bot_log(f"Skybot shutting down!")
-        temp = []
-        for cog in self.cogs:
-            temp.append(cog)
-        for cog in temp:
-            c = self.get_cog(cog)
-            if hasattr(c, "shutdown"):
-                await c.shutdown()
-            self.unload_extension(f"cogs.{cog}")
+        if not self.shutting_down:
+            self.shutting_down = True
+            await Logging.bot_log(f"Skybot shutting down!")
+            temp = []
+            for cog in self.cogs:
+                temp.append(cog)
+            for cog in temp:
+                c = self.get_cog(cog)
+                if hasattr(c, "shutdown"):
+                    await c.shutdown()
+                self.unload_extension(f"cogs.{cog}")
         return await super().close()
 
     async def on_command_error(bot, ctx: commands.Context, error):
@@ -100,7 +103,8 @@ if __name__ == '__main__':
     Utils.BOT = skybot
 
     try:
-        loop.add_signal_handler(signal.SIGTERM, lambda: asyncio.ensure_future(skybot.close()))
+        for signame in ('SIGINT', 'SIGTERM'):
+           loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(skybot.close()))
     except NotImplementedError:
         pass
 
