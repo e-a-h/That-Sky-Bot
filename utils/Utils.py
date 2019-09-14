@@ -1,8 +1,10 @@
+import json
 import re
 import time
 import traceback
 from collections import OrderedDict, namedtuple
 from datetime import datetime
+from json import JSONDecodeError
 
 import discord
 import sentry_sdk
@@ -17,9 +19,11 @@ ID_MATCHER = re.compile("<@!?([0-9]+)>")
 ROLE_ID_MATCHER = re.compile("<@&([0-9]+)>")
 CHANNEL_ID_MATCHER = re.compile("<#([0-9]+)>")
 MENTION_MATCHER = re.compile("<@[!&]?\\d+>")
-URL_MATCHER = re.compile(r'((?:https?://)[a-z0-9]+(?:[-._][a-z0-9]+)*\.[a-z]{2,5}(?::[0-9]{1,5})?(?:/[^ \n<>]*)?)', re.IGNORECASE)
+URL_MATCHER = re.compile(r'((?:https?://)[a-z0-9]+(?:[-._][a-z0-9]+)*\.[a-z]{2,5}(?::[0-9]{1,5})?(?:/[^ \n<>]*)?)',
+                         re.IGNORECASE)
 EMOJI_MATCHER = re.compile('<(a?):([^: \n]+):([0-9]+)>')
 NUMBER_MATCHER = re.compile(r"\d+")
+
 
 def extract_info(o):
     info = ""
@@ -147,8 +151,10 @@ def trim_message(message, limit):
         return message
     return f"{message[:limit - 3]}..."
 
+
 known_invalid_users = []
 user_cache = OrderedDict()
+
 
 async def get_user(uid, fetch=True):
     UserClass = namedtuple("UserClass", "name id discriminator bot avatar_url created_at is_avatar_animated mention")
@@ -169,10 +175,12 @@ async def get_user(uid, fetch=True):
                 return None
     return user
 
+
 def clean_user(user):
     if user is None:
         return "UNKNOWN USER"
     return f"{escape_markdown(user.name)}#{user.discriminator}"
+
 
 async def username(uid, fetch=True, clean=True):
     user = await get_user(uid, fetch)
@@ -182,6 +190,7 @@ async def username(uid, fetch=True, clean=True):
         return clean_user(user)
     else:
         return f"{user.name}#{user.discriminator}"
+
 
 async def clean(text, guild=None, markdown=True, links=True, emoji=True):
     text = str(text)
@@ -225,14 +234,46 @@ async def clean(text, guild=None, markdown=True, links=True, emoji=True):
             text = text.replace(f"<{a[0]}:{b[0]}:{c[0]}>", f"<{a[0]}\\:{b[0]}\\:{c[0]}>")
 
     if links:
-        #find urls last so the < escaping doesn't break it
+        # find urls last so the < escaping doesn't break it
         for url in urls:
             text = text.replace(escape_markdown(url), f"<{url}>")
 
     return text
+
 
 def escape_markdown(text):
     text = str(text)
     for c in ["\\", "`", "*", "_", "~", "|", "{", ">"]:
         text = text.replace(c, f"\\{c}")
     return text.replace("@", "@\u200b")
+
+
+def fetch_from_disk(filename, alternative=None):
+    try:
+        with open(f"{filename}.json", encoding="UTF-8") as file:
+            return json.load(file)
+    except FileNotFoundError:
+        if alternative is not None:
+            return fetch_from_disk(alternative)
+    except JSONDecodeError:
+        if alternative is not None:
+            return fetch_from_disk(alternative)
+    return dict()
+
+
+def save_to_disk(filename, dict):
+    with open(f"{filename}.json", "w", encoding="UTF-8") as file:
+        json.dump(dict, file, indent=4, skipkeys=True, sort_keys=True)
+
+
+async def shutdown(trigger):
+    await Logging.bot_log(f"Shutdown triggered by {trigger}.")
+    temp = []
+    for cog in BOT.cogs:
+        temp.append(cog)
+    for cog in temp:
+        c = BOT.get_cog(cog)
+        if hasattr(c, "shutdown"):
+            await c.shutdown()
+        BOT.unload_extension(f"cogs.{cog}")
+    await BOT.close()

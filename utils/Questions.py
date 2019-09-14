@@ -85,7 +85,7 @@ async def ask_attachements(bot, channel, user, timeout=300, confirm=True, max=3)
 
     while not done:
         ask_again = True
-        final_attachments = ""
+        final_attachments = []
         count = 0
 
         def confirmed():
@@ -100,13 +100,12 @@ async def ask_attachements(bot, channel, user, timeout=300, confirm=True, max=3)
                 while True:
                     message = await bot.wait_for('message', timeout=timeout, check=check)
                     links = Utils.URL_MATCHER.findall(message.content)
-                    link_text = "\n".join(links)
-                    attachment_links = "\n".join(str(a.url) for a in message.attachments)
+                    attachment_links = [str(a.url) for a in message.attachments]
                     if len(links) is not 0 or len(message.attachments) is not 0:
                         if (len(links) + len(message.attachments)) > 3:
                             await channel.send("You can only add up to 3 attachments")
                         else:
-                            final_attachments += f"{link_text}\n{attachment_links}"
+                            final_attachments += links + attachment_links
                             count += len(links) + len(attachment_links)
                             break
                     else:

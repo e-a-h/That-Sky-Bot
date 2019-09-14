@@ -1,9 +1,11 @@
 import json
 
-from utils import Logging
+from utils import Logging, Utils
 
 MASTER_CONFIG = dict()
 MASTER_LOADED = False
+PERSISTENT = dict()
+PERSISTENT_LOADED = False
 
 def save():
     global MASTER_CONFIG
@@ -34,3 +36,20 @@ def get_var(key, default=None):
         MASTER_CONFIG[key] = default
         save()
     return MASTER_CONFIG[key]
+
+
+def load_persistent():
+    global PERSISTENT_LOADED, PERSISTENT
+    PERSISTENT = Utils.fetch_from_disk('persistent')
+    PERSISTENT_LOADED = True
+
+
+def get_persistent_var(key, default=None):
+    if not PERSISTENT_LOADED:
+        load_persistent()
+    return PERSISTENT[key] if key in PERSISTENT else default
+
+
+def set_persistent_var(key, value):
+    PERSISTENT[key] = value
+    Utils.save_to_disk("persistent", PERSISTENT)

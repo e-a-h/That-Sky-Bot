@@ -4,7 +4,7 @@ import os
 from discord.ext import commands
 
 from cogs.BaseCog import BaseCog
-from utils import Logging, Emoji, Reloader
+from utils import Logging, Emoji, Reloader, Utils
 
 
 class Reload(BaseCog):
@@ -63,6 +63,13 @@ class Reload(BaseCog):
             self.bot.load_extension(f"cogs.{cog}")
             Logging.info(f'{cog} has been loaded.')
         await message.edit(content="Hot reload complete")
+
+
+    @commands.command(hidden=True)
+    async def restart(self, ctx):
+        """Restarts the bot"""
+        await ctx.send("Restarting...")
+        await Utils.shutdown(ctx.author)
 
 
 def setup(bot):
