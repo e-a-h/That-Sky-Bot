@@ -42,6 +42,10 @@ class Bugs(BaseCog):
             else:
                 await message.delete()
         message = await channel.send(Lang.get_string("bug_info"))
+        bugemoji = Emoji.get_emoji('BUG')
+        await message.add_reaction(bugemoji)
+        # TODO: wait for reaction. trigger bug report
+        # user = await self.bot.wait_for('reaction_add')
         Configuration.set_persistent_var(f"{key}_message", message.id)
 
     @command()
