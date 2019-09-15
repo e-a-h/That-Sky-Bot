@@ -1,4 +1,4 @@
 {
-	"bug_info": "In this channel you will find bugs already reported by others, click the reaction to report a bug yourself. Or if someone already reported it you can click the CR and CNR reactions to add that you can also reproduce or not reproduce that bug",
+	"bug_info": "```In this channel you will find bugs already reported by others, click the reaction to report a bug yourself. Or if someone already reported it you can click the CR and CNR reactions to add that you can also reproduce or not reproduce that bug```",
 	"shutdown_message": "This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug"
 }

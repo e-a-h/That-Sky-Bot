@@ -111,6 +111,7 @@ class Bugs(BaseCog):
 
         async def send_report():
             # save report in the database
+            # TODO: send attachment message id to db?
             br = BugReport.create(reporter=user.id, platform=platform, platform_version=platform_version, branch=branch,
                                   app_version=app_version, title=title, steps=steps, expected=expected,
                                   additional=additional)
@@ -118,15 +119,19 @@ class Bugs(BaseCog):
                 Attachements.create(report=br, url=a)
 
             # send report
-            c = Configuration.get_var("channels")[f"{platform}_{branch}".lower()]
+            channel_name = f"{platform}_{branch}".lower()
+            c = Configuration.get_var("channels")[channel_name]
             message = await self.bot.get_channel(c).send(content=member_mention, embed=report)
-            attachment = await self.bot.get_channel(c).send(attachment_message)
-            br.attachment_id = attachment.id
+            if attachment_message:
+                attachment = await self.bot.get_channel(c).send(attachment_message)
+                br.attachment_message_id = attachment.id
             br.message_id = message.id
             br.save()
             await message.edit(content=member_mention.replace("##", f'#{br.id}'))
-            await attachment.edit(content=attachment_message.replace("##", f'#{br.id}'))
+            if attachment_message:
+                await attachment.edit(content=attachment_message.replace("##", f'#{br.id}'))
             await channel.send(f"Thank you! Your report was successfully sent and can be found in <#{c}>!")
+            await self.send_bug_info(channel_name)
 
         async def restart():
             await self.report_bug(user, trigger_channel)
@@ -255,16 +260,14 @@ Do you have any attachments to add to this report?""",
                 # if attachments:
                 #     report.add_field(name="Attachment(s)", value="\n".join(attachment_links))
 
-                # TODO: get bug id from database (latest id+1) and format so it's easy to search
                 member_mention = f"**Bug Report ## - submitted by {user.mention}**"
                 await channel.send(content=member_mention, embed=report)
 
-                # TODO: detect video attachment and send it outside the embed
-                # TODO: add formatted bug report ID to this message as well
-                attachment_message = '**Attachment to report ##**\n'
-                for a in attachment_links:
-                    attachment_message += f"{a}\n"
-                await channel.send(attachment_message)
+                if attachment_links:
+                    attachment_message = '**Attachment to report ##**\n'
+                    for a in attachment_links:
+                        attachment_message += f"{a}\n"
+                    await channel.send(attachment_message)
 
                 await Questions.ask(self.bot, channel, user, "Does the above report look alright?",
                                     [

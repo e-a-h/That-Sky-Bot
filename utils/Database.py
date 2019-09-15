@@ -13,6 +13,7 @@ class BugReport(Model):
     id = AutoField()
     reporter = BigIntegerField()
     message_id = BigIntegerField(unique=True, null=True)
+    attachment_message_id = BigIntegerField(unique=True, null=True)
     platform = CharField(10)
     platform_version = CharField(20)
     branch = CharField(10)
