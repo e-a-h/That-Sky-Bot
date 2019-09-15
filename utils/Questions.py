@@ -43,7 +43,7 @@ async def ask_text(
         text,
         validator=None,
         timeout=Configuration.get_var("question_timeout_seconds"),
-        confirm=True):
+        confirm=False):
 
     def check(message):
         return user == message.author and message.channel == channel
@@ -75,6 +75,8 @@ async def ask_text(
                     Option("YES", handler=confirmed),
                     Option("NO")
                 ])
+            else:
+                confirmed()
 
     return content
 
