@@ -12,7 +12,8 @@ BACKUPS = {
     "NO": "🚫",
     "STABLE": "🌞",
     "WRENCH": "🔧",
-    "YES": "✅"
+    "YES": "✅",
+    "CANDLE": "🕯️"
 }
 
 

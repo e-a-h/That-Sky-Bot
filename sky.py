@@ -1,7 +1,5 @@
 import asyncio
 import signal
-import time
-from datetime import datetime
 
 import sentry_sdk
 from discord.ext import commands
@@ -9,6 +7,7 @@ from discord.ext.commands import Bot
 from aiohttp import ClientOSError, ServerDisconnectedError
 from discord import ConnectionClosed, Embed, Colour
 
+from cogs import Welcomer
 from utils import Logging, Configuration, Utils, Emoji, Database
 
 
@@ -31,6 +30,7 @@ class Skybot(Bot):
             self.loaded = True
 
         await Logging.bot_log("Sky bot soaring through the skies!")
+        asyncio.create_task(Welcomer.init_rules_reaction(self))
 
     async def close(self):
         if not self.shutting_down:
@@ -107,7 +107,6 @@ if __name__ == '__main__':
            loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(skybot.close()))
     except NotImplementedError:
         pass
-
 
     try:
         loop.run_until_complete(skybot.start(Configuration.get_var("token")))
