@@ -5,7 +5,7 @@ from utils import Configuration
 EMOJI = dict()
 
 BACKUPS = {
-    "ANDROID": "📱",
+    "ANDROID": "🤖",
     "BETA": "🌙",
     "BUG": "🐛",
     "IOS": "🍎",

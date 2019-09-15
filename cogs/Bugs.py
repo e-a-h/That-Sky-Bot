@@ -63,7 +63,9 @@ class Bugs(BaseCog):
         additional_text = ""
         attachments = False
         attachment_links = []
+        attachment_message = ""
         report = None
+        member_mention = ""
 
         # define all the parts we need as inner functions for easier sinfulness
 
@@ -109,18 +111,27 @@ class Bugs(BaseCog):
 
         async def send_report():
             # save report in the database
+            # TODO: send attachment message id to db?
             br = BugReport.create(reporter=user.id, platform=platform, platform_version=platform_version, branch=branch,
-                                  app_version=app_version, title=title, steps=steps, expected=expected, actual=actual,
+                                  app_version=app_version, title=title, steps=steps, expected=expected,
                                   additional=additional)
             for a in attachment_links:
                 Attachements.create(report=br, url=a)
 
             # send report
-            c = Configuration.get_var("channels")[f"{platform}_{branch}".lower()]
-            message = await self.bot.get_channel(c).send(embed=report)
+            channel_name = f"{platform}_{branch}".lower()
+            c = Configuration.get_var("channels")[channel_name]
+            message = await self.bot.get_channel(c).send(content=member_mention, embed=report)
+            if attachment_message:
+                attachment = await self.bot.get_channel(c).send(attachment_message)
+                br.attachment_message_id = attachment.id
             br.message_id = message.id
             br.save()
-            await channel.send(f"Your report was successfully send and can be found in <#{c}>!")
+            await message.edit(content=member_mention.replace("##", f'#{br.id}'))
+            if attachment_message:
+                await attachment.edit(content=attachment_message.replace("##", f'#{br.id}'))
+            await channel.send(f"Thank you! Your report was successfully sent and can be found in <#{c}>!")
+            await self.send_bug_info(channel_name)
 
         async def restart():
             await self.report_bug(user, trigger_channel)
@@ -128,14 +139,18 @@ class Bugs(BaseCog):
         try:
 
             await Questions.ask(self.bot, channel, user,
-                                """You found a bug? Ouch, that's never fun. Next i will ask you some questions to help the devs look into it. For this i will need a few things:
-- Device info like model and android/ios version (this can be found in device settings)
-- Version of the Sky app, this can be found in ...
-- Information about the bug itself, what you expected to happen, what really happened and how to make it happen.
+                                """```css
+Report a Bug```
+Help me collect the following information. It will be *very helpful* in identifying, reproducing, and fixing bugs:
+- Device type
+- Operating System Version
+- Sky App Type
+- Version of the Sky app
+- Description of the problem, and how to reproduce it
+- Additional Information
+- Attachment(s)
 
-If you don't know the info above like version numbers it is highly recommended to look it up before continuing.
-
-Are you ready to proceed? 
+Ready to get started?
 """,  # TODO: can this be found in the app itself or need instructions per OS?
                                 [
                                     Questions.Option("YES"),
@@ -143,7 +158,10 @@ Are you ready to proceed?
                                 ])
             if asking:
                 # question 1: android or ios?
-                await Questions.ask(self.bot, channel, user, "Are you using Android or iOS?",
+                await Questions.ask(self.bot, channel, user, """```css
+Device Type```
+To get started, tell me if you are using Android or iOS?
+""",
                                     [
                                         Questions.Option("ANDROID", "Android", lambda: set_platform("Android")),
                                         Questions.Option("IOS", "iOS", lambda: set_platform("iOS"))
@@ -151,43 +169,60 @@ Are you ready to proceed?
 
                 # question 2: android/ios version
 
-                platform_version = await Questions.ask_text(self.bot, channel, user,
-                                                            f"What {platform} version do you use?",
+                platform_version = await Questions.ask_text(self.bot, channel, user, f"""```css
+Operating System Version```
+What {platform} version do you use? This can be found in device settings.
+""",
                                                             validator=verify_version)
 
                 # question 3: stable or beta?
-                await Questions.ask(self.bot, channel, user,
-                                    "Are you using the stable version or a beta version? If you don't know what beta is you are probably using the stable version",
+                await Questions.ask(self.bot, channel, user, f"""```css
+Sky App Type```
+Are you using the Live game or a Beta version? The beta version is installed through TestFlight on iOS or Google Groups on Android. If you are unsure, then choose [:sun_with_face: Live].
+""",
                                     [
-                                        Questions.Option("STABLE", "Stable", lambda: set_branch("Stable")),
+                                        Questions.Option("STABLE", "Live", lambda: set_branch("Stable")),
                                         Questions.Option("BETA", "Beta", lambda: set_branch("Beta"))
                                     ], show_embed=True)
 
                 # question 4: sky app version
-                app_version = await Questions.ask_text(self.bot, channel, user,
-                                                       "What version of the sky app where you using when you experienced the bug?",
-                                                       validator=verify_version)
+                app_version = await Questions.ask_text(self.bot, channel, user, """```css
+Sky App Version Number```
+What version of the sky app where you using when you experienced the bug?
+# TODO: instructions
+""", validator=verify_version)
+
+                app_build = await Questions.ask_text(self.bot, channel, user, """```css
+Sky App Build Number```
+What build of the sky app where you using when you experienced the bug?
+# TODO: instructions
+""", validator=verify_version)
 
                 # question 5: short description
-                title = await Questions.ask_text(self.bot, channel, user,
-                                                 "Please describe describe your bug in a single sentece. This serves as a 'title' for your bug, you can add more detailed info in the questions after this one.",
-                                                 validator=max_length(200))
+                title = await Questions.ask_text(self.bot, channel, user, """```css
+Title/Topic
+```
+Provide a brief title or topic for your bug.
+""", validator=max_length(200))
 
-                steps = await Questions.ask_text(self.bot, channel, user, """What steps do you need to take to triger the bug? Please specify them as below in a single message to improve readablity
-- step 1
+                steps = await Questions.ask_text(self.bot, channel, user, """```css
+How to Reproduce the Bug```
+How did the bug occur? Provide a description that will help us rebproduce the problem, if possible in easily reproducible steps. Example:
+```- step 1
 - step 2
-- step 3""", validator=max_length(1024))
+- step 3```
+""", validator=max_length(1024))
 
-                expected = await Questions.ask_text(self.bot, channel, user,
-                                                    "When following the steps above, what did you expect to happen?",
-                                                    validator=max_length(100))
+                expected = await Questions.ask_text(self.bot, channel, user, """```css
+Expectation
+``` 
+When following the steps above, what did you expect to happen?
+""", validator=max_length(100))
 
-                actual = await Questions.ask_text(self.bot, channel, user,
-                                                  "When following the steps above, what happened instead?",
-                                                  validator=max_length(100))
-
-                await Questions.ask(self.bot, channel, user,
-                                    "Do you have any **additional info** to add to this report?",
+                await Questions.ask(self.bot, channel, user, """```css
+Additional Information
+``` 
+Do you have any additional info to add to this report?""",
                                     [
                                         Questions.Option("YES", handler=add_additional),
                                         Questions.Option("NO")
@@ -198,8 +233,10 @@ Are you ready to proceed?
                                                                "Please send the additional info to add to the report",
                                                                validator=max_length(500))
 
-                await Questions.ask(self.bot, channel, user,
-                                    "Do you have any **attachments** to add to this report?",
+                await Questions.ask(self.bot, channel, user, """```css
+Attachments
+``` 
+Do you have any attachments to add to this report?""",
                                     [
                                         Questions.Option("YES", handler=add_attachments),
                                         Questions.Option("NO")
@@ -211,26 +248,32 @@ Are you ready to proceed?
                 # assemble the report
                 report = Embed()
                 report.set_author(name=f"{user} ({user.id})", icon_url=user.avatar_url_as(size=32))
-                report.add_field(name="Short description", value=title, inline=False)
-                report.add_field(name="Steps to reproduce", value=steps, inline=False)
-                report.add_field(name="Expected outcome", value=expected)
-                report.add_field(name="Reality", value=actual)
-                report.add_field(name=f"{platform} version", value=platform_version)
-                report.add_field(name="Sky app version", value=app_version)
-                if additional:
-                    report.add_field(name="Additional information", value=additional_text)
-                if attachments:
-                    report.add_field(name="Attachment(s)", value="\n".join(attachment_links))
 
-                await channel.send(embed=report)
+                report.add_field(name="Platform", value=f"{platform} {platform_version}")
+                report.add_field(name="Sky app version", value=app_version)
+                report.add_field(name="Sky app build", value=app_build)
+                report.add_field(name="Title/Topic", value=title, inline=False)
+                report.add_field(name="Description & steps to reproduce", value=steps, inline=False)
+                report.add_field(name="Expected outcome", value=expected)
+                if additional:
+                    report.add_field(name="Additional information", value=additional_text, inline=False)
+                # if attachments:
+                #     report.add_field(name="Attachment(s)", value="\n".join(attachment_links))
+
+                member_mention = f"**Bug Report ## - submitted by {user.mention}**"
+                await channel.send(content=member_mention, embed=report)
+
+                if attachment_links:
+                    attachment_message = '**Attachment to report ##**\n'
+                    for a in attachment_links:
+                        attachment_message += f"{a}\n"
+                    await channel.send(attachment_message)
 
                 await Questions.ask(self.bot, channel, user, "Does the above report look alright?",
                                     [
                                         Questions.Option("YES", "Yes, send this report", send_report),
                                         Questions.Option("NO", "Nope, i made a mistake. Start over", restart)
                                     ])
-
-
 
             else:
                 return
