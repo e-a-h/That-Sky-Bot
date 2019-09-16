@@ -30,7 +30,6 @@ class Skybot(Bot):
             self.loaded = True
 
         await Logging.bot_log("Sky bot soaring through the skies!")
-        asyncio.create_task(Welcomer.init_rules_reaction(self))
 
     async def close(self):
         if not self.shutting_down:
