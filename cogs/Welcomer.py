@@ -8,13 +8,6 @@ from utils import Configuration, Logging, Emoji
 
 
 class Welcomer(BaseCog):
-    # @command()
-    # async def welcome(self, ctx: Context):
-    #     """welcomer_help"""
-    #     txt = Configuration.get_var("welcome_msg")
-    #     rules = self.bot.get_channel(Configuration.get_var('rules_channel'))
-    #     await ctx.send(txt.format(ctx.author.mention, rules.mention))
-
     @commands.Cog.listener()
     async def on_member_join(self, member):
         if member.guild.id == Configuration.get_var("guild_id"):
