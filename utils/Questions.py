@@ -9,7 +9,7 @@ from utils import Emoji, Utils, Configuration
 Option = namedtuple("Option", "emoji text handler", defaults=(None, None, None))
 
 
-async def ask(bot, channel, author, text, options, timeout=60, show_embed=False):
+async def ask(bot, channel, author, text, options, timeout=60, show_embed=False, delete_after=False):
     embed = Embed(color=0x68a910, description='\n'.join(f"{Emoji.get_chat_emoji(option.emoji)} {option.text}" for option in options))
     message = await channel.send(text, embed=embed if show_embed else None)
     handlers = dict()
@@ -24,9 +24,11 @@ async def ask(bot, channel, author, text, options, timeout=60, show_embed=False)
     try:
         reaction, user = await bot.wait_for('reaction_add', timeout=timeout, check=check)
     except asyncio.TimeoutError as ex:
-        await channel.send(f"🚫 Got no reaction within {timeout} seconds, aborting")
+        await channel.send(f"🚫 Got no reaction within {timeout} seconds, aborting", delete_after=10 if delete_after else None)
         raise ex
     else:
+        if delete_after:
+            await message.delete()
         h = handlers[str(reaction.emoji)]
         if h is None:
             return

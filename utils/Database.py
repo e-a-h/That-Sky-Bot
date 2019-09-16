@@ -18,11 +18,11 @@ class BugReport(Model):
     platform_version = CharField(20)
     branch = CharField(10)
     app_version = CharField(20)
-    title = CharField(200)
-    steps = CharField(1024)
-    expected = CharField(100)
-    actual = CharField(100)
-    additional = CharField(500)
+    title = CharField(200, collation="utf8mb4_general_ci")
+    steps = CharField(1024, collation="utf8mb4_general_ci")
+    expected = CharField(100, collation="utf8mb4_general_ci")
+    actual = CharField(100, collation="utf8mb4_general_ci")
+    additional = CharField(500, collation="utf8mb4_general_ci")
 
     class Meta:
         database = connection
@@ -30,7 +30,7 @@ class BugReport(Model):
 
 class Attachements(Model):
     id = AutoField()
-    url = CharField()
+    url = CharField(collation="utf8mb4_general_ci")
     report = ForeignKeyField(BugReport, backref="attachments")
 
     class Meta:
