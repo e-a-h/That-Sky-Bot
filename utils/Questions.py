@@ -61,7 +61,10 @@ async def ask_text(
         try:
             while True:
                 message = await bot.wait_for('message', timeout=timeout, check=check)
-                result = validator(message.content) if validator is not None else True
+                if message.content is None or message.content == "":
+                    result = "Attachments are not valid here. Please describe it using words"
+                else:
+                    result = validator(message.content) if validator is not None else True
                 if result is True:
                     break
                 else:

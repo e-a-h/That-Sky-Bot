@@ -135,7 +135,7 @@ class Bugs(BaseCog):
                 if len(Utils.NUMBER_MATCHER.findall(v)) is 0:
                     return "There don't appear to be any numbers in there"
                 if len(v) > 20:
-                    return "Whoa there, i just need a version number, not an entire love letter."
+                    return "Whoa there, I just need a version number, not an entire love letter."
                 return True
 
             def max_length(length):
