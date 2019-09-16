@@ -151,8 +151,8 @@ class Bugs(BaseCog):
                 br = BugReport.create(reporter=user.id, platform=platform, platform_version=platform_version,
                                       branch=branch, app_version=app_version, title=title, steps=steps,
                                       expected=expected, additional=additional_text)
-                for a in attachment_links:
-                    Attachements.create(report=br, url=a)
+                for url in attachment_links:
+                    Attachements.create(report=br, url=url)
 
                 # send report
                 channel_name = f"{platform}_{branch}".lower()
@@ -193,7 +193,7 @@ Ready to get started?
                 # question 1: android or ios?
                 await Questions.ask(self.bot, channel, user, """```css
 Device Type```
-To get started, tell me if you are using Android or iOS?
+Are you using Android or iOS?
 """,
                                     [
                                         Questions.Option("ANDROID", "Android", lambda: set_platform("Android")),
@@ -201,7 +201,6 @@ To get started, tell me if you are using Android or iOS?
                                     ], show_embed=True)
 
                 # question 2: android/ios version
-
                 platform_version = await Questions.ask_text(self.bot, channel, user, f"""```css
 Operating System Version```
 What {platform} version do you use? This can be found in device settings.
@@ -211,7 +210,7 @@ What {platform} version do you use? This can be found in device settings.
                 # question 3: stable or beta?
                 await Questions.ask(self.bot, channel, user, f"""```css
 Sky App Type```
-Are you using the Live game or a Beta version? The beta version is installed through TestFlight on iOS or Google Groups on Android. If you are unsure, then choose [:sun_with_face: Live].
+Are you using the Live game or a Beta version? The beta version is installed through TestFlight on iOS or Google Groups on Android. If you are unsure, then choose the Live version.
 """,
                                     [
                                         Questions.Option("STABLE", "Live", lambda: set_branch("Stable")),
@@ -225,33 +224,44 @@ What **version** of the sky app where you using when you experienced the bug?
 # TODO: instructions
 """, validator=verify_version)
 
+                #question 5: sky app build number
                 app_build = await Questions.ask_text(self.bot, channel, user, """```css
 Sky App Build Number```
 What **build** of the sky app where you using when you experienced the bug?
 # TODO: instructions
 """, validator=verify_version)
 
-                # question 5: short description
+                # question 6: Title
                 title = await Questions.ask_text(self.bot, channel, user, """```css
 Title/Topic
 ```
 Provide a brief title or topic for your bug.
 """, validator=max_length(200))
 
+                # question 7: "actual" - defect behavior
+                actual = await Questions.ask_text(self.bot, channel, user,"""```css
+Describe the bug
+```
+Describe the problem you experienced, what looked or worked the wrong way. I'll ask for steps to reproduce the problem next, so don't tell me *how* it happened yet."
+""", validator=max_length(100))
+
+                # question 8: steps to reproduce
                 steps = await Questions.ask_text(self.bot, channel, user, """```css
 How to Reproduce the Bug```
-How did the bug occur? Provide a description that will help us reproduce the problem, if possible in easily reproducible steps. Example:
+How did the bug occur? Provide steps that will help us reproduce the problem. Example:
 ```- step 1
 - step 2
 - step 3```
 """, validator=max_length(1024))
 
+                # question 9: expected behavior
                 expected = await Questions.ask_text(self.bot, channel, user, """```css
 Expectation
 ``` 
 When following the steps above, what did you expect to happen?
 """, validator=max_length(100))
 
+                # question 10: additional info
                 await Questions.ask(self.bot, channel, user, """```css
 Additional Information
 ``` 
@@ -266,6 +276,7 @@ Do you have any additional info to add to this report?""",
                                                                "Please send the additional info to add to the report",
                                                                validator=max_length(500))
 
+                #question 11: attachments
                 await Questions.ask(self.bot, channel, user, """```css
 Attachments
 ``` 
@@ -285,12 +296,12 @@ Do you have any attachments to add to this report?""",
                 report.add_field(name="Sky app version", value=app_version)
                 report.add_field(name="Sky app build", value=app_build)
                 report.add_field(name="Title/Topic", value=title, inline=False)
+                report.add_field(name="Bug description", value=actual, inline=False)
                 report.add_field(name="Description & steps to reproduce", value=steps, inline=False)
                 report.add_field(name="Expected outcome", value=expected)
                 if additional:
                     report.add_field(name="Additional information", value=additional_text, inline=False)
-                # if attachments:
-                #     report.add_field(name="Attachment(s)", value="\n".join(attachment_links))
+
                 await channel.send(content=f"**Bug Report ## - submitted by {user.mention}**", embed=report)
                 if attachment_links:
                     attachment_message = ''
@@ -307,7 +318,7 @@ Do you have any attachments to add to this report?""",
 
         except Forbidden:
             await trigger_channel.send(
-                "I was unable to DM you for questions about your bug, could you please (temp) allow DMs from this server and try again? You can enable this in the privacy settings, found in the server dropdown menu",
+                f"{user.mention}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.",
                 delete_after=30)
         except (asyncio.TimeoutError, CancelledError):
             del self.in_progress[user.id]
