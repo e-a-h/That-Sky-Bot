@@ -1,6 +1,10 @@
-from discord import Message, Reaction, TextChannel
+import asyncio
+
+import discord
+from discord import Message, Reaction, TextChannel, utils
 from discord.ext import commands
 from discord.ext.commands import Context, command
+from discord.utils import find
 
 from cogs.BaseCog import BaseCog
 from sky import Skybot
@@ -30,23 +34,21 @@ class Welcomer(BaseCog):
         if welcome_channel is not None:
             await welcome_channel.send(txt)
 
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, event):
+        emoji = Emoji.get_emoji("CANDLE")
+        react_user_id = event.user_id
+        user = discord.Client.get_user(self.bot, react_user_id)
+        rules_channel_id = Configuration.get_var('rules_channel')
+        rules_message_id = Configuration.get_var('rules_react_message_id')
+        rules_channel: TextChannel = self.bot.get_channel(rules_channel_id)
+        new_member_role_id = Configuration.get_var('new_member_role')
+        new_member_role = find(lambda r: r.id == new_member_role_id, rules_channel.guild.roles)
 
-async def init_rules_reaction(bot):
-    rules_channel_id = Configuration.get_var('rules_channel')
-    rules_message_id = Configuration.get_var('rules_react_message_id')
-    new_member_role = Configuration.get_var('new_member_role')
-    emoji = Emoji.get_emoji("CANDLE")
-    rules_channel: TextChannel = bot.get_channel(rules_channel_id)
-    rules_message: Message = await rules_channel.fetch_message(rules_message_id)
-
-    def check(reaction: Reaction, user):
-        return user != bot.user and str(reaction.emoji) == emoji and reaction.message.id == rules_message_id
-
-    while True:
-        reaction, user = await bot.wait_for('reaction_add', check=check)
-        if user:
-            user.add_roles(new_member_role)
-            Logging.info(f"{user.mention} added a reaction!")
+        if user != self.bot.user and str(event.emoji) == emoji and event.message_id == rules_message_id:
+            member = discord.utils.find(lambda u: u.id == react_user_id, rules_channel.guild.members)
+            await member.add_roles(new_member_role)
+            await Logging.bot_log(f"{member.mention} got past the bouncer!")
 
 
 def setup(bot):

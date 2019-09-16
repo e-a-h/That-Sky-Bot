@@ -17,7 +17,9 @@
     "max_attachments": 3,
     "log_channel": 0,
     "rules_channel": 0,
+    "rules_react_message_id": 0,
     "welcome_channel": 0,
+    "new_member_role": 0,
     "welcome_msg": "Welcome, {}! Please read through all the items posted in our {} channel. When you're done, click the :candle: emote at the end of the rules to join the community and gain access to the other channels.",
     "cogs": [
         "Basic",
