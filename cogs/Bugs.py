@@ -168,7 +168,7 @@ class Bugs(BaseCog):
                 await self.send_bug_info(channel_name)
 
             async def restart():
-                self.in_progress.remove(user.id)
+                del self.in_progress[user.id]
                 await self.report_bug(user, trigger_channel)
 
             await Questions.ask(self.bot, channel, user,
