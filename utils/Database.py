@@ -17,6 +17,7 @@ class BugReport(Model):
     platform_version = CharField(20)
     branch = CharField(10)
     app_version = CharField(20)
+    app_build = CharField(20, null=True)
     title = CharField(100, collation="utf8mb4_general_ci")
     steps = CharField(1024, collation="utf8mb4_general_ci")
     expected = CharField(200, collation="utf8mb4_general_ci")
