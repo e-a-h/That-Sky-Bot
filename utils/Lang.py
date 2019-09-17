@@ -1,4 +1,4 @@
-from utils import Utils
+import yaml
 
 LANG = dict()
 loaded = False
@@ -6,7 +6,8 @@ loaded = False
 
 def load():
     global LANG, loaded
-    LANG = Utils.fetch_from_disk("lang")
+    with open("lang.yaml") as file:
+        LANG = yaml.safe_load(file)
     loaded = True
 
 

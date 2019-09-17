@@ -62,30 +62,36 @@ class Bugs(BaseCog):
     async def report_bug(self, user, trigger_channel):
         if user.id in self.in_progress:
             if user.id in self.canceling:
-                await trigger_channel.send(f"{user.mention} stop spamming the bug reaction!", delete_after=10)
+                await trigger_channel.send(Lang.get_string("stop_spamming", user=user.mention), delete_after=10)
                 return
 
-            async def start_over():
-                stop_cancel()
-                self.in_progress[user.id].cancel()
-                del self.in_progress[user.id]
-                await self.report_bug(user, trigger_channel)
+            should_reset = False
 
-            def stop_cancel():
+
+            async def start_over():
+                nonlocal should_reset
+                should_reset = True
+
+
                 if user.id in self.canceling:
                     self.canceling.remove(user.id)
 
             self.canceling.add(user.id)
-            await Questions.ask(self.bot, trigger_channel, user, f"{user.mention} You are already in the middle of reporting a bug, do you want to cancel that report and start over?",
+            await Questions.ask(self.bot, trigger_channel, user, Lang.get_string("start_over", user=user.mention),
                                 [
                                     Questions.Option("YES", handler=start_over),
-                                    Questions.Option("NO", handler=stop_cancel)
+                                    Questions.Option("NO")
                                 ], delete_after=True)
+            if user.id in self.canceling:
+                self.canceling.remove(user.id)
 
-            return
+            if should_reset:
+                self.in_progress[user.id].cancel()
+                del self.in_progress[user.id]
+            else:
+                return
         task = self.bot.loop.create_task(self.actual_bug_reporter(user, trigger_channel))
         self.in_progress[user.id] = task
-
 
     async def actual_bug_reporter(self, user, trigger_channel):
         # wrap everything so users can't get stuck in limbo
@@ -107,8 +113,7 @@ class Bugs(BaseCog):
 
             async def abort():
                 nonlocal asking
-                await user.send(
-                    "No? Alright then, the devs won't be able to look into it but feel free to return later to report it then!")
+                await user.send(Lang.get_string("abort_report"))
                 asking = False
                 if user.id in self.in_progress:
                     del self.in_progress[user.id]
@@ -131,18 +136,18 @@ class Bugs(BaseCog):
 
             def verify_version(v):
                 if "latest" in v:
-                    return "Please specify a version number, ``latest`` is not valid because what is latest changes overtime. You can also think you have latest but a newer update might be available if you didn't check recently"
+                    return Lang.get_string("latest_not_allowed")
                 # TODO: double check if we actually want to enforce this
                 if len(Utils.NUMBER_MATCHER.findall(v)) is 0:
-                    return "There don't appear to be any numbers in there"
+                    return Lang.get_string("no_numbers")
                 if len(v) > 20:
-                    return "Whoa there, I just need a version number, not an entire love letter."
+                    return Lang.get_string("love_letter")
                 return True
 
             def max_length(length):
                 def real_check(text):
                     if len(text) > length:
-                        return "That text seems suspiciously long for the question asked, Try typing up a shorter answer and we'll see if I like it"
+                        return Lang.get_string("text_too_long", max=length)
                     return True
 
                 return real_check
@@ -159,129 +164,77 @@ class Bugs(BaseCog):
                 channel_name = f"{platform}_{branch}".lower()
                 c = Configuration.get_var("channels")[channel_name]
                 message = await self.bot.get_channel(c).send(
-                    content=f"**Bug Report {br.id} - submitted by {user.mention}**", embed=report)
-                if attachment_message:
-                    attachment = await self.bot.get_channel(c).send(f"**Attachment to report {br.id}**\n{attachment_message}")
+                    content=Lang.get_string("report_header", id=br.id, user=user.mention), embed=report)
+                if len(attachment_links) is not 0:
+                    key = "attachment_info" if len(attachment_links) is 1 else "attachment_info_plural"
+                    attachment = await self.bot.get_channel(c).send(
+                        Lang.get_string(key, id=br.id, links="\n".join(attachment_links)))
                     br.attachment_message_id = attachment.id
                 br.message_id = message.id
                 br.save()
-                await channel.send(f"Thank you! Your report was successfully sent and can be found in <#{c}>!")
+                await channel.send(Lang.get_string("report_confirmation", channel_id=c))
                 await self.send_bug_info(channel_name)
 
             async def restart():
                 del self.in_progress[user.id]
                 await self.report_bug(user, trigger_channel)
 
-            await Questions.ask(self.bot, channel, user,
-                                """```css
-Report a Bug```
-Help me collect the following information. It will be *very helpful* in identifying, reproducing, and fixing bugs:
-- Device type
-- Operating System Version
-- Sky App Type
-- Version of the Sky app
-- Description of the problem, and how to reproduce it
-- Additional Information
-- Attachment(s)
-
-Ready to get started?
-""",  # TODO: can this be found in the app itself or need instructions per OS?
+            await Questions.ask(self.bot, channel, user, Lang.get_string("question_ready"),
+                                # TODO: can this be found in the app itself or need instructions per OS?
                                 [
                                     Questions.Option("YES"),
                                     Questions.Option("NO", handler=abort),
                                 ])
             if asking:
                 # question 1: android or ios?
-                await Questions.ask(self.bot, channel, user, """```css
-Device Type```
-Are you using Android or iOS?
-""",
+                await Questions.ask(self.bot, channel, user, Lang.get_string("question_platform"),
                                     [
                                         Questions.Option("ANDROID", "Android", lambda: set_platform("Android")),
                                         Questions.Option("IOS", "iOS", lambda: set_platform("iOS"))
                                     ], show_embed=True)
 
                 # question 2: android/ios version
-                platform_version = await Questions.ask_text(self.bot, channel, user, f"""```css
-Operating System Version```
-What {platform} version do you use? This can be found in device settings.
-""",
+                platform_version = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_platform_version", platform=platform),
                                                             validator=verify_version)
 
                 # question 3: stable or beta?
-                await Questions.ask(self.bot, channel, user, f"""```css
-Sky App Type```
-Are you using the Live game or a Beta version? The beta version is installed through TestFlight on iOS or Google Groups on Android. If you are unsure, then choose the Live version.
-""",
+                await Questions.ask(self.bot, channel, user, Lang.get_string("question_app_branch"),
                                     [
                                         Questions.Option("STABLE", "Live", lambda: set_branch("Stable")),
                                         Questions.Option("BETA", "Beta", lambda: set_branch("Beta"))
                                     ], show_embed=True)
 
                 # question 4: sky app version
-                app_version = await Questions.ask_text(self.bot, channel, user, """```css
-Sky App Version Number```
-What **version** of the sky app where you using when you experienced the bug?
-# TODO: instructions
-""", validator=verify_version)
+                app_version = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_app_version"), validator=verify_version)
 
-                #question 5: sky app build number
-                app_build = await Questions.ask_text(self.bot, channel, user, """```css
-Sky App Build Number```
-What **build** of the sky app where you using when you experienced the bug?
-# TODO: instructions
-""", validator=verify_version)
+                # question 5: sky app build number
+                app_build = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_app_build"), validator=verify_version)
 
                 # question 6: Title
-                title = await Questions.ask_text(self.bot, channel, user, """```css
-Title/Topic
-```
-Provide a brief title or topic for your bug.
-""", validator=max_length(100))
+                title = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_title", max=100), validator=max_length(100))
 
                 # question 7: "actual" - defect behavior
-                actual = await Questions.ask_text(self.bot, channel, user,"""```css
-Describe the bug
-```
-Describe the problem you experienced, what looked or worked the wrong way. I'll ask for steps to reproduce the problem next, so don't tell me *how* it happened yet."
-""", validator=max_length(400))
+                actual = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_actual", max=400), validator=max_length(400))
 
                 # question 8: steps to reproduce
-                steps = await Questions.ask_text(self.bot, channel, user, """```css
-How to Reproduce the Bug```
-How did the bug occur? Provide steps that will help us reproduce the problem. Example:
-```- step 1
-- step 2
-- step 3```
-""", validator=max_length(800))
+                steps = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_steps", max=800), validator=max_length(800))
 
                 # question 9: expected behavior
-                expected = await Questions.ask_text(self.bot, channel, user, """```css
-Expectation
-``` 
-When following the steps above, what did you expect to happen?
-""", validator=max_length(200))
+                expected = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_expected", max=200), validator=max_length(200))
 
                 # question 10: additional info
-                await Questions.ask(self.bot, channel, user, """```css
-Additional Information
-``` 
-Do you have any additional info to add to this report?""",
+                await Questions.ask(self.bot, channel, user, Lang.get_string("question_additional"),
                                     [
                                         Questions.Option("YES", handler=add_additional),
                                         Questions.Option("NO")
                                     ])
 
                 if additional:
-                    additional_text = await Questions.ask_text(self.bot, channel, user,
-                                                               "Please send the additional info to add to the report",
+                    additional_text = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_additional_info"),
                                                                validator=max_length(500))
 
-                #question 11: attachments
-                await Questions.ask(self.bot, channel, user, """```css
-Attachments
-``` 
-Do you have any attachments to add to this report?""",
+                # question 11: attachments
+                await Questions.ask(self.bot, channel, user, Lang.get_string("question_attachments"),
                                     [
                                         Questions.Option("YES", handler=add_attachments),
                                         Questions.Option("NO")
@@ -293,33 +246,34 @@ Do you have any attachments to add to this report?""",
                 # assemble the report
                 report = Embed()
                 report.set_author(name=f"{user} ({user.id})", icon_url=user.avatar_url_as(size=32))
-                report.add_field(name="Platform", value=f"{platform} {platform_version}")
-                report.add_field(name="Sky app version", value=app_version)
-                report.add_field(name="Sky app build", value=app_build)
-                report.add_field(name="Title/Topic", value=title, inline=False)
-                report.add_field(name="Bug description", value=actual, inline=False)
-                report.add_field(name="Steps to reproduce", value=steps, inline=False)
-                report.add_field(name="Expected outcome", value=expected)
+                report.add_field(name=Lang.get_string("platform"), value=f"{platform} {platform_version}")
+                report.add_field(name=Lang.get_string("app_version"), value=app_version)
+                report.add_field(name=Lang.get_string("app_build"), value=app_build)
+                report.add_field(name=Lang.get_string("title"), value=title, inline=False)
+                report.add_field(name=Lang.get_string("description"), value=actual, inline=False)
+                report.add_field(name=Lang.get_string("str"), value=steps, inline=False)
+                report.add_field(name=Lang.get_string("expected"), value=expected)
                 if additional:
-                    report.add_field(name="Additional information", value=additional_text, inline=False)
+                    report.add_field(name=Lang.get_string("additional_info"), value=additional_text, inline=False)
 
-                await channel.send(content=f"**Bug Report ## - submitted by {user.mention}**", embed=report)
+                await channel.send(content=Lang.get_string("report_header", id="##", user=user.mention), embed=report)
                 if attachment_links:
                     attachment_message = ''
                     for a in attachment_links:
                         attachment_message += f"{a}\n"
                     await channel.send(attachment_message)
-                await Questions.ask(self.bot, channel, user, "This is the information you have provided. Submit this report, or discard it?",
+                await Questions.ask(self.bot, channel, user,
+                                    Lang.get_string("question_ok"),
                                     [
-                                        Questions.Option("YES", "Yes, send this report", send_report),
-                                        Questions.Option("NO", "Nope, i made a mistake. Start over", restart)
+                                        Questions.Option("YES", Lang.get_string("send_report"), send_report),
+                                        Questions.Option("NO", Lang.get_string("mistake"), restart)
                                     ])
             else:
                 return
 
         except Forbidden:
             await trigger_channel.send(
-                f"{user.mention}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.",
+                Lang.get_string("dm_unable", user=user.mention),
                 delete_after=30)
         except (asyncio.TimeoutError, CancelledError):
             if user.id in self.in_progress:
