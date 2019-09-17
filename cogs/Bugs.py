@@ -102,6 +102,7 @@ class Bugs(BaseCog):
             asking = True
             platform = ""
             branch = ""
+            app_build = None
             additional = False
             additional_text = ""
             attachments = False
@@ -155,8 +156,8 @@ class Bugs(BaseCog):
             async def send_report():
                 # save report in the database
                 br = BugReport.create(reporter=user.id, platform=platform, platform_version=platform_version,
-                                      branch=branch, app_version=app_version, title=title, steps=steps,
-                                      expected=expected, additional=additional_text)
+                                      branch=branch, app_version=app_version, app_build=app_build, title=title, steps=steps,
+                                      expected=expected, actual=actual, additional=additional_text)
                 for url in attachment_links:
                     Attachements.create(report=br, url=url)
 
@@ -207,8 +208,9 @@ class Bugs(BaseCog):
                 # question 4: sky app version
                 app_version = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_app_version"), validator=verify_version)
 
-                # question 5: sky app build number
-                app_build = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_app_build"), validator=verify_version)
+                if branch == "Beta":
+                    # question 5: sky app build number
+                    app_build = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_app_build"), validator=verify_version)
 
                 # question 6: Title
                 title = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_title", max=100), validator=max_length(100))
@@ -248,7 +250,8 @@ class Bugs(BaseCog):
                 report.set_author(name=f"{user} ({user.id})", icon_url=user.avatar_url_as(size=32))
                 report.add_field(name=Lang.get_string("platform"), value=f"{platform} {platform_version}")
                 report.add_field(name=Lang.get_string("app_version"), value=app_version)
-                report.add_field(name=Lang.get_string("app_build"), value=app_build)
+                if branch == 'Beta':
+                    report.add_field(name=Lang.get_string("app_build"), value=app_build)
                 report.add_field(name=Lang.get_string("title"), value=title, inline=False)
                 report.add_field(name=Lang.get_string("description"), value=actual, inline=False)
                 report.add_field(name=Lang.get_string("str"), value=steps, inline=False)
