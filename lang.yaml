@@ -100,3 +100,6 @@ question_ok: This is the information you have provided. Submit this report, or d
 send_report: Yes, send this report
 mistake: Nope, i made a mistake. Start over
 dm_unable: '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
+eden_reset: |
+  The Eye of Eden resets once per week.
+  Next reset is on {date} at {time} (In {countdown})
