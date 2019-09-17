@@ -295,7 +295,7 @@ Do you have any attachments to add to this report?""",
                 report.add_field(name="Sky app build", value=app_build)
                 report.add_field(name="Title/Topic", value=title, inline=False)
                 report.add_field(name="Bug description", value=actual, inline=False)
-                report.add_field(name="Description & steps to reproduce", value=steps, inline=False)
+                report.add_field(name="Steps to reproduce", value=steps, inline=False)
                 report.add_field(name="Expected outcome", value=expected)
                 if additional:
                     report.add_field(name="Additional information", value=additional_text, inline=False)
