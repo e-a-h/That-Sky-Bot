@@ -72,7 +72,8 @@ class Bugs(BaseCog):
                 await self.report_bug(user, trigger_channel)
 
             def stop_cancel():
-                self.canceling.remove(user.id)
+                if user.id in self.canceling:
+                    self.canceling.remove(user.id)
 
             self.canceling.add(user.id)
             await Questions.ask(self.bot, trigger_channel, user, f"{user.mention} You are already in the middle of reporting a bug, do you want to cancel that report and start over?",
@@ -109,6 +110,8 @@ class Bugs(BaseCog):
                 await user.send(
                     "No? Alright then, the devs won't be able to look into it but feel free to return later to report it then!")
                 asking = False
+                if user.id in self.in_progress:
+                    del self.in_progress[user.id]
 
             def set_platform(p):
                 nonlocal platform
@@ -319,13 +322,16 @@ Do you have any attachments to add to this report?""",
                 f"{user.mention}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.",
                 delete_after=30)
         except (asyncio.TimeoutError, CancelledError):
-            del self.in_progress[user.id]
+            if user.id in self.in_progress:
+                del self.in_progress[user.id]
         except Exception as ex:
-            del self.in_progress[user.id]
+            if user.id in self.in_progress:
+                del self.in_progress[user.id]
             await Utils.handle_exception("bug reporting", self.bot, ex)
             raise ex
         else:
-            del self.in_progress[user.id]
+            if user.id in self.in_progress:
+                del self.in_progress[user.id]
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):
