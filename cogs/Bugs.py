@@ -1,10 +1,8 @@
 import asyncio
 from concurrent.futures import CancelledError
-
 from discord import Forbidden, Embed, NotFound
 from discord.ext import commands
 from discord.ext.commands import Context, command
-
 from cogs.BaseCog import BaseCog
 from utils import Questions, Emoji, Utils, Configuration, Lang
 from utils.Database import BugReport, Attachements
@@ -135,13 +133,13 @@ class Bugs(BaseCog):
                 if len(Utils.NUMBER_MATCHER.findall(v)) is 0:
                     return "There don't appear to be any numbers in there"
                 if len(v) > 20:
-                    return "Whoa there, i just need a version number, not an entire love letter."
+                    return "Whoa there, I just need a version number, not an entire love letter."
                 return True
 
             def max_length(length):
                 def real_check(text):
                     if len(text) > length:
-                        return "That text seems suspiciously long for the question asked, please shorten it a bit"
+                        return "That text seems suspiciously long for the question asked, Try typing up a shorter answer and we'll see if I like it"
                     return True
 
                 return real_check
@@ -236,14 +234,14 @@ What **build** of the sky app where you using when you experienced the bug?
 Title/Topic
 ```
 Provide a brief title or topic for your bug.
-""", validator=max_length(200))
+""", validator=max_length(100))
 
                 # question 7: "actual" - defect behavior
                 actual = await Questions.ask_text(self.bot, channel, user,"""```css
 Describe the bug
 ```
 Describe the problem you experienced, what looked or worked the wrong way. I'll ask for steps to reproduce the problem next, so don't tell me *how* it happened yet."
-""", validator=max_length(100))
+""", validator=max_length(400))
 
                 # question 8: steps to reproduce
                 steps = await Questions.ask_text(self.bot, channel, user, """```css
@@ -252,14 +250,14 @@ How did the bug occur? Provide steps that will help us reproduce the problem. Ex
 ```- step 1
 - step 2
 - step 3```
-""", validator=max_length(1024))
+""", validator=max_length(800))
 
                 # question 9: expected behavior
                 expected = await Questions.ask_text(self.bot, channel, user, """```css
 Expectation
 ``` 
 When following the steps above, what did you expect to happen?
-""", validator=max_length(100))
+""", validator=max_length(200))
 
                 # question 10: additional info
                 await Questions.ask(self.bot, channel, user, """```css
@@ -308,7 +306,7 @@ Do you have any attachments to add to this report?""",
                     for a in attachment_links:
                         attachment_message += f"{a}\n"
                     await channel.send(attachment_message)
-                await Questions.ask(self.bot, channel, user, "Does the above report look alright?",
+                await Questions.ask(self.bot, channel, user, "This is the information you have provided. Submit this report, or discard it?",
                                     [
                                         Questions.Option("YES", "Yes, send this report", send_report),
                                         Questions.Option("NO", "Nope, i made a mistake. Start over", restart)

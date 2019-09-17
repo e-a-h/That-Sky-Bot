@@ -1,8 +1,4 @@
-import discord
-from discord import Message, TextChannel
 from discord.ext import commands
-from discord.ext.commands import Context, command
-
 from cogs.BaseCog import BaseCog
 from utils import Configuration, Logging, Emoji
 

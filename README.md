@@ -19,4 +19,4 @@ That Sky [Bot] for thatgamecompany and #thatskygame
      * **@everone:** -read, -add reaction
      * **members:** +read
      * **bot:** +read, +add reaction
-1. Config file required. see config.example.json
+1. Config file required. see config.example.json and fill in channel 

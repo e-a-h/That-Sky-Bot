@@ -1,5 +1,4 @@
 from peewee import MySQLDatabase, Model, PrimaryKeyField, BigIntegerField, CharField, ForeignKeyField, AutoField
-
 from utils import Configuration
 
 connection = MySQLDatabase(Configuration.get_var("DATABASE_NAME"),

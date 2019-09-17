@@ -1,9 +1,8 @@
 import asyncio
 import inspect
+import re
 from collections import namedtuple
-
 from discord import Embed, Reaction
-
 from utils import Emoji, Utils, Configuration
 
 Option = namedtuple("Option", "emoji text handler", defaults=(None, None, None))
@@ -56,12 +55,22 @@ async def ask_text(
         nonlocal ask_again
         ask_again = False
 
+    def clean_text(txt):
+        """Remove multiple spaces and multiple newlines from input txt."""
+        txt = re.sub(r' +', ' ', txt)
+        txt = re.sub(r'\n\s*\n', '\n\n', txt)
+        return txt
+
     while ask_again:
         await channel.send(text)
         try:
             while True:
                 message = await bot.wait_for('message', timeout=timeout, check=check)
-                result = validator(message.content) if validator is not None else True
+                if message.content is None or message.content == "":
+                    result = "Attachments are not valid here. Please describe it using words"
+                else:
+                    message_cleaned = clean_text(message.content)
+                    result = validator(message_cleaned) if validator is not None else True
                 if result is True:
                     break
                 else:
@@ -70,9 +79,9 @@ async def ask_text(
             await channel.send(f"🚫 Got no reaction within {timeout} seconds, aborting")
             raise ex
         else:
-            content = Utils.escape_markdown(message.content)
+            content = Utils.escape_markdown(message_cleaned)
             if confirm:
-                message = f"Are you sure ``{message.content}`` is correct?" if len(message.content.splitlines()) is 1 else f"Are you sure ```{message.content}``` is correct?"
+                message = f"Are you sure ``{message_cleaned}`` is correct?" if len(message_cleaned.splitlines()) is 1 else f"Are you sure ```{message_cleaned}``` is correct?"
                 await ask(bot, channel, user, message, [
                     Option("YES", handler=confirmed),
                     Option("NO")
