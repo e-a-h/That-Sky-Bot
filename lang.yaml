@@ -1,16 +1,16 @@
 bug_info: "```Browse or search this channel to see what bugs have been reported. To report a bug, click/tap the BUG reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report.```"
-shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug
+shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
 stop_spamming: "{user} stop spamming the bug reaction!"
 start_over: "{user} You are already in the middle of reporting a bug, do you want to cancel that report and start over?"
-abort_report: No? Alright then, the devs won't be able to look into it but feel free to return later to report it then!
-latest_not_allowed: Please specify a version number, ``latest`` is not valid because what is latest changes overtime. You can also think you have latest but a newer update might be available if you didn't check recently
+abort_report: No? Fine, keep your little secret... see if I care. But do come back when you you have more to share!
+latest_not_allowed: Please specify a version number, ``latest`` is not valid because the latest version changes with every update. You might not even have the latest version if you didn't update recently, so an actual number is really helpful here!
 no_numbers: There don't appear to be any numbers in there
 love_letter: Whoa there, I just need a version number, not an entire love letter.
-text_too_long: That text seems suspiciously long for the question asked, Try typing up a shorter answer (up to {max} chars) and we'll see if I like it
+text_too_long: That text seems suspiciously long for the question asked... Try typing up a shorter answer (up to {max} characters) and we'll see if I like it
 report_header: "**Bug Report {id} - submitted by {user}**"
 attachment_info: "**Attachment to report {id}**\n{links}"
 attachment_info_plural: "**Attachments to report {id}**\n{links}"
-report_confirmation: Thank you! Your report was successfully sent and can be found in <#{channel_id}>!
+report_confirmation: Thank you! Your report was submitted, and can be found in <#{channel_id}>!
 question_ready: |
   ```css
   Report a Bug
@@ -25,6 +25,7 @@ question_ready: |
       - Attachment(s)
 
   Ready to get started?
+platform: Platform
 question_platform: |
   ```css
   Device Type
@@ -40,28 +41,33 @@ question_app_branch: |
   Sky App Type
   ```
   Are you using the Live game or a Beta version? The beta version is installed through TestFlight on iOS or Google Groups on Android. If you are unsure, then choose the Live version.
+app_version: Sky app version
 question_app_version: |
   ```css
   Sky App Version Number
   ```
   What **version** of the sky app where you using when you experienced the bug?
   # TODO: instructions
+app_build: Sky app build
 question_app_build: |
   ```css
   Sky App Build Number
   ```
   What **build** of the sky app where you using when you experienced the bug?
   # TODO: instructions
+title: Title/Topic
 question_title: |
   ```css
   Title/Topic
   ```
   Provide a brief title or topic for your bug ({max} characters max).
+description: Bug description
 question_actual: |
   ```css
   Describe the bug
   ```
   Describe the problem you experienced, what looked or worked the wrong way. I'll ask for steps to reproduce the problem next, so don't tell me *how* it happened yet ({max} characters max).
+str: Steps to reproduce
 question_steps: |
   ```css
   How to Reproduce the Bug
@@ -72,11 +78,13 @@ question_steps: |
   - step 2
   - step 3
   ```
+expected: Expected outcome
 question_expected: |
   ```css
   Expectation
   ```
   When following the steps above, what did you expect to happen ({max} characters max)?
+additional_info: Additional information
 question_additional: |
   ```css
   Additional Information
@@ -88,14 +96,6 @@ question_attachments: |
   Attachments
   ```
   Do you have any attachments to add to this report?
-platform: Platform
-app_version: Sky app version
-app_build: Sky app build
-title: Title/Topic
-description: Bug description
-str: Steps to reproduce
-expected: Expected outcome
-additional_info: Additional information
 question_ok: This is the information you have provided. Submit this report, or discard it?
 send_report: Yes, send this report
 mistake: Nope, i made a mistake. Start over
