@@ -1,4 +1,5 @@
 import json
+import math
 import re
 import time
 import traceback
@@ -264,3 +265,26 @@ def fetch_from_disk(filename, alternative=None):
 def save_to_disk(filename, dict):
     with open(f"{filename}.json", "w", encoding="UTF-8") as file:
         json.dump(dict, file, indent=4, skipkeys=True, sort_keys=True)
+
+
+def to_pretty_time(seconds):
+    partcount = 0
+    parts = {
+        'week': 60 * 60 * 24 * 7,
+        'day': 60 * 60 * 24,
+        'hour': 60 * 60,
+        'minute': 60,
+        'second': 1
+    }
+    duration = ""
+
+    for k, v in parts.items():
+        if seconds / v >= 1:
+            amount = math.floor(seconds / v)
+            seconds -= amount * v
+            if partcount == 1:
+                duration += ", "
+            duration += " " + f"{amount} {k}{'' if amount is 1 else 's'}"
+        if seconds == 0:
+            break
+    return duration.strip()
