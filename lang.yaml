@@ -103,3 +103,16 @@ dm_unable: '{user}, I was unable to DM you for questions about your bug, Please 
 eden_reset: |
   The Eye of Eden resets once per week.
   Next reset is on {date} at {time} (In {countdown})
+custom_command_list: Custom command list for {server_name}.
+custom_command_no_commands: No custom commands have been created yet.
+custom_command_empty_trigger: Empty triggers, isn't that like empty promises? Something you shouldn't do?
+custom_command_empty_reply: You want me to say nothing for that trigger? That makes no sense. If you want to remove an existing trigger then please use remove instead.
+custom_command_trigger_too_long: Custom command triggers can only be up to 20 chars long
+custom_command_added: Command `{trigger}` has been added!
+custom_command_updating: Updating...
+custom_command_not_updating: Keeping the old one.
+custom_command_override_confirmation: This command already exists, do you want to replace it with this new text?
+custom_command_removed: Command `{trigger}` has been removed.
+custom_command_not_found: Unable to remove `{trigger}` as it doesn't seem to exist.
+custom_command_creating: This command does not exist, making it for you instead.
+custom_command_updated: Command `{trigger}` has been updated!
