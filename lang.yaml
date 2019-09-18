@@ -46,7 +46,7 @@ question_app_version: |
   ```css
   Sky App Version Number
   ```
-  What **version** of the sky app where you using when you experienced the bug?
+  What **version** of the Sky app where you using when you experienced the bug?
   {version_help}
   The version number is the number in place of "X.X.X"
 app_build: Sky app build
@@ -54,7 +54,7 @@ question_app_build: |
   ```css
   Sky App Build Number
   ```
-  What **build** of the sky app where you using when you experienced the bug?
+  What **build** of the Sky app where you using when you experienced the bug?
   See the instructions above. The build number is the number in parentheses.
 version_android: |
   **To find Sky version and build on Android devices:**
