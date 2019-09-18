@@ -213,9 +213,8 @@ class Bugs(BaseCog):
                                                            version_help=Lang.get_string("version_"+platform.lower())),
                                                        validator=verify_version)
 
-                if branch == "Beta":
-                    # question 5: sky app build number
-                    app_build = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_app_build"), validator=verify_version)
+                # question 5: sky app build number
+                app_build = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_app_build"), validator=verify_version)
 
                 # question 6: Title
                 title = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_title", max=100), validator=max_length(100))

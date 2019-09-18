@@ -87,7 +87,7 @@ def before_send(event, hint):
 
 if __name__ == '__main__':
     Logging.init()
-    Logging.info("Launching that sky bot!")
+    Logging.info("Launching thatskybot!")
 
     dsn = Configuration.get_var('SENTRY_DSN', '')
     if dsn != '':
