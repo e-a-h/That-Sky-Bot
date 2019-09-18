@@ -2,7 +2,7 @@ bug_info: "```Browse or search this channel to see what bugs have been reported.
 shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
 stop_spamming: "{user} stop spamming the bug reaction!"
 start_over: "{user} You are already in the middle of reporting a bug, do you want to cancel that report and start over?"
-abort_report: No? Fine, keep your little secret... see if I care. But do come back when you you have more to share!
+abort_report: Ok, I won't ask you any more questions for now. Come back any time to file a bug report!
 latest_not_allowed: Please specify a version number, ``latest`` is not valid because the latest version changes with every update. You might not even have the latest version if you didn't update recently, so an actual number is really helpful here!
 no_numbers: There don't appear to be any numbers in there
 love_letter: Whoa there, I just need a version number, not an entire love letter.
@@ -47,14 +47,28 @@ question_app_version: |
   Sky App Version Number
   ```
   What **version** of the sky app where you using when you experienced the bug?
-  # TODO: instructions
+  {version_help}
+  The version number is the number in place of "X.X.X"
 app_build: Sky app build
 question_app_build: |
   ```css
   Sky App Build Number
   ```
   What **build** of the sky app where you using when you experienced the bug?
-  # TODO: instructions
+  See the instructions above. The build number is the number in parentheses.
+version_android: |
+  **To find Sky version and build on Android devices:**
+  > 1. Device settings
+  > 2. Apps
+  > 3. Sky
+  > 4. Scroll down to find: Version X.X.X (build)
+  For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623647199427035147
+version_ios: |
+  **To find Sky version and build on iOS devices:**
+  > 1. Device settings
+  > 2. Scroll down to Sky
+  > 3. Scroll down to find: Version X.X.X (build)
+  For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623643887977627658
 title: Title/Topic
 question_title: |
   ```css

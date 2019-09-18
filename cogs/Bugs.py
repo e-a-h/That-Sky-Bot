@@ -181,7 +181,6 @@ class Bugs(BaseCog):
                 await self.report_bug(user, trigger_channel)
 
             await Questions.ask(self.bot, channel, user, Lang.get_string("question_ready"),
-                                # TODO: can this be found in the app itself or need instructions per OS?
                                 [
                                     Questions.Option("YES"),
                                     Questions.Option("NO", handler=abort),
@@ -206,7 +205,13 @@ class Bugs(BaseCog):
                                     ], show_embed=True)
 
                 # question 4: sky app version
-                app_version = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_app_version"), validator=verify_version)
+                app_version = await Questions.ask_text(self.bot,
+                                                       channel,
+                                                       user,
+                                                       Lang.get_string(
+                                                           "question_app_version",
+                                                           version_help=Lang.get_string("version_"+platform.lower())),
+                                                       validator=verify_version)
 
                 if branch == "Beta":
                     # question 5: sky app build number
