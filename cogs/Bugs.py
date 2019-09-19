@@ -46,7 +46,11 @@ class Bugs(BaseCog):
                 await message.delete()
                 if message.id in self.bug_messages:
                     self.bug_messages.remove(message.id)
-        message = await channel.send(Lang.get_string("bug_info"))
+
+        prompt = Embed()
+        prompt.add_field(name="How to report bugs", value=Lang.get_string("bug_info", bug_emoji=Emoji.get_emoji("BUG")))
+
+        message = await channel.send(content="```Submit a new bug report!```", embed=prompt)
         bugemoji = Emoji.get_emoji('BUG')
         await message.add_reaction(bugemoji)
         self.bug_messages.add(message.id)
@@ -254,8 +258,7 @@ class Bugs(BaseCog):
                 report.set_author(name=f"{user} ({user.id})", icon_url=user.avatar_url_as(size=32))
                 report.add_field(name=Lang.get_string("platform"), value=f"{platform} {platform_version}")
                 report.add_field(name=Lang.get_string("app_version"), value=app_version)
-                if branch == 'Beta':
-                    report.add_field(name=Lang.get_string("app_build"), value=app_build)
+                report.add_field(name=Lang.get_string("app_build"), value=app_build)
                 report.add_field(name=Lang.get_string("title"), value=title, inline=False)
                 report.add_field(name=Lang.get_string("description"), value=actual, inline=False)
                 report.add_field(name=Lang.get_string("str"), value=steps, inline=False)
