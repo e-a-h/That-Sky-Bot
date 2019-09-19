@@ -20,8 +20,8 @@ BACKUPS = {
 
 
 def initialize(bot):
-    for name, value in Configuration.get_var("EMOJI", {}).items():
-        EMOJI[name] = value
+    for name, eid in Configuration.get_var("EMOJI", {}).items():
+        EMOJI[name] = utils.get(bot.emojis, id=eid)
 
 
 def get_chat_emoji(name):
