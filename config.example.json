@@ -30,5 +30,6 @@
      "roles": {
         "\uD83D\uDD6F": 0
     },
-    "guild_id": 0
+    "guild_id": 0,
+    "muted_role": 0
 }
