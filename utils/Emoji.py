@@ -7,14 +7,14 @@ EMOJI = dict()
 BACKUPS = {
     "ANDROID": "🤖",
     "BETA": "🌙",
-    "BUG": "<a:skyflame:624185284229201940>",
+    "BUG": "🐛",
     "IOS": "🍎",
-    "NO": "<:skyno:624094243371352084>",
+    "NO": "🚫",
     "STABLE": "🌞",
-    "WRENCH": "<:skygear:624094243069231106>",
-    "YES": "<:skyattn:624094243329146900>",
+    "WRENCH": "🔧",
+    "YES": "✅",
     "CANDLE": "🕯",
-    "WARNING": "<:skybug:624094243308437524>",
+    "WARNING": "⚠",
     "WHAT": "☹",
 }
 
