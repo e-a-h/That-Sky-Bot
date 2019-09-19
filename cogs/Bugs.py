@@ -61,6 +61,17 @@ class Bugs(BaseCog):
         await self.report_bug(ctx.author, ctx.channel)
 
     async def report_bug(self, user, trigger_channel):
+        # fully ignore muted users
+        guild = self.bot.get_guild(Configuration.get_var("guild_id"))
+        member = guild.get_member(user.id)
+        mute_role = guild.get_role(Configuration.get_var("muted_role"))
+        if member is None:
+            # user isn't even on the server, how did we get here?
+            return
+        if mute_role in member.roles:
+            # muted, hard ignore
+            return
+
         if user.id in self.in_progress:
             if user.id in self.canceling:
                 await trigger_channel.send(Lang.get_string("stop_spamming", user=user.mention), delete_after=10)
