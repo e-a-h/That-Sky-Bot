@@ -23,6 +23,8 @@ async def ask(bot, channel, author, text, options, timeout=60, show_embed=False,
     try:
         reaction, user = await bot.wait_for('reaction_add', timeout=timeout, check=check)
     except asyncio.TimeoutError as ex:
+        if delete_after:
+            await message.delete()
         await channel.send(f"🚫 Got no reaction within {timeout} seconds, aborting", delete_after=10 if delete_after else None)
         raise ex
     else:
