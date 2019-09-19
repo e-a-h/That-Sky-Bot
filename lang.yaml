@@ -1,4 +1,4 @@
-bug_info: "```Browse or search this channel to see what bugs have been reported. To report a bug, click/tap the BUG reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report.```"
+bug_info: "Browse or search this channel to see what bugs have been reported. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."
 shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
 stop_spamming: "{user} stop spamming the bug reaction!"
 start_over: "{user} You are already in the middle of reporting a bug, do you want to cancel that report and start over?"
@@ -46,7 +46,7 @@ question_app_version: |
   ```css
   Sky App Version Number
   ```
-  What **version** of the Sky app where you using when you experienced the bug?
+  What **version** of the Sky app were you using when you experienced the bug?
   {version_help}
   The version number is the number in place of "X.X.X"
 app_build: Sky app build
@@ -54,7 +54,7 @@ question_app_build: |
   ```css
   Sky App Build Number
   ```
-  What **build** of the Sky app where you using when you experienced the bug?
+  What **build** of the Sky app were you using when you experienced the bug?
   See the instructions above. The build number is the number in parentheses.
 version_android: |
   **To find Sky version and build on Android devices:**
