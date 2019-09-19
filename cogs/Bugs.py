@@ -47,11 +47,8 @@ class Bugs(BaseCog):
                 if message.id in self.bug_messages:
                     self.bug_messages.remove(message.id)
 
-        prompt = Embed()
-        prompt.add_field(name="How to report bugs", value=Lang.get_string("bug_info", bug_emoji=Emoji.get_emoji("BUG")))
-
-        message = await channel.send(content="```Submit a new bug report!```", embed=prompt)
         bugemoji = Emoji.get_emoji('BUG')
+        message = await channel.send(Lang.get_string("bug_info", bug_emoji=bugemoji))
         await message.add_reaction(bugemoji)
         self.bug_messages.add(message.id)
         Configuration.set_persistent_var(f"{key}_message", message.id)
