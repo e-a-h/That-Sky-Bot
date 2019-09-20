@@ -2,10 +2,10 @@ bug_info: "**Report a New Bug!**\nBrowse or search this channel to see what bugs
 shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
 stop_spamming: "{user} stop spamming the bug reaction!"
 start_over: "{user} You are already in the middle of reporting a bug, do you want to cancel that report and start over?"
-abort_report: Ok, I won't ask you any more questions for now. Come back any time to file a bug report!
+abort_report: Ok, I won't ask you any more questions for now. Go back to the bug report channel any time to start a new one!
 latest_not_allowed: Tell me a number! ``Latest`` is not valid because the latest version changes with every update. You might not even have the latest version if you didn't update recently, so an actual number is really helpful here!
 no_numbers: There don't appear to be any numbers in there
-love_letter: Whoa there, I just need a version number, not an entire love letter.
+love_letter: Whoa there, I just need a version number, not an entire love letter
 text_too_long: That text seems suspiciously long for the question asked... Try typing up a shorter answer (up to {max} characters) and we'll see if I like it
 report_header: "**Bug Report {id} - submitted by {user}**"
 attachment_info: "**Attachment to report {id}**\n{links}"
@@ -43,12 +43,12 @@ question_platform_version: |
   ```css
   Operating System Version
   ```
-  What {platform} version do you use? This can be found in device settings.
+  What {platform} version do you use? This can be found in device settings
 question_app_branch: |
   ```css
   Sky App Type
   ```
-  Are you using the Live game or a Beta version? The beta version is installed through TestFlight on iOS or Google Groups on Android. If you are unsure, then choose the Live version.
+  Are you using the Live or Beta version of Sky? Beta is installed through TestFlight on iOS or through Google Groups on Android. If you are unsure, then choose Live
 app_version: Sky app version
 question_app_version: |
   ```css
@@ -82,13 +82,13 @@ question_title: |
   ```css
   Title/Topic
   ```
-  Provide a brief title or topic for your bug ({max} characters max).
+  Provide a brief title or topic for your bug ({max} characters max)
 description: Bug description
 question_actual: |
   ```css
   Describe the bug
   ```
-  Describe the problem you experienced, what looked or worked the wrong way. I'll ask for steps to reproduce the problem next, so don't tell me *how* it happened yet ({max} characters max).
+  Describe the problem you experienced, what looked or worked the wrong way. I'll ask for steps to reproduce the problem next, so don't tell me *how* it happened yet ({max} characters max)
 str: Steps to reproduce
 question_steps: |
   ```css
