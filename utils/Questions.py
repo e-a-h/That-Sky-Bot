@@ -3,10 +3,9 @@ import inspect
 import re
 from collections import namedtuple
 from discord import Embed, Reaction
-from utils import Emoji, Utils, Configuration
+from utils import Emoji, Utils, Configuration, Lang
 
 Option = namedtuple("Option", "emoji text handler", defaults=(None, None, None))
-
 
 async def ask(bot, channel, author, text, options, timeout=60, show_embed=False, delete_after=False):
     embed = Embed(color=0x68a910, description='\n'.join(f"{Emoji.get_chat_emoji(option.emoji)} {option.text}" for option in options))
@@ -25,7 +24,9 @@ async def ask(bot, channel, author, text, options, timeout=60, show_embed=False,
     except asyncio.TimeoutError as ex:
         if delete_after:
             await message.delete()
-        await channel.send(f"🚫 Got no reaction within {timeout} seconds, aborting", delete_after=10 if delete_after else None)
+        await channel.send(
+            Lang.get_string("error_reaction_timeout", error_emoji=Emoji.get_emoji("WARNING"), timeout=timeout),
+            delete_after=10 if delete_after else None)
         raise ex
     else:
         if delete_after:
@@ -64,12 +65,13 @@ async def ask_text(
         return txt
 
     while ask_again:
+        message_cleaned = ""
         await channel.send(text)
         try:
             while True:
                 message = await bot.wait_for('message', timeout=timeout, check=check)
                 if message.content is None or message.content == "":
-                    result = "Attachments are not valid here. Please describe it using words"
+                    result = Lang.get_string("no_attachments")
                 else:
                     message_cleaned = clean_text(message.content)
                     result = validator(message_cleaned) if validator is not None else True
@@ -78,12 +80,13 @@ async def ask_text(
                 else:
                     await channel.send(result)
         except asyncio.TimeoutError as ex:
-            await channel.send(f"🚫 Got no reaction within {timeout} seconds, aborting")
+            await channel.send(Lang.get_string("error_reaction_timeout", error_emoji=Emoji.get_emoji("WARNING"), timeout=timeout))
             raise ex
         else:
             content = Utils.escape_markdown(message_cleaned)
             if confirm:
-                message = f"Are you sure ``{message_cleaned}`` is correct?" if len(message_cleaned.splitlines()) is 1 else f"Are you sure ```{message_cleaned}``` is correct?"
+                backticks = "``" if len(message_cleaned.splitlines()) is 1 else "```"
+                message = f"Are you sure {backticks}{message_cleaned}{backticks} is correct?"
                 await ask(bot, channel, user, message, [
                     Option("YES", handler=confirmed),
                     Option("NO")
@@ -99,8 +102,8 @@ async def ask_attachements(
         channel,
         user,
         timeout=Configuration.get_var("question_timeout_seconds"),
-        confirm=True,
-        max=Configuration.get_var('max_attachments')):
+        max_files=Configuration.get_var('max_attachments')):
+
     def check(message):
         return user == message.author and message.channel == channel
 
@@ -109,6 +112,14 @@ async def ask_attachements(
     def ready():
         nonlocal done
         done = True
+
+    async def restart_attachments():
+        nonlocal final_attachments
+        final_attachments = []
+        await ask(bot, channel, user, Lang.get_string("attachments_restart"), [
+            Option("YES"),
+            Option("NO", handler=ready)
+        ])
 
     while not done:
         ask_again = True
@@ -120,7 +131,13 @@ async def ask_attachements(
             ask_again = False
 
         while ask_again:
-            await channel.send("Please send your attachment(s)")
+            if not final_attachments:
+                await channel.send(Lang.get_string("attachment_prompt", max=max_files))
+            elif len(final_attachments) < max_files - 1:
+                await channel.send(Lang.get_string("attachment_prompt_continued", max=max_files - len(final_attachments)))
+            elif len(final_attachments):
+                await channel.send(Lang.get_string("attachment_prompt_final"))
+
             done = False
 
             try:
@@ -129,19 +146,19 @@ async def ask_attachements(
                     links = Utils.URL_MATCHER.findall(message.content)
                     attachment_links = [str(a.url) for a in message.attachments]
                     if len(links) is not 0 or len(message.attachments) is not 0:
-                        if (len(links) + len(message.attachments)) > max:
-                            await channel.send(f"You can only add up to {max} attachments")
+                        if (len(links) + len(message.attachments)) > max_files:
+                            await channel.send(Lang.get_string("attachments_overflow", max=max_files))
                         else:
                             final_attachments += links + attachment_links
                             count += len(links) + len(attachment_links)
                             break
                     else:
-                        await channel.send("Unable to find any attachments in that message")
+                        await channel.send(Lang.get_string("attachment_not_found"))
             except asyncio.TimeoutError as ex:
-                await channel.send(f"🚫 Got no reaction within {timeout} seconds, aborting")
+                await channel.send(Lang.get_string("error_reaction_timeout", error_emoji=Emoji.get_emoji("WARNING"), timeout=timeout))
                 raise ex
             else:
-                if count < max:
+                if count < max_files:
                     await ask(bot, channel, user, "Do you want to add another attachment?",
                               [
                                   Option("YES"),
@@ -150,10 +167,9 @@ async def ask_attachements(
                 else:
                     ask_again = False
 
-
         await ask(bot, channel, user, f"Are you sure you want to attach those links?", [
             Option("YES", handler=ready),
-            Option("NO")
+            Option("NO", handler=restart_attachments)
         ])
 
     return final_attachments
