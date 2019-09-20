@@ -3,14 +3,22 @@ shutdown_message: This bot is going offline, reporting bugs is not possible at t
 stop_spamming: "{user} stop spamming the bug reaction!"
 start_over: "{user} You are already in the middle of reporting a bug, do you want to cancel that report and start over?"
 abort_report: Ok, I won't ask you any more questions for now. Come back any time to file a bug report!
-latest_not_allowed: Please specify a version number, ``latest`` is not valid because the latest version changes with every update. You might not even have the latest version if you didn't update recently, so an actual number is really helpful here!
+latest_not_allowed: Tell me a number! ``Latest`` is not valid because the latest version changes with every update. You might not even have the latest version if you didn't update recently, so an actual number is really helpful here!
 no_numbers: There don't appear to be any numbers in there
 love_letter: Whoa there, I just need a version number, not an entire love letter.
 text_too_long: That text seems suspiciously long for the question asked... Try typing up a shorter answer (up to {max} characters) and we'll see if I like it
 report_header: "**Bug Report {id} - submitted by {user}**"
 attachment_info: "**Attachment to report {id}**\n{links}"
 attachment_info_plural: "**Attachments to report {id}**\n{links}"
+no_attachments: I can't accept files yet. That step comes later. Just use your words
+attachment_prompt: Send up to {max} files or links to attach to your report
+attachment_prompt_continued: Send up to {max} more files or links
+attachment_prompt_final: You can send one more file or link
+attachment_not_found: There were no files or links in that message. Try sending again
+attachments_overflow: You can only add up to {max} attachments
+attachments_restart: Ok, I've thrown away all the attachments you sent. Do you want to try sending files or links again, or skip this step?
 report_confirmation: Thank you! Your report was submitted, and can be found in <#{channel_id}>!
+error_reaction_timeout: "{error_emoji} You didn't react within {timeout} seconds, so this report has been cancelled. Go back to the bug report channel to start a new one!"
 question_ready: |
   ```css
   Report a Bug
@@ -86,7 +94,7 @@ question_steps: |
   ```css
   How to Reproduce the Bug
   ```
-  How did the bug occur? Provide steps that will help us reproduce the problem ({max} characters max). Example:
+  How did the bug happen? Tell me the steps you took that lead to the problem ({max} characters max). Example:
   ```
   - step 1
   - step 2
@@ -97,20 +105,20 @@ question_expected: |
   ```css
   Expectation
   ```
-  When following the steps above, what did you expect to happen ({max} characters max)?
+  When following the steps you gave, what did you expect to happen ({max} characters max)?
 additional_info: Additional information
 question_additional: |
   ```css
   Additional Information
   ```
-  Do you have any additional info to add to this report?
-question_additional_info: Please send the additional info to add to the report
+  Do you have any other information to add to this report?
+question_additional_info: What other information would you like me to include in your report?
 question_attachments: |
   ```css
   Attachments
   ```
-  Do you have any attachments to add to this report?
-question_ok: This is the information you have provided. Submit this report, or discard it?
+  Do you have screenshots, videos, or other documents to add?
+question_ok: This is what your report will look like. Should I submit it or discard it?
 send_report: Yes, send this report
 mistake: Nope, i made a mistake. Start over
 dm_unable: '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
