@@ -27,6 +27,7 @@ class Skybot(Bot):
                 except Exception as e:
                     await Utils.handle_exception(f"Failed to load cog {extension}", self, e)
             Logging.info("Cogs loaded")
+            self.loop.create_task(self.keepDBalive())
             self.loaded = True
 
         await Logging.bot_log("Sky bot soaring through the skies!")
@@ -72,6 +73,11 @@ class Skybot(Bot):
             e = Emoji.get_chat_emoji('BUG')
             if ctx.channel.permissions_for(ctx.me).send_messages:
                 await ctx.send(f"{e} Something went wrong while executing that command {e}")
+
+    async def keepDBalive(self):
+        while not self.is_closed():
+            Database.connection.connection().ping(True)
+            await asyncio.sleep(3600)
 
 
 def before_send(event, hint):
