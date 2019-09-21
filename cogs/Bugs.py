@@ -168,9 +168,10 @@ class Bugs(BaseCog):
 
             async def send_report():
                 # save report in the database
-                br = BugReport.create(reporter=user.id, platform=platform, platform_version=platform_version,
-                                      branch=branch, app_version=app_version, app_build=app_build, title=title,
-                                      steps=steps, expected=expected, actual=actual, additional=additional_text)
+                br = BugReport.create(reporter=user.id, platform=platform, deviceinfo=deviceinfo,
+                                      platform_version=platform_version, branch=branch, app_version=app_version,
+                                      app_build=app_build, title=title, steps=steps, expected=expected, actual=actual,
+                                      additional=additional_text)
                 for url in attachment_links:
                     Attachements.create(report=br, url=url)
 
@@ -212,7 +213,10 @@ class Bugs(BaseCog):
                                                                             platform=platform),
                                                             validator=verify_version)
 
-                # question 3: stable or beta?
+                # question 3: hardware info
+                deviceinfo = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_device_info", platform=platform, max=100), validator=max_length(100))
+
+                # question 4: stable or beta?
                 await Questions.ask(self.bot, channel, user, Lang.get_string("question_app_branch"),
                                     [
                                         Questions.Option("STABLE", "Live", lambda: set_branch("Stable")),
@@ -225,7 +229,7 @@ class Bugs(BaseCog):
                     await channel.send(Lang.get_string("no_live_android"))
                     return
 
-                # question 4: sky app version
+                # question 5: sky app version
                 app_version = await Questions.ask_text(self.bot,
                                                        channel,
                                                        user,
@@ -234,38 +238,26 @@ class Bugs(BaseCog):
                                                            version_help=Lang.get_string("version_" + platform.lower())),
                                                        validator=verify_version)
 
-                # question 5: sky app build number
+                # question 6: sky app build number
                 app_build = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_app_build"),
                                                      validator=verify_version)
 
-                # question 6: Title
+                # question 7: Title
                 title = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_title", max=100),
                                                  validator=max_length(100))
 
-                # question 7: "actual" - defect behavior
+                # question 8: "actual" - defect behavior
                 actual = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_actual", max=400),
                                                   validator=max_length(400))
 
-                # question 8: steps to reproduce
+                # question 9: steps to reproduce
                 steps = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_steps", max=800),
                                                  validator=max_length(800))
 
-                # question 9: expected behavior
+                # question 10: expected behavior
                 expected = await Questions.ask_text(self.bot, channel, user,
                                                     Lang.get_string("question_expected", max=200),
                                                     validator=max_length(200))
-
-                # question 10: additional info
-                await Questions.ask(self.bot, channel, user, Lang.get_string("question_additional"),
-                                    [
-                                        Questions.Option("YES", handler=add_additional),
-                                        Questions.Option("NO")
-                                    ])
-
-                if additional:
-                    additional_text = await Questions.ask_text(self.bot, channel, user,
-                                                               Lang.get_string("question_additional_info"),
-                                                               validator=max_length(500))
 
                 # question 11: attachments
                 await Questions.ask(self.bot, channel, user, Lang.get_string("question_attachments"),
@@ -277,12 +269,25 @@ class Bugs(BaseCog):
                 if attachments:
                     attachment_links = await Questions.ask_attachements(self.bot, channel, user)
 
+                # question 12: additional info
+                await Questions.ask(self.bot, channel, user, Lang.get_string("question_additional"),
+                                    [
+                                        Questions.Option("YES", handler=add_additional),
+                                        Questions.Option("NO")
+                                    ])
+
+                if additional:
+                    additional_text = await Questions.ask_text(self.bot, channel, user,
+                                                               Lang.get_string("question_additional_info"),
+                                                               validator=max_length(500))
+
                 # assemble the report
                 report = Embed(timestamp=datetime.utcfromtimestamp(time.time()))
                 report.set_author(name=f"{user} ({user.id})", icon_url=user.avatar_url_as(size=32))
                 report.add_field(name=Lang.get_string("platform"), value=f"{platform} {platform_version}")
                 report.add_field(name=Lang.get_string("app_version"), value=app_version)
                 report.add_field(name=Lang.get_string("app_build"), value=app_build)
+                report.add_field(name=Lang.get_string("device_info"), value=deviceinfo, inline=False)
                 report.add_field(name=Lang.get_string("title"), value=title, inline=False)
                 report.add_field(name=Lang.get_string("description"), value=actual, inline=False)
                 report.add_field(name=Lang.get_string("str"), value=steps, inline=False)

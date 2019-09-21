@@ -32,7 +32,7 @@ question_ready: |
       - Additional Information
       - Attachment(s)
 
-  Ready to get started?
+  Ready to get started? For any question I ask that has reaction icons like this, just click/tap one of the choices to answer!
 platform: Platform
 question_platform: |
   ```css
@@ -44,6 +44,12 @@ question_platform_version: |
   Operating System Version
   ```
   What {platform} version do you use? This can be found in device settings
+device_info: Device
+question_device_info: |
+  ```css
+  Device Info
+  ```
+  What model of {platform} device were you using when the bug occurred ({max} characters max)?
 question_app_branch: |
   ```css
   Sky App Type
@@ -138,4 +144,4 @@ custom_command_removed: Command `{trigger}` has been removed.
 custom_command_not_found: Unable to remove `{trigger}` as it doesn't seem to exist.
 custom_command_creating: This command does not exist, making it for you instead.
 custom_command_updated: Command `{trigger}` has been updated!
-no_live_android: There is no live version available on Android yet, only beta.
+no_live_android: There is no live version available on Android yet, only beta. Go back to the bug report channel any time to start a new report!
