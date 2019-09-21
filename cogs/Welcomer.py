@@ -34,7 +34,13 @@ class Welcomer(BaseCog):
             role = guild.get_role(roles[reaction])
             member = guild.get_member(user_id)
             action = getattr(member, f"{t}_roles")
-            await action(role)
+            try:
+                await action(role)
+            except Exception as ex:
+                Logging.info("failed")
+                Logging.error(ex)
+                raise ex
+            
 
 
 def setup(bot):
