@@ -23,6 +23,7 @@ class Welcomer(BaseCog):
         Logging.info(str(event.emoji))
         if react_user_id != self.bot.user.id and event.message_id == rules_message_id:
             await self.handle_reaction_change("add", str(event.emoji), react_user_id)
+        Logging.info("done")
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, event):
@@ -41,7 +42,14 @@ class Welcomer(BaseCog):
             Logging.info(role)
             Logging.info(member)
             action = getattr(member, f"{t}_roles")
-            await action(role)
+            Logging.info(action)
+            try:
+                await action(role)
+            except Exception as ex:
+                Logging.info("failed")
+                Logging.error(ex)
+                raise ex
+            
 
 
 def setup(bot):
