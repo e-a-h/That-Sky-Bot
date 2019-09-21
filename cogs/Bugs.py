@@ -287,7 +287,7 @@ class Bugs(BaseCog):
                 report.add_field(name=Lang.get_string("platform"), value=f"{platform} {platform_version}")
                 report.add_field(name=Lang.get_string("app_version"), value=app_version)
                 report.add_field(name=Lang.get_string("app_build"), value=app_build)
-                report.add_field(name=Lang.get_string("deviceinfo"), value=deviceinfo, inline=False)
+                report.add_field(name=Lang.get_string("device_info"), value=deviceinfo, inline=False)
                 report.add_field(name=Lang.get_string("title"), value=title, inline=False)
                 report.add_field(name=Lang.get_string("description"), value=actual, inline=False)
                 report.add_field(name=Lang.get_string("str"), value=steps, inline=False)
