@@ -219,6 +219,12 @@ class Bugs(BaseCog):
                                         Questions.Option("BETA", "Beta", lambda: set_branch("Beta"))
                                     ], show_embed=True)
 
+
+                # TODO: remove me when android goes live
+                if branch == "Stable" and platform == "Android":
+                    await channel.send(Lang.get_string("no_live_android"))
+                    return
+
                 # question 4: sky app version
                 app_version = await Questions.ask_text(self.bot,
                                                        channel,
