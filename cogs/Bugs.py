@@ -1,5 +1,8 @@
 import asyncio
+import time
 from concurrent.futures import CancelledError
+from datetime import datetime
+
 from discord import Forbidden, Embed, NotFound
 from discord.ext import commands
 from discord.ext.commands import Context, command
@@ -79,11 +82,9 @@ class Bugs(BaseCog):
 
             should_reset = False
 
-
             async def start_over():
                 nonlocal should_reset
                 should_reset = True
-
 
                 if user.id in self.canceling:
                     self.canceling.remove(user.id)
@@ -168,8 +169,8 @@ class Bugs(BaseCog):
             async def send_report():
                 # save report in the database
                 br = BugReport.create(reporter=user.id, platform=platform, platform_version=platform_version,
-                                      branch=branch, app_version=app_version, app_build=app_build, title=title, steps=steps,
-                                      expected=expected, actual=actual, additional=additional_text)
+                                      branch=branch, app_version=app_version, app_build=app_build, title=title,
+                                      steps=steps, expected=expected, actual=actual, additional=additional_text)
                 for url in attachment_links:
                     Attachements.create(report=br, url=url)
 
@@ -206,7 +207,9 @@ class Bugs(BaseCog):
                                     ], show_embed=True)
 
                 # question 2: android/ios version
-                platform_version = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_platform_version", platform=platform),
+                platform_version = await Questions.ask_text(self.bot, channel, user,
+                                                            Lang.get_string("question_platform_version",
+                                                                            platform=platform),
                                                             validator=verify_version)
 
                 # question 3: stable or beta?
@@ -222,23 +225,29 @@ class Bugs(BaseCog):
                                                        user,
                                                        Lang.get_string(
                                                            "question_app_version",
-                                                           version_help=Lang.get_string("version_"+platform.lower())),
+                                                           version_help=Lang.get_string("version_" + platform.lower())),
                                                        validator=verify_version)
 
                 # question 5: sky app build number
-                app_build = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_app_build"), validator=verify_version)
+                app_build = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_app_build"),
+                                                     validator=verify_version)
 
                 # question 6: Title
-                title = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_title", max=100), validator=max_length(100))
+                title = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_title", max=100),
+                                                 validator=max_length(100))
 
                 # question 7: "actual" - defect behavior
-                actual = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_actual", max=400), validator=max_length(400))
+                actual = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_actual", max=400),
+                                                  validator=max_length(400))
 
                 # question 8: steps to reproduce
-                steps = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_steps", max=800), validator=max_length(800))
+                steps = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_steps", max=800),
+                                                 validator=max_length(800))
 
                 # question 9: expected behavior
-                expected = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_expected", max=200), validator=max_length(200))
+                expected = await Questions.ask_text(self.bot, channel, user,
+                                                    Lang.get_string("question_expected", max=200),
+                                                    validator=max_length(200))
 
                 # question 10: additional info
                 await Questions.ask(self.bot, channel, user, Lang.get_string("question_additional"),
@@ -248,7 +257,8 @@ class Bugs(BaseCog):
                                     ])
 
                 if additional:
-                    additional_text = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_additional_info"),
+                    additional_text = await Questions.ask_text(self.bot, channel, user,
+                                                               Lang.get_string("question_additional_info"),
                                                                validator=max_length(500))
 
                 # question 11: attachments
@@ -262,7 +272,7 @@ class Bugs(BaseCog):
                     attachment_links = await Questions.ask_attachements(self.bot, channel, user)
 
                 # assemble the report
-                report = Embed()
+                report = Embed(timestamp=datetime.utcfromtimestamp(time.time()))
                 report.set_author(name=f"{user} ({user.id})", icon_url=user.avatar_url_as(size=32))
                 report.add_field(name=Lang.get_string("platform"), value=f"{platform} {platform_version}")
                 report.add_field(name=Lang.get_string("app_version"), value=app_version)

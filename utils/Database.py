@@ -1,4 +1,5 @@
-from peewee import MySQLDatabase, Model, PrimaryKeyField, BigIntegerField, CharField, ForeignKeyField, AutoField
+from peewee import MySQLDatabase, Model, PrimaryKeyField, BigIntegerField, CharField, ForeignKeyField, AutoField, \
+    TimestampField
 from utils import Configuration
 
 connection = MySQLDatabase(Configuration.get_var("DATABASE_NAME"),
@@ -23,6 +24,7 @@ class BugReport(Model):
     expected = CharField(200, collation="utf8mb4_general_ci")
     actual = CharField(400, collation="utf8mb4_general_ci")
     additional = CharField(500, collation="utf8mb4_general_ci")
+    reported_at = TimestampField(utc=True)
 
     class Meta:
         database = connection
