@@ -1,6 +1,6 @@
 from discord.ext import commands
 from cogs.BaseCog import BaseCog
-from utils import Configuration, Logging, Emoji
+from utils import Configuration
 
 
 class Welcomer(BaseCog):

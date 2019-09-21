@@ -19,6 +19,7 @@ class BugReport(Model):
     app_version = CharField(20)
     app_build = CharField(20, null=True)
     title = CharField(100, collation="utf8mb4_general_ci")
+    deviceinfo = CharField(100, collation="utf8mb4_general_ci")
     steps = CharField(1024, collation="utf8mb4_general_ci")
     expected = CharField(200, collation="utf8mb4_general_ci")
     actual = CharField(400, collation="utf8mb4_general_ci")

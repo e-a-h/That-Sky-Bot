@@ -19,4 +19,7 @@ That Sky [Bot] for thatgamecompany and #thatskygame
      * **@everone:** -read, -add reaction
      * **members:** +read
      * **bot:** +read, +add reaction
-1. Config file required. see config.example.json and fill in channel 
+   * Any members-only channel should be
+     * **@everyone:** -read
+     * **members:** +read
+1. Config file required. see config.example.json and fill in channel IDs, guild ID, role IDs

@@ -209,7 +209,11 @@ class Bugs(BaseCog):
                 platform_version = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_platform_version", platform=platform),
                                                             validator=verify_version)
 
+                # question 3: hardware info
+                app_build = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_device_info", max=100), validator=max_length(100))
+
                 # question 3: stable or beta?
+
                 await Questions.ask(self.bot, channel, user, Lang.get_string("question_app_branch"),
                                     [
                                         Questions.Option("STABLE", "Live", lambda: set_branch("Stable")),
@@ -240,6 +244,16 @@ class Bugs(BaseCog):
                 # question 9: expected behavior
                 expected = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_expected", max=200), validator=max_length(200))
 
+                # question 11: attachments
+                await Questions.ask(self.bot, channel, user, Lang.get_string("question_attachments"),
+                                    [
+                                        Questions.Option("YES", handler=add_attachments),
+                                        Questions.Option("NO")
+                                    ])
+
+                if attachments:
+                    attachment_links = await Questions.ask_attachements(self.bot, channel, user)
+
                 # question 10: additional info
                 await Questions.ask(self.bot, channel, user, Lang.get_string("question_additional"),
                                     [
@@ -250,16 +264,6 @@ class Bugs(BaseCog):
                 if additional:
                     additional_text = await Questions.ask_text(self.bot, channel, user, Lang.get_string("question_additional_info"),
                                                                validator=max_length(500))
-
-                # question 11: attachments
-                await Questions.ask(self.bot, channel, user, Lang.get_string("question_attachments"),
-                                    [
-                                        Questions.Option("YES", handler=add_attachments),
-                                        Questions.Option("NO")
-                                    ])
-
-                if attachments:
-                    attachment_links = await Questions.ask_attachements(self.bot, channel, user)
 
                 # assemble the report
                 report = Embed()

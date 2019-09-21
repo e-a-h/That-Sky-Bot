@@ -32,7 +32,7 @@ question_ready: |
       - Additional Information
       - Attachment(s)
 
-  Ready to get started?
+  Ready to get started? For any question I ask that has reaction icons like this, just click/tap one of the choices to answer!
 platform: Platform
 question_platform: |
   ```css
@@ -44,6 +44,11 @@ question_platform_version: |
   Operating System Version
   ```
   What {platform} version do you use? This can be found in device settings
+question_device_info: |
+  ```css
+  Device Info
+  ```
+  What model of {platform} device were you using when the bug occurred ({max} characters max)?
 question_app_branch: |
   ```css
   Sky App Type
