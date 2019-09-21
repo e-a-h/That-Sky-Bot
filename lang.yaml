@@ -143,4 +143,4 @@ custom_command_removed: Command `{trigger}` has been removed.
 custom_command_not_found: Unable to remove `{trigger}` as it doesn't seem to exist.
 custom_command_creating: This command does not exist, making it for you instead.
 custom_command_updated: Command `{trigger}` has been updated!
-no_live_android: There is no live version available on Android yet, only beta.
+no_live_android: There is no live version available on Android yet, only beta. Go back to the bug report channel any time to start a new report!
