@@ -44,6 +44,7 @@ question_platform_version: |
   Operating System Version
   ```
   What {platform} version do you use? This can be found in device settings
+device_info: Device
 question_device_info: |
   ```css
   Device Info
