@@ -1,3 +1,4 @@
+import csv
 import json
 import math
 import re
@@ -262,9 +263,15 @@ def fetch_from_disk(filename, alternative=None):
     return dict()
 
 
-def save_to_disk(filename, dict):
-    with open(f"{filename}.json", "w", encoding="UTF-8") as file:
-        json.dump(dict, file, indent=4, skipkeys=True, sort_keys=True)
+def save_to_disk(filename, data, ext="json", fields=None):
+    with open(f"{filename}.{ext}", "w", encoding="UTF-8", newline='') as file:
+        if ext == 'json':
+            json.dump(data, file, indent=4, skipkeys=True, sort_keys=True)
+        elif ext == 'csv':
+            csvwriter = csv.DictWriter(file, fieldnames=fields)
+            csvwriter.writeheader()
+            for row in data:
+                csvwriter.writerow(row)
 
 
 def to_pretty_time(seconds):
