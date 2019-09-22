@@ -1,9 +1,11 @@
+from discord import File
 from discord.ext import commands
 from discord.ext.commands import command
 
 from cogs.BaseCog import BaseCog
 from utils import Configuration
 from utils.Database import BugReport, Attachements
+from utils.Utils import save_to_disk
 
 
 class Reporting(BaseCog):
@@ -13,15 +15,42 @@ class Reporting(BaseCog):
         # TODO: start from ID or from date?
         # TODO: optionally export all channels/branches or individual
         query = (BugReport.select(BugReport))
-        message = "report id, report time, reporter, platform, platform version, branch, app version, app build, " \
-                  "report title, device info, steps, expected outcome, actual outcome, additional info\n"
+
+        fields = ["id",
+                  "reported_at",
+                  "reporter",
+                  "platform",
+                  "platform_version",
+                  "branch",
+                  "app_version",
+                  "app_build",
+                  "title",
+                  "deviceinfo",
+                  "steps",
+                  "expected",
+                  "actual",
+                  "additional"]
+        data_list = ()
         for report in query:
             reporter = self.bot.get_user(report.reporter)
-            message += f"{report.id}, {report.reported_at}, @{reporter.name}#{reporter.discriminator}({report.reporter}), " \
-                       f"'{report.platform}', '{report.platform_version}', '{report.branch}', '{report.app_version}', " \
-                       f"'{report.app_build}', '{report.title}', '{report.deviceinfo}', '{report.steps}', " \
-                       f"'{report.expected}', '{report.actual}', '{report.additional}'\n"
-        sent = await ctx.send( message )
+            data_list += ({"id":report.id,
+                           "reported_at":report.reported_at,
+                           "reporter":f"@{reporter.name}#{reporter.discriminator}({report.reporter})",
+                           "platform":report.platform,
+                           "platform_version":report.platform_version,
+                           "branch":report.branch,
+                           "app_version":report.app_version,
+                           "app_build":report.app_build,
+                           "title":report.title,
+                           "deviceinfo":report.deviceinfo,
+                           "steps":report.steps,
+                           "expected":report.expected,
+                           "actual":report.actual,
+                           "additional":report.additional},)
+        save_to_disk('report', data_list, 'csv', fields)
+        send_file = File("report.csv")
+        sent = await ctx.send(file=send_file)
+
 
 def setup(bot):
     bot.add_cog(Reporting(bot))

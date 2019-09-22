@@ -108,3 +108,4 @@ venv.bak/
 config.json
 logs
 persistent.json
+report.csv
