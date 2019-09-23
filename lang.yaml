@@ -1,13 +1,17 @@
-bug_info: "**Report a New Bug!**\nBrowse or search this channel to see what bugs have been reported. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."
+bug_info: "**Report a New Bug!**\nBrowse or search this channel to see bug reports. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."
 shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
 stop_spamming: "{user} stop spamming the bug reaction!"
-start_over: "{user} You are already in the middle of reporting a bug, do you want to cancel that report and start over?"
+start_over: "{user} You are already in the middle of reporting a bug. Do you want to cancel that report to start over?"
+start_over_yes: Cancel my in-progress report and start a new one
+start_over_no: Do not cancel my in-progress report
+skip_step: Skip this step
 abort_report: Ok, I won't ask you any more questions for now. Go back to the bug report channel any time to start a new one!
 latest_not_allowed: Tell me a number! ``Latest`` is not valid because the latest version changes with every update. You might not even have the latest version if you didn't update recently, so an actual number is really helpful here!
 no_numbers: There don't appear to be any numbers in there
 love_letter: Whoa there, I just need a version number, not an entire love letter
 text_too_long: That text seems suspiciously long for the question asked... Try typing up a shorter answer (up to {max} characters) and we'll see if I like it
 report_header: "**Bug Report {id} - submitted by {user}**"
+attachments_yes: Yes, add pictures/videos
 attachment_info: "**Attachment to report {id}**\n{links}"
 attachment_info_plural: "**Attachments to report {id}**\n{links}"
 no_attachments: I can't accept files yet. That step comes later. Just use your words
@@ -17,6 +21,7 @@ attachment_prompt_final: You can send one more file or link
 attachment_not_found: There were no files or links in that message. Try sending again
 attachments_overflow: You can only add up to {max} attachments
 attachments_restart: Ok, I've thrown away all the attachments you sent. Do you want to try sending files or links again, or skip this step?
+approve_attachments: Final answer!
 report_confirmation: Thank you! Your report was submitted, and can be found in <#{channel_id}>!
 error_reaction_timeout: "{error_emoji} You didn't react within {timeout} seconds, so this report has been cancelled. Go back to the bug report channel to start a new one!"
 question_ready: |
@@ -29,10 +34,10 @@ question_ready: |
       - Sky App Type
       - Version of the Sky app
       - Description of the problem, and how to reproduce it
-      - Additional Information
       - Attachment(s)
+      - Additional Information
 
-  Ready to get started? For any question I ask that has reaction icons like this, just click/tap one of the choices to answer!
+  **Don't start typing your report yet!** For questions like this one that have reaction icons, press one of the reactions to answer! Ready to start?
 platform: Platform
 question_platform: |
   ```css
@@ -43,7 +48,7 @@ question_platform_version: |
   ```css
   Operating System Version
   ```
-  What {platform} version do you use? This can be found in device settings
+  What {platform} version do you use? This can be found in device settings. You can ***type*** your answer this time
 device_info: Device
 question_device_info: |
   ```css
@@ -69,7 +74,7 @@ question_app_build: |
   Sky App Build Number
   ```
   What **build** of the Sky app were you using when you experienced the bug?
-  See the instructions above. The build number is the number in parentheses.
+  See the instructions above. The build number is in parentheses.
 version_android: |
   **To find Sky version and build on Android devices:**
   > 1. Device settings
@@ -119,14 +124,15 @@ question_additional: |
   ```
   Do you have any other information to add to this report?
 question_additional_info: What other information would you like me to include in your report?
+additional_info_yes: Provide additional information
 question_attachments: |
   ```css
   Attachments
   ```
   Do you have screenshots, videos, or other documents to add?
 question_ok: This is what your report will look like. Should I submit it or discard it?
-send_report: Yes, send this report
-mistake: Nope, i made a mistake. Start over
+send_report: All done! Send this report
+mistake: Nope, I made a mistake. Throw away this report and start again
 dm_unable: '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
 eden_reset: |
   The Eye of Eden resets once per week.
