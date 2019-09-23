@@ -30,6 +30,7 @@
      "roles": {
         "\uD83D\uDD6F": 0
     },
+    "admin_roles": [],
     "guild_id": 0,
     "muted_role": 0
 }
