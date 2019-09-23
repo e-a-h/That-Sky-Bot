@@ -1,11 +1,13 @@
+import os
+from datetime import datetime
+
 from discord import File
 from discord.ext import commands
 from discord.ext.commands import command
 
 from cogs.BaseCog import BaseCog
-from utils import Configuration
 from utils.Database import BugReport, Attachements
-from utils.Utils import save_to_disk
+from utils.Utils import save_to_disk, is_admin
 
 
 class Reporting(BaseCog):
@@ -15,6 +17,10 @@ class Reporting(BaseCog):
         # TODO: start from ID or from date?
         # TODO: optionally export all channels/branches or individual
         # TODO: join attachments table to this output
+
+        if not is_admin(ctx.author):
+            return
+
         query = (BugReport.select(BugReport))
 
         fields = ["id",
@@ -48,9 +54,11 @@ class Reporting(BaseCog):
                            "expected": report.expected,
                            "actual": report.actual,
                            "additional": report.additional},)
-        save_to_disk('report', data_list, 'csv', fields)
-        send_file = File("report.csv")
+        now = datetime.today().timestamp()
+        save_to_disk(f"report_{now}", data_list, 'csv', fields)
+        send_file = File(f"report_{now}.csv")
         sent = await ctx.send(file=send_file)
+        os.remove(f"report_{now}.csv")
 
 
 def setup(bot):
