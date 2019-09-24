@@ -21,7 +21,7 @@ class Reporting(BaseCog):
         if not is_admin(ctx.author):
             return
 
-        query = (BugReport.select(BugReport))
+        query = BugReport.select().order_by(BugReport.id).prefetch(Attachements)
 
         fields = ["id",
                   "reported_at",
@@ -36,10 +36,17 @@ class Reporting(BaseCog):
                   "steps",
                   "expected",
                   "actual",
+                  "attachments",
                   "additional"]
         data_list = ()
         for report in query:
             reporter = self.bot.get_user(report.reporter)
+            attachments = []
+            for attachment in report.attachments:
+                attachments.append(attachment.url)
+
+            attachments = "\n".join(attachments)
+
             data_list += ({"id": report.id,
                            "reported_at": report.reported_at,
                            "reporter": f"@{reporter.name}#{reporter.discriminator}({report.reporter})",
@@ -53,6 +60,7 @@ class Reporting(BaseCog):
                            "steps": report.steps,
                            "expected": report.expected,
                            "actual": report.actual,
+                           "attachments": attachments,
                            "additional": report.additional},)
         now = datetime.today().timestamp()
         save_to_disk(f"report_{now}", data_list, 'csv', fields)
