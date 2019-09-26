@@ -16,7 +16,6 @@ class Reporting(BaseCog):
         """Export bug reports starting from {start} to CSV file"""
         # TODO: start from ID or from date?
         # TODO: optionally export all channels/branches or individual
-        # TODO: join attachments table to this output
 
         if not is_admin(ctx.author):
             return
