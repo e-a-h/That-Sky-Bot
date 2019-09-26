@@ -92,9 +92,9 @@ class Bugs(BaseCog):
             self.canceling.add(user.id)
             await Questions.ask(self.bot, trigger_channel, user, Lang.get_string("start_over", user=user.mention),
                                 [
-                                    Questions.Option("YES", handler=start_over),
-                                    Questions.Option("NO")
-                                ], delete_after=True)
+                                    Questions.Option("YES", Lang.get_string("start_over_yes"), handler=start_over),
+                                    Questions.Option("NO", Lang.get_string("start_over_no"))
+                                ], delete_after=True, show_embed=True)
             if user.id in self.canceling:
                 self.canceling.remove(user.id)
 
@@ -196,9 +196,9 @@ class Bugs(BaseCog):
 
             await Questions.ask(self.bot, channel, user, Lang.get_string("question_ready"),
                                 [
-                                    Questions.Option("YES"),
-                                    Questions.Option("NO", handler=abort),
-                                ])
+                                    Questions.Option("YES", "Press this reaction to answer YES and begin a report"),
+                                    Questions.Option("NO", "Press this reaction to answer NO", handler=abort),
+                                ], show_embed=True)
             if asking:
                 # question 1: android or ios?
                 await Questions.ask(self.bot, channel, user, Lang.get_string("question_platform"),
@@ -262,9 +262,9 @@ class Bugs(BaseCog):
                 # question 11: attachments
                 await Questions.ask(self.bot, channel, user, Lang.get_string("question_attachments"),
                                     [
-                                        Questions.Option("YES", handler=add_attachments),
-                                        Questions.Option("NO")
-                                    ])
+                                        Questions.Option("YES", Lang.get_string("attachments_yes"), handler=add_attachments),
+                                        Questions.Option("NO", Lang.get_string("skip_step"))
+                                    ], show_embed=True)
 
                 if attachments:
                     attachment_links = await Questions.ask_attachements(self.bot, channel, user)
@@ -272,9 +272,9 @@ class Bugs(BaseCog):
                 # question 12: additional info
                 await Questions.ask(self.bot, channel, user, Lang.get_string("question_additional"),
                                     [
-                                        Questions.Option("YES", handler=add_additional),
-                                        Questions.Option("NO")
-                                    ])
+                                        Questions.Option("YES", Lang.get_string("additional_info_yes"), handler=add_additional),
+                                        Questions.Option("NO", Lang.get_string("skip_step"))
+                                    ], show_embed=True)
 
                 if additional:
                     additional_text = await Questions.ask_text(self.bot, channel, user,
@@ -306,7 +306,7 @@ class Bugs(BaseCog):
                                     [
                                         Questions.Option("YES", Lang.get_string("send_report"), send_report),
                                         Questions.Option("NO", Lang.get_string("mistake"), restart)
-                                    ])
+                                    ], show_embed=True)
             else:
                 return
 
