@@ -15,10 +15,8 @@ class CustCommands(BaseCog):
         self.bot.loop.create_task(self.reloadCommands())
         self.loaded = False
 
-
     async def cog_check (self, ctx):
         return ctx.author.guild_permissions.ban_members
-
 
     async def reloadCommands(self):
         for guild in self.bot.guilds:
@@ -40,8 +38,8 @@ class CustCommands(BaseCog):
     @commands.group(name="commands", aliases=['command'])
     @commands.guild_only()
     @commands.bot_has_permissions(embed_links=True)
-    async def command(self, ctx:commands.Context):
-        """custom_commands_help"""
+    async def command(self, ctx: commands.Context):
+        """Show a list of custom commands"""
         if ctx.invoked_subcommand is None:
             embed = discord.Embed(timestamp=ctx.message.created_at, color=0x663399, title=Lang.get_string("custom_command_list", server_name=ctx.guild.name))
             value = ""
@@ -55,7 +53,6 @@ class CustCommands(BaseCog):
                 await ctx.send(embed=embed)
             else:
                 await ctx.send(Lang.get_string("custom_command_no_commands"))
-
 
     @command.command(aliases=["new", "add"])
     @commands.guild_only()
@@ -134,9 +131,6 @@ class CustCommands(BaseCog):
                 if message.content.lower() == prefix+trigger or (message.content.lower().startswith(trigger, len(prefix)) and message.content.lower()[len(prefix+trigger)] == " "):
                     command_content = self.commands[message.guild.id][trigger].replace("@", "@\u200b")
                     await message.channel.send(command_content)
-
-
-
 
 
 def setup(bot):
