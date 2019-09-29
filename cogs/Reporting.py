@@ -29,7 +29,7 @@ class Reporting(BaseCog):
         csv                        exports complete history of reports
         csv 15 20                  exports reports with ids in the range 15-20
         csv -100                   exports the last 100 reports matching other criteria
-        csv [both|beta|stable]        exports reports for given branch
+        csv [both|beta|stable]     exports reports for given branch
         csv {both|beta|stable} [all|android|ios|etc]
                                    exports reports for given branch and platform"""
         # TODO: start from date?
@@ -103,7 +103,10 @@ class Reporting(BaseCog):
                   "additional"]
         data_list = ()
         for report in query:
+            reporter_formatted = report.reporter
             reporter = self.bot.get_user(report.reporter)
+            if reporter is not None:
+                reporter_formatted = f"@{reporter.name}#{reporter.discriminator}({report.reporter})"
             attachments = []
             for attachment in report.attachments:
                 attachments.append(attachment.url)
@@ -112,7 +115,7 @@ class Reporting(BaseCog):
 
             data_list += ({"id": report.id,
                            "reported_at": report.reported_at,
-                           "reporter": f"@{reporter.name}#{reporter.discriminator}({report.reporter})",
+                           "reporter": reporter_formatted,
                            "platform": report.platform,
                            "platform_version": report.platform_version,
                            "branch": report.branch,
