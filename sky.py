@@ -104,6 +104,7 @@ if __name__ == '__main__':
     loop = asyncio.get_event_loop()
 
     skybot = Skybot(command_prefix=Configuration.get_var("bot_prefix"), case_insensitive=True, loop=loop)
+    skybot.remove_command("help")
 
     Utils.BOT = skybot
 
