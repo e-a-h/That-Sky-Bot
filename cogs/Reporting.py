@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from datetime import datetime
 
@@ -51,6 +52,10 @@ class Reporting(BaseCog):
                 return ["Android"]
             else:
                 return ["Android", "iOS"]
+
+        # dashes at the start of text are interpreted as formulas by excel. replace with *
+        def filter_hyphens(text):
+            return re.sub(r'^\s*[-=+]\s*', '* ', text, flags=re.MULTILINE)
 
         pl = get_platform(platform)
         br = get_branch(branch)
@@ -123,11 +128,11 @@ class Reporting(BaseCog):
                            "app_build": report.app_build,
                            "title": report.title,
                            "deviceinfo": report.deviceinfo,
-                           "steps": report.steps,
-                           "expected": report.expected,
-                           "actual": report.actual,
+                           "steps": filter_hyphens(report.steps),
+                           "expected": filter_hyphens(report.expected),
+                           "actual": filter_hyphens(report.actual),
                            "attachments": attachments,
-                           "additional": report.additional},)
+                           "additional": filter_hyphens(report.additional)},)
         now = datetime.today().timestamp()
 
         out = ""
