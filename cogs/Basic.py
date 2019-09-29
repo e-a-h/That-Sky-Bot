@@ -6,9 +6,9 @@ from cogs.BaseCog import BaseCog
 
 
 class Basic(BaseCog):
-    @command()
+    @command(hidden=True)
     async def ping(self, ctx: Context):
-        """ping_help"""
+        """show ping times"""
         t1 = time.perf_counter()
         message = await ctx.send(":ping_pong:")
         t2 = time.perf_counter()

@@ -1,3 +1,4 @@
+import csv
 import json
 import math
 import re
@@ -13,7 +14,7 @@ from aiohttp import ClientOSError, ServerDisconnectedError
 from discord import Embed, Colour, ConnectionClosed, NotFound
 from discord.abc import PrivateChannel
 
-from utils import Logging
+from utils import Logging, Configuration
 
 BOT = None
 ID_MATCHER = re.compile("<@!?([0-9]+)>")
@@ -157,6 +158,12 @@ known_invalid_users = []
 user_cache = OrderedDict()
 
 
+# def is_admin(ctx):
+#     for role in ctx.author.roles:
+#         if role.id in Configuration.get_var('admin_roles'):
+#             return True
+#     return False
+
 async def get_user(uid, fetch=True):
     UserClass = namedtuple("UserClass", "name id discriminator bot avatar_url created_at is_avatar_animated mention")
     user = BOT.get_user(uid)
@@ -262,9 +269,15 @@ def fetch_from_disk(filename, alternative=None):
     return dict()
 
 
-def save_to_disk(filename, dict):
-    with open(f"{filename}.json", "w", encoding="UTF-8") as file:
-        json.dump(dict, file, indent=4, skipkeys=True, sort_keys=True)
+def save_to_disk(filename, data, ext="json", fields=None):
+    with open(f"{filename}.{ext}", "w", encoding="UTF-8", newline='') as file:
+        if ext == 'json':
+            json.dump(data, file, indent=4, skipkeys=True, sort_keys=True)
+        elif ext == 'csv':
+            csvwriter = csv.DictWriter(file, fieldnames=fields)
+            csvwriter.writeheader()
+            for row in data:
+                csvwriter.writerow(row)
 
 
 def to_pretty_time(seconds):
