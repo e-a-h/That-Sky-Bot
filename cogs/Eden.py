@@ -17,7 +17,7 @@ class Eden(BaseCog):
         # get a timestamp of today with the correct hour, eden reset is 7am UTC
         dt = datetime.datetime.now().astimezone(server_zone).replace(hour=0, minute=0, second=0, microsecond=0)
         # sunday is weekday 7
-        days_to_go = 6 - dt.weekday()
+        days_to_go = (6 - dt.weekday()) if dt.weekday() < 6 else 7
         reset_time = dt + datetime.timedelta(days=days_to_go)
 
         time_left = reset_time - datetime.datetime.now().astimezone(server_zone)
