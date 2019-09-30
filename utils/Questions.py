@@ -117,9 +117,9 @@ async def ask_attachements(
         nonlocal final_attachments
         final_attachments = []
         await ask(bot, channel, user, Lang.get_string("attachments_restart"), [
-            Option("YES"),
-            Option("NO", handler=ready)
-        ])
+            Option("YES", "Yes, try adding attachments again"),
+            Option("NO", "Do not attach any files", handler=ready)
+        ], show_embed=True)
 
     while not done:
         ask_again = True
@@ -167,9 +167,9 @@ async def ask_attachements(
                 else:
                     ask_again = False
 
-        await ask(bot, channel, user, f"Are you sure you want to attach those links?", [
-            Option("YES", handler=ready),
-            Option("NO", handler=restart_attachments)
-        ])
+        await ask(bot, channel, user, f"Are those all the files you meant to send?", [
+            Option("YES", Lang.get_string("approve_attachments"), handler=ready),
+            Option("NO", f"Forget {'that attachment' if len(final_attachments) == 1 else 'those attachments'} and try again", handler=restart_attachments)
+        ], show_embed=True)
 
     return final_attachments
