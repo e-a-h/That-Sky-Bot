@@ -1,5 +1,6 @@
 from peewee import MySQLDatabase, Model, PrimaryKeyField, BigIntegerField, CharField, ForeignKeyField, AutoField, \
     TimestampField
+
 from utils import Configuration
 
 connection = MySQLDatabase(Configuration.get_var("DATABASE_NAME"),
@@ -59,8 +60,20 @@ class CustomCommand(Model):
         database = connection
 
 
+class AutoResponder(Model):
+    id = PrimaryKeyField()
+    serverid = BigIntegerField()
+    trigger = CharField(max_length=300, collation="utf8mb4_general_ci")
+    response = CharField(max_length=2000, collation="utf8mb4_general_ci")
+    flags = BigIntegerField(default=0)
+    responsechannelid = BigIntegerField(default=0)
+
+    class Meta:
+        database = connection
+
+
 def init():
     global connection
     connection.connect()
-    connection.create_tables([BugReport, Attachements, Repros, CustomCommand])
+    connection.create_tables([BugReport, Attachements, Repros, CustomCommand, AutoResponder])
     connection.close()
