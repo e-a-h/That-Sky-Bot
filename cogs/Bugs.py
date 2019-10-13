@@ -301,12 +301,13 @@ class Bugs(BaseCog):
                     for a in attachment_links:
                         attachment_message += f"{a}\n"
                     await channel.send(attachment_message)
+                review_time = 180
                 await Questions.ask(self.bot, channel, user,
-                                    Lang.get_string("question_ok"),
+                                    Lang.get_string("question_ok", timeout=review_time),
                                     [
                                         Questions.Option("YES", Lang.get_string("send_report"), send_report),
                                         Questions.Option("NO", Lang.get_string("mistake"), restart)
-                                    ], show_embed=True, timeout=180)
+                                    ], show_embed=True, timeout=review_time)
             else:
                 return
 
