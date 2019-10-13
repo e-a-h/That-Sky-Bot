@@ -37,7 +37,7 @@ async def ask(bot, channel, author, text, options, timeout=60, show_embed=False,
         if h is None:
             return
         if inspect.iscoroutinefunction(h):
-            await h(*a) if a is not None else h()
+            await h(*a) if a is not None else await h()
         else:
             h(*a) if a is not None else h()
 

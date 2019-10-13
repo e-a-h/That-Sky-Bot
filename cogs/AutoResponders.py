@@ -12,14 +12,6 @@ from utils import Lang, Utils, Questions, Emoji, Configuration
 from utils.Database import AutoResponder
 
 
-#            "💘", "💝", "💖", "💗", "💓", "💞", "💕", "💟", "💔", "❤", "🧡", "💛", "💚", "💙", "💜", "🖤", "♥"
-
-# «»
-# ?ar add «[["💘", "💝", "💖", "💗", "💓", "💞", "💕", "💟", "💔", "❤", "💛", "💚", "💙", "💜", "🖤", "♥", "heart"], ["trad", "send", "give", "exchange"]]» heart trade match
-# [["\u2764", "\u2665", "\U0001F493", "\U0001F494", "\U0001F495", "\U0001F496", "\U0001F497", "\U0001F498",
-# "\U0001F499", "\U0001F49A", "\U0001F49B", "\U0001F49C", "\U0001F49D", "\U0001F49E", "heart"],
-# ["trad", "send", "give"]]
-
 async def nope(ctx, msg: str = None):
     msg = msg or Lang.get_string('nope')
     await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} {msg}")
