@@ -306,7 +306,7 @@ class Bugs(BaseCog):
                                     [
                                         Questions.Option("YES", Lang.get_string("send_report"), send_report),
                                         Questions.Option("NO", Lang.get_string("mistake"), restart)
-                                    ], show_embed=True)
+                                    ], show_embed=True, timeout=180)
             else:
                 return
 
