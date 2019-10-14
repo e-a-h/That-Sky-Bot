@@ -21,10 +21,8 @@ class Skybot(Bot):
             Logging.BOT_LOG_CHANNEL = self.get_channel(Configuration.get_var("log_channel"))
             Emoji.initialize(self)
 
-            Logging.info("Loading cogs...")
-
             # Migrate from config-based cog loading
-            cog_coercion_list = ["Basic", "CogManager", "Reload", "Bugs", "Welcomer", "Eden", "CustCommands", "Reporting"]
+            cog_coercion_list = ["Basic", "CogManager", "Reload", "Bugs", "Welcomer", "Eden", "CustCommands", "Reporting", "AutoResponders"]
             db_cogs = CogLoader.select(CogLoader.name)
             db_cog_names = []
             # List of cogs from db
@@ -39,8 +37,9 @@ class Skybot(Bot):
             db_cogs = CogLoader.select()
             for db_cog in db_cogs:
                 try:
-                    Logging.info(f"loading cog.{db_cog.name}")
-                    # TODO: check flags
+                    # TODO: check flags?
+                    #  db_cog.flags will be bitmask with options (what options?) and for now is always 1
+                    #  bit 1 is "enabled" flag
                     self.load_extension("cogs." + db_cog.name)
                 except Exception as e:
                     await Utils.handle_exception(f"Failed to load cog {db_cog.name}", self, e)

@@ -138,7 +138,7 @@ eden_reset: |
   The Eye of Eden resets once per week.
   Next reset is on {date} at {time} (In {countdown})
 nope: Something isn't right...
-autoresponder:
+autoresponders:
   you_chose: You chose **{value}**
   list: Auto-responder list for {server_name}.
   none_set: No auto-responders have been created yet.
