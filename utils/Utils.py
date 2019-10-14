@@ -158,8 +158,8 @@ known_invalid_users = []
 user_cache = OrderedDict()
 
 
-# def is_admin(ctx):
-#     for role in ctx.author.roles:
+# def is_allowed(person):
+#     for role in person.roles:
 #         if role.id in Configuration.get_var('admin_roles'):
 #             return True
 #     return False

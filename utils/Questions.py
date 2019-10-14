@@ -5,7 +5,8 @@ from collections import namedtuple
 from discord import Embed, Reaction
 from utils import Emoji, Utils, Configuration, Lang
 
-Option = namedtuple("Option", "emoji text handler", defaults=(None, None, None))
+Option = namedtuple("Option", "emoji text handler args", defaults=(None, None, None, None))
+
 
 async def ask(bot, channel, author, text, options, timeout=60, show_embed=False, delete_after=False):
     embed = Embed(color=0x68a910, description='\n'.join(f"{Emoji.get_chat_emoji(option.emoji)} {option.text}" for option in options))
@@ -14,7 +15,7 @@ async def ask(bot, channel, author, text, options, timeout=60, show_embed=False,
     for option in options:
         emoji = Emoji.get_emoji(option.emoji)
         await message.add_reaction(emoji)
-        handlers[str(emoji)] = option.handler
+        handlers[str(emoji)] = {'handler': option.handler, 'args': option.args}
 
     def check(reaction: Reaction, user):
         return user == author and str(reaction.emoji) in handlers.keys() and reaction.message.id == message.id
@@ -31,13 +32,14 @@ async def ask(bot, channel, author, text, options, timeout=60, show_embed=False,
     else:
         if delete_after:
             await message.delete()
-        h = handlers[str(reaction.emoji)]
+        h = handlers[str(reaction.emoji)]['handler']
+        a = handlers[str(reaction.emoji)]['args']
         if h is None:
             return
         if inspect.iscoroutinefunction(h):
-            await h()
+            await h(*a) if a is not None else await h()
         else:
-            h()
+            h(*a) if a is not None else h()
 
 
 async def ask_text(
@@ -47,7 +49,8 @@ async def ask_text(
         text,
         validator=None,
         timeout=Configuration.get_var("question_timeout_seconds"),
-        confirm=False):
+        confirm=False,
+        escape=True):
 
     def check(message):
         return user == message.author and message.channel == channel
@@ -80,10 +83,12 @@ async def ask_text(
                 else:
                     await channel.send(result)
         except asyncio.TimeoutError as ex:
-            await channel.send(Lang.get_string("error_reaction_timeout", error_emoji=Emoji.get_emoji("WARNING"), timeout=timeout))
+            await channel.send(
+                Lang.get_string("error_reaction_timeout", error_emoji=Emoji.get_emoji("WARNING"), timeout=timeout)
+            )
             raise ex
         else:
-            content = Utils.escape_markdown(message_cleaned)
+            content = Utils.escape_markdown(message_cleaned) if escape else message_cleaned
             if confirm:
                 backticks = "``" if len(message_cleaned.splitlines()) is 1 else "```"
                 message = f"Are you sure {backticks}{message_cleaned}{backticks} is correct?"
@@ -134,7 +139,9 @@ async def ask_attachements(
             if not final_attachments:
                 await channel.send(Lang.get_string("attachment_prompt", max=max_files))
             elif len(final_attachments) < max_files - 1:
-                await channel.send(Lang.get_string("attachment_prompt_continued", max=max_files - len(final_attachments)))
+                await channel.send(
+                    Lang.get_string("attachment_prompt_continued", max=max_files - len(final_attachments))
+                )
             elif len(final_attachments):
                 await channel.send(Lang.get_string("attachment_prompt_final"))
 
@@ -155,7 +162,9 @@ async def ask_attachements(
                     else:
                         await channel.send(Lang.get_string("attachment_not_found"))
             except asyncio.TimeoutError as ex:
-                await channel.send(Lang.get_string("error_reaction_timeout", error_emoji=Emoji.get_emoji("WARNING"), timeout=timeout))
+                await channel.send(
+                    Lang.get_string("error_reaction_timeout", error_emoji=Emoji.get_emoji("WARNING"), timeout=timeout)
+                )
                 raise ex
             else:
                 if count < max_files:
@@ -169,7 +178,9 @@ async def ask_attachements(
 
         await ask(bot, channel, user, f"Are those all the files you meant to send?", [
             Option("YES", Lang.get_string("approve_attachments"), handler=ready),
-            Option("NO", f"Forget {'that attachment' if len(final_attachments) == 1 else 'those attachments'} and try again", handler=restart_attachments)
+            Option("NO",
+                   f"Forget {'that attachment' if len(final_attachments) == 1 else 'those attachments'} and try again",
+                   handler=restart_attachments)
         ], show_embed=True)
 
     return final_attachments

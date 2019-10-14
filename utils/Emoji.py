@@ -16,6 +16,16 @@ BACKUPS = {
     "CANDLE": "🕯",
     "WARNING": "⚠",
     "WHAT": "☹",
+    "NUMBER_0": "0\u20e3",
+    "NUMBER_1": "1\u20e3",
+    "NUMBER_2": "2\u20e3",
+    "NUMBER_3": "3\u20e3",
+    "NUMBER_4": "4\u20e3",
+    "NUMBER_5": "5\u20e3",
+    "NUMBER_6": "6\u20e3",
+    "NUMBER_7": "7\u20e3",
+    "NUMBER_8": "8\u20e3",
+    "NUMBER_9": "9\u20e3"
 }
 
 
