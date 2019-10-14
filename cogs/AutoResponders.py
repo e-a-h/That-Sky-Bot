@@ -61,10 +61,6 @@ class AutoResponders(BaseCog):
             if value is index:
                 return key
 
-    def get_lang_string(self, key, **kwargs):
-        group = 'autoresponder'
-        return Lang.get_string(f'{group}/{key}', **kwargs)
-
     async def reload_triggers(self, ctx=None):
         guilds = self.bot.guilds if ctx is None else [ctx.guild]
         for guild in guilds:
@@ -111,7 +107,7 @@ class AutoResponders(BaseCog):
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=0x663399,
-            title=self.get_lang_string("list", server_name=ctx.guild.name))
+            title=Lang.get_cog_string("list", server_name=ctx.guild.name))
         if len(self.triggers[ctx.guild.id].keys()) > 0:
             guild_triggers = self.triggers[ctx.guild.id]
             for trigger in guild_triggers.keys():
@@ -122,7 +118,7 @@ class AutoResponders(BaseCog):
                 embed.add_field(name=f"**__trigger:__** {get_trigger_description(trigger)}", value=flags_description, inline=False)
             await ctx.send(embed=embed)
         else:
-            await ctx.send(self.get_lang_string("no_autoresponders"))
+            await ctx.send(Lang.get_cog_string("no_autoresponders"))
 
     async def choose_trigger(self, ctx):
         options = []
@@ -131,7 +127,7 @@ class AutoResponders(BaseCog):
             options.append(f"{len(options)} ) {get_trigger_description(await Utils.clean(i))}")
             keys.append(i)
         options = '\n'.join(options)
-        prompt = f"{self.get_lang_string('which_trigger')}\n{options}"
+        prompt = f"{Lang.get_cog_string('which_trigger')}\n{options}"
 
         try:
             return_value = int(await Questions.ask_text(self.bot,
@@ -141,11 +137,11 @@ class AutoResponders(BaseCog):
             if len(keys) > return_value >= 0:
                 return_value = keys[return_value]
                 chosen = get_trigger_description(await Utils.clean(return_value))
-                await ctx.send(self.get_lang_string('you_chose', value=chosen))
+                await ctx.send(Lang.get_cog_string('you_chose', value=chosen))
                 return return_value
             raise ValueError
         except ValueError:
-            await nope(ctx, self.get_lang_string("expect_integer", min=0, max=len(keys)-1))
+            await nope(ctx, Lang.get_cog_string("expect_integer", min=0, max=len(keys)-1))
             raise
 
     def get_flags_description(self, trigger_obj, pre=None) -> str:
@@ -192,11 +188,11 @@ class AutoResponders(BaseCog):
         Use `autoresponder setflag` to activate
         """
         if len(trigger) == 0:
-            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {self.get_lang_string('empty_trigger')}")
+            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_cog_string('empty_trigger')}")
         elif reply is None or reply == "":
-            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {self.get_lang_string('empty_reply')}")
+            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_cog_string('empty_reply')}")
         elif len(trigger) > self.trigger_length_max:
-            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {self.get_lang_string('trigger_too_long')}")
+            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_cog_string('trigger_too_long')}")
         else:
             db_trigger = await get_db_trigger(ctx.guild.id, trigger)
             if db_trigger is None:
@@ -204,21 +200,21 @@ class AutoResponders(BaseCog):
                 # self.triggers[ctx.guild.id][trigger]['response'] = reply
                 await self.reload_triggers(ctx)
                 await ctx.send(
-                    f"{Emoji.get_chat_emoji('YES')} {self.get_lang_string('added', trigger=trigger)}"
+                    f"{Emoji.get_chat_emoji('YES')} {Lang.get_cog_string('added', trigger=trigger)}"
                 )
             else:
                 async def yes():
-                    await ctx.send(self.get_lang_string('updating'))
+                    await ctx.send(Lang.get_cog_string('updating'))
                     await ctx.invoke(self.update, db_trigger, reply=reply)
 
                 async def no():
-                    await ctx.send(self.get_lang_string('not_updating'))
+                    await ctx.send(Lang.get_cog_string('not_updating'))
 
                 try:
                     await Questions.ask(self.bot,
                                         ctx.channel,
                                         ctx.author,
-                                        self.get_lang_string('override_confirmation'),
+                                        Lang.get_cog_string('override_confirmation'),
                                         [
                                             Questions.Option('YES', handler=yes),
                                             Questions.Option('NO', handler=no)
@@ -239,24 +235,24 @@ class AutoResponders(BaseCog):
         trigger = await Utils.clean(trigger, links=False)
         if len(trigger) > self.trigger_length_max:
             await ctx.send(
-                f"{Emoji.get_chat_emoji('WHAT')} {self.get_lang_string('trigger_too_long')}"
+                f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_cog_string('trigger_too_long')}"
             )
         elif trigger in self.triggers[ctx.guild.id]:
             AutoResponder.get(serverid=ctx.guild.id, trigger=trigger).delete_instance()
             del self.triggers[ctx.guild.id][trigger]
             await ctx.send(
-                f"{Emoji.get_chat_emoji('YES')} {self.get_lang_string('removed', trigger=get_trigger_description(trigger))}"
+                f"{Emoji.get_chat_emoji('YES')} {Lang.get_cog_string('removed', trigger=get_trigger_description(trigger))}"
             )
             await self.reload_triggers(ctx)
         else:
             await ctx.send(
-                f"{Emoji.get_chat_emoji('NO')} {self.get_lang_string('not_found', trigger=get_trigger_description(trigger))}"
+                f"{Emoji.get_chat_emoji('NO')} {Lang.get_cog_string('not_found', trigger=get_trigger_description(trigger))}"
             )
 
     @autor.command(aliases=["h"])
     @commands.guild_only()
     async def help(self, ctx: commands.Context):
-        await ctx.send(self.get_lang_string('help'))
+        await ctx.send(Lang.get_cog_string('help'))
 
     @autor.command(aliases=["raw"])
     @commands.guild_only()
@@ -288,13 +284,13 @@ class AutoResponders(BaseCog):
             reply = await Questions.ask_text(self.bot,
                                              ctx.channel,
                                              ctx.author,
-                                             self.get_lang_string("prompt_response"),
+                                             Lang.get_cog_string("prompt_response"),
                                              escape=False)
 
         trigger = AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
         if trigger is None:
             await ctx.send(
-                f"{Emoji.get_chat_emoji('WARNING')} {self.get_lang_string('creating')}"
+                f"{Emoji.get_chat_emoji('WARNING')} {Lang.get_cog_string('creating')}"
             )
             await ctx.invoke(self.create, trigger, reply=reply)
         else:
@@ -304,7 +300,7 @@ class AutoResponders(BaseCog):
             await self.reload_triggers(ctx)
 
             await ctx.send(
-                f"{Emoji.get_chat_emoji('YES')} {self.get_lang_string('updated', trigger=trigger)}"
+                f"{Emoji.get_chat_emoji('YES')} {Lang.get_cog_string('updated', trigger=trigger)}"
             )
 
     @autor.command(aliases=["flags", "lf"])
@@ -335,7 +331,7 @@ class AutoResponders(BaseCog):
             channel_id = await Questions.ask_text(self.bot,
                                                   ctx.channel,
                                                   ctx.author,
-                                                  self.get_lang_string("prompt_channel_id"))
+                                                  Lang.get_cog_string("prompt_channel_id"))
 
         channel_id = re.sub(r'[^\d]', '', channel_id)
         if db_trigger is None or not re.match(r'^\d+$', channel_id):
@@ -344,14 +340,14 @@ class AutoResponders(BaseCog):
 
         channel = self.bot.get_channel(int(channel_id))
         if channel_id is "0":
-            await ctx.send(self.get_lang_string("channel_unset",
+            await ctx.send(Lang.get_cog_string("channel_unset",
                                            trigger=get_trigger_description(trigger)))
         elif channel is not None:
-            await ctx.send(self.get_lang_string("channel_set",
+            await ctx.send(Lang.get_cog_string("channel_set",
                                            channel=channel.mention,
                                            trigger=get_trigger_description(trigger)))
         else:
-            await ctx.send(self.get_lang_string("no_channel"))
+            await ctx.send(Lang.get_cog_string("no_channel"))
             return
         db_trigger.responsechannelid = channel_id
         db_trigger.save()
@@ -385,7 +381,7 @@ class AutoResponders(BaseCog):
                 flag = int(await Questions.ask_text(self.bot,
                                                     ctx.channel,
                                                     ctx.author,
-                                                    self.get_lang_string('which_flag', options=options)))
+                                                    Lang.get_cog_string('which_flag', options=options)))
             if not len(flag_names) > int(flag) >= 0:
                 raise ValueError
 
@@ -397,7 +393,7 @@ class AutoResponders(BaseCog):
                 await Questions.ask(self.bot,
                                     ctx.channel,
                                     ctx.author,
-                                    self.get_lang_string('on_or_off', subject=flag_names[flag]),
+                                    Lang.get_cog_string('on_or_off', subject=flag_names[flag]),
                                     [
                                         Questions.Option(f"YES", 'On', handler=choose, args=[True]),
                                         Questions.Option(f"NO", 'Off', handler=choose, args=[False])
