@@ -14,6 +14,14 @@ def load():
 def get_string(key, **kwargs):
     if not loaded:
         load()
-    if key not in LANG:
-        raise KeyError("Unknown lang key!")
-    return LANG[key].format(**kwargs)
+
+    key_list = key.split("/")
+    obj = LANG
+    for i in key_list:
+        if i not in obj:
+            raise KeyError("Unknown lang key!")
+
+        if isinstance(obj[i], str):
+            return obj[i].format(**kwargs)
+        elif isinstance(obj[i], dict):
+            obj = obj[i]

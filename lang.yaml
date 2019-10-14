@@ -137,45 +137,49 @@ dm_unable: '{user}, I was unable to DM you for questions about your bug, Please 
 eden_reset: |
   The Eye of Eden resets once per week.
   Next reset is on {date} at {time} (In {countdown})
-ar_list: Auto-responder list for {server_name}.
-no_autoresponders: No auto-responders have been created yet.
 nope: Something isn't right...
-you_chose: You chose **{value}**
-ar_no_commands: No auto-responders have been created yet.
-ar_trigger_too_long: Auto-responder triggers can only be up to 100 chars long
-ar_added: Auto-responder for `{trigger}` has been added!
-ar_removed: Auto-responder `{trigger}` has been removed.
-ar_updated: Auto-responder `{trigger}` has been updated!
-ar_override_confirmation: This auto-responder already exists, do you want to replace it with this new text?
-ar_empty_reply: Empty response? Why bother with me at all. Just shout your triggers into the wind and you already get no response! (use remove if you want me to stop responding to a trigger)
-ar_empty_trigger: Your trigger is empty... so... you want me to react to *literally nothing??*
-ar_updating: Updating...
-ar_not_updating: Keeping the old one.
-ar_not_found: Unable to remove `{trigger}` as it doesn't seem to exist.
-ar_creating: This auto-responder does not exist, making it for you instead.
-ar_which_flag: |
-  Which flag do you want? (type a number)
-  {options}
-ar_which_trigger: Which trigger would you like? (type a number)
-on_or_off: |
-  `{subject}` on or off?
-ar_prompt_channel_id: Which channel should this trigger respond in? (channel id)
-ar_prompt_response: How would you like me to respond?
-ar_help: |
-  `Auto-responder` help:
-    `![autor|auto|ar]` Show a list of responder tags and their flags
+autoresponder:
+  you_chose: You chose **{value}**
+  list: Auto-responder list for {server_name}.
+  none_set: No auto-responders have been created yet.
+  no_commands: No auto-responders have been created yet.
+  trigger_too_long: Auto-responder triggers can only be up to 100 chars long
+  added: Auto-responder for `{trigger}` has been added!
+  removed: Auto-responder `{trigger}` has been removed.
+  updated: Auto-responder `{trigger}` has been updated!
+  override_confirmation: This auto-responder already exists, do you want to replace it with this new text?
+  empty_reply: Empty response? Why bother with me at all. Just shout your triggers into the wind and you already get no response! (use remove if you want me to stop responding to a trigger)
+  empty_trigger: Your trigger is empty... so... you want me to react to *literally nothing??*
+  channel_unset: Okay, I'll respond to `{trigger}` in the same channel it's matched in
+  channel_set: Okay, I'll respond to `{trigger}` in {channel}
+  no_channel: No channel set.
+  updating: Updating...
+  not_updating: Keeping the old one.
+  not_found: Unable to remove `{trigger}` as it doesn't seem to exist.
+  creating: This auto-responder does not exist, making it for you instead.
+  which_flag: |
+    Which flag do you want? (type a number)
+    {options}
+  which_trigger: Which trigger would you like? (type a number)
+  prompt_channel_id: Which channel should this trigger respond in? (channel id)
+  prompt_response: How would you like me to respond?
+  help: |
+    `Auto-responder` help:
+      `![autor|auto|ar]` Show a list of responder tags and their flags
 
-  Sub-commands:
-    `!ar [help|h]` This message
-    `!ar [create|add|new]` Add a new trigger/response
-    `!ar [delete|del]` Remove a trigger/response
-    `!ar [edit|update|set]` Edit a response
-    `!ar [listflags|flags|lf]` List settings for a trigger/response
-    `!ar [setflag|sf]` Set an option for a trigger/response
-    `!ar [setchannel|channel|sc]` Set a response channel for a trigger
-    `!ar [getraw|raw]` Show the raw response text for a trigger
-    `!ar reload` Reload all responses for the current guild from database
-expect_integer: I was hoping for an integer between {min} and {max}
+    Sub-commands:
+      `!ar [help|h]` This message
+      `!ar [create|add|new]` Add a new trigger/response
+      `!ar [delete|del]` Remove a trigger/response
+      `!ar [edit|update|set]` Edit a response
+      `!ar [listflags|flags|lf]` List settings for a trigger/response
+      `!ar [setflag|sf]` Set an option for a trigger/response
+      `!ar [setchannel|channel|sc]` Set a response channel for a trigger
+      `!ar [getraw|raw]` Show the raw response text for a trigger
+      `!ar reload` Reload all responses for the current guild from database
+  on_or_off: |
+    `{subject}` on or off?
+  expect_integer: I was hoping for an integer between {min} and {max}
 custom_command_list: Custom command list for {server_name}.
 custom_command_no_commands: No custom commands have been created yet.
 custom_command_empty_trigger: Empty triggers, isn't that like empty promises? Something you shouldn't do?
