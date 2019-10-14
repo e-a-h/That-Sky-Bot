@@ -16,7 +16,7 @@ from utils.Utils import save_to_disk
 class Reporting(BaseCog):
 
     async def cog_check(self, ctx):
-        return ctx.author.guild_permissions.ban_members  # or is_admin(ctx)
+        return ctx.author.guild_permissions.ban_members  # or is_allowed(ctx.author)
 
     @command(hidden=True)
     async def csv(
