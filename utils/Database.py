@@ -10,6 +10,14 @@ connection = MySQLDatabase(Configuration.get_var("DATABASE_NAME"),
                            port=Configuration.get_var("DATABASE_PORT"), use_unicode=True, charset="utf8mb4")
 
 
+class CogLoader(Model):
+    id = AutoField()
+    name = CharField(30)
+    flags = BigIntegerField(default=1)
+
+    class Meta:
+        database = connection
+
 class BugReport(Model):
     id = AutoField()
     reporter = BigIntegerField()
@@ -75,5 +83,5 @@ class AutoResponder(Model):
 def init():
     global connection
     connection.connect()
-    connection.create_tables([BugReport, Attachements, Repros, CustomCommand, AutoResponder])
+    connection.create_tables([CogLoader, BugReport, Attachements, Repros, CustomCommand, AutoResponder])
     connection.close()
