@@ -8,6 +8,17 @@ from utils import Emoji, Utils, Configuration, Lang
 Option = namedtuple("Option", "emoji text handler args", defaults=(None, None, None, None))
 
 
+def timeout_format(total_seconds: int) -> str:
+    seconds = total_seconds % 60
+    minutes = int((total_seconds - seconds) / 60)
+    output = []
+    if minutes:
+        output.append(f"{minutes} minute{'s' if minutes > 1 else ''}")
+    if seconds:
+        output.append(f"{seconds} second{'s' if seconds > 1 else ''}")
+    return ", ".join(output)
+
+
 async def ask(bot, channel, author, text, options, timeout=60, show_embed=False, delete_after=False):
     embed = Embed(color=0x68a910, description='\n'.join(f"{Emoji.get_chat_emoji(option.emoji)} {option.text}" for option in options))
     message = await channel.send(text, embed=embed if show_embed else None)
@@ -26,7 +37,9 @@ async def ask(bot, channel, author, text, options, timeout=60, show_embed=False,
         if delete_after:
             await message.delete()
         await channel.send(
-            Lang.get_string("error_reaction_timeout", error_emoji=Emoji.get_emoji("WARNING"), timeout=timeout),
+            Lang.get_string("error_reaction_timeout",
+                            error_emoji=Emoji.get_emoji("WARNING"),
+                            timeout=timeout_format(timeout)),
             delete_after=10 if delete_after else None)
         raise ex
     else:
@@ -84,7 +97,9 @@ async def ask_text(
                     await channel.send(result)
         except asyncio.TimeoutError as ex:
             await channel.send(
-                Lang.get_string("error_reaction_timeout", error_emoji=Emoji.get_emoji("WARNING"), timeout=timeout)
+                Lang.get_string("error_reaction_timeout",
+                                error_emoji=Emoji.get_emoji("WARNING"),
+                                timeout=timeout_format(timeout))
             )
             raise ex
         else:
@@ -163,7 +178,9 @@ async def ask_attachements(
                         await channel.send(Lang.get_string("attachment_not_found"))
             except asyncio.TimeoutError as ex:
                 await channel.send(
-                    Lang.get_string("error_reaction_timeout", error_emoji=Emoji.get_emoji("WARNING"), timeout=timeout)
+                    Lang.get_string("error_reaction_timeout",
+                                    error_emoji=Emoji.get_emoji("WARNING"),
+                                    timeout=timeout_format(timeout))
                 )
                 raise ex
             else:
