@@ -303,7 +303,7 @@ class Bugs(BaseCog):
                     await channel.send(attachment_message)
                 review_time = 180
                 await Questions.ask(self.bot, channel, user,
-                                    Lang.get_string("question_ok", timeout=review_time),
+                                    Lang.get_string("question_ok", timeout=Questions.timeout_format(review_time)),
                                     [
                                         Questions.Option("YES", Lang.get_string("send_report"), send_report),
                                         Questions.Option("NO", Lang.get_string("mistake"), restart)

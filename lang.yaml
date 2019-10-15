@@ -23,7 +23,7 @@ attachments_overflow: You can only add up to {max} attachments
 attachments_restart: Ok, I've thrown away all the attachments you sent. Do you want to try sending files or links again, or skip this step?
 approve_attachments: Final answer!
 report_confirmation: Thank you! Your report was submitted, and can be found in <#{channel_id}>!
-error_reaction_timeout: "{error_emoji} You didn't react within {timeout} seconds, so this report has been cancelled. Go back to the bug report channel to start a new one!"
+error_reaction_timeout: "{error_emoji} You didn't react within {timeout}, so this report has been cancelled. Go back to the bug report channel to start a new one!"
 question_ready: |
   ```css
   Report a Bug
@@ -130,7 +130,7 @@ question_attachments: |
   Attachments
   ```
   Do you have screenshots, videos, or other documents to add?
-question_ok: This is what your report will look like. Should I **submit** it or **discard** it? You have **{timeout} seconds to review.**
+question_ok: This is what your report will look like. Should I **submit** it or **discard** it? You have **{timeout} to review.**
 send_report: All done! Send this report
 mistake: Nope, I made a mistake. Throw away this report and start again
 dm_unable: '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
@@ -163,6 +163,7 @@ autoresponders:
   which_trigger: Which trigger would you like? (type a number)
   prompt_channel_id: Which channel should this trigger respond in? (channel id)
   prompt_response: How would you like me to respond?
+  prompt_trigger: What should the new trigger be?
   help: |
     `Auto-responder` help:
       `![autor|auto|ar]` Show a list of responder tags and their flags
