@@ -144,6 +144,21 @@ class AutoResponders(BaseCog):
             await nope(ctx, Lang.get_cog_string("expect_integer", min=0, max=len(keys)-1))
             raise
 
+    async def validate_trigger(self, ctx, trigger):
+        if len(trigger) == 0:
+            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_cog_string('empty_trigger')}")
+        elif len(trigger) > self.trigger_length_max:
+            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_cog_string('trigger_too_long')}")
+        else:
+            return True
+        return False
+
+    async def validate_reply(self, ctx, reply):
+        if reply is None or reply == "":
+            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_cog_string('empty_reply')}")
+            return False
+        return True
+
     def get_flags_description(self, trigger_obj, pre=None) -> str:
         # some empty space for indent, if a prefix string is not given
         pre = pre or '**\u200b \u200b **'
@@ -187,17 +202,10 @@ class AutoResponders(BaseCog):
         Flags are unset when initialized, so newly created responders will not be active.
         Use `autoresponder setflag` to activate
         """
-        if len(trigger) == 0:
-            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_cog_string('empty_trigger')}")
-        elif reply is None or reply == "":
-            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_cog_string('empty_reply')}")
-        elif len(trigger) > self.trigger_length_max:
-            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_cog_string('trigger_too_long')}")
-        else:
+        if self.validate_trigger(ctx, trigger) and self.validate_reply(ctx, reply):
             db_trigger = await get_db_trigger(ctx.guild.id, trigger)
             if db_trigger is None:
                 AutoResponder.create(serverid=ctx.guild.id, trigger=trigger, response=reply)
-                # self.triggers[ctx.guild.id][trigger]['response'] = reply
                 await self.reload_triggers(ctx)
                 await ctx.send(
                     f"{Emoji.get_chat_emoji('YES')} {Lang.get_cog_string('added', trigger=trigger)}"
@@ -267,7 +275,7 @@ class AutoResponders(BaseCog):
         if trigger is None or row is None:
             await nope(ctx)
             return
-        await ctx.send(f"Raw response for __{get_trigger_description(trigger)}__:\n```{row.response}```")
+        await ctx.send(f"__Raw trigger:__\n```{trigger}```\n__Raw response:__\n```{row.response}```")
 
     @autor.command(aliases=["edit", "set"])
     @commands.guild_only()
@@ -302,6 +310,39 @@ class AutoResponders(BaseCog):
             await ctx.send(
                 f"{Emoji.get_chat_emoji('YES')} {Lang.get_cog_string('updated', trigger=trigger)}"
             )
+
+    @autor.command(aliases=["edittrigger", "settrigger", "trigger", "st"])
+    @commands.guild_only()
+    async def updatetrigger(self, ctx: commands.Context, trigger: str = None, *, new_trigger: str = None):
+        """ar_update_help"""
+        if trigger is None:
+            try:
+                trigger = await self.choose_trigger(ctx)
+            except ValueError:
+                return
+
+        trigger = await Utils.clean(trigger, links=False)
+        if new_trigger is None:
+            new_trigger = await Questions.ask_text(self.bot,
+                                                   ctx.channel,
+                                                   ctx.author,
+                                                   Lang.get_cog_string("prompt_trigger"),
+                                                   escape=False)
+
+        if self.validate_trigger(ctx, new_trigger):
+            trigger = AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
+            if trigger is None:
+                await nope(ctx)
+            else:
+                trigger.trigger = new_trigger
+                trigger.save()
+                await self.reload_triggers(ctx)
+
+                await ctx.send(
+                    f"{Emoji.get_chat_emoji('YES')} {Lang.get_cog_string('updated', trigger=trigger)}"
+                )
+        else:
+            await nope(ctx)
 
     @autor.command(aliases=["flags", "lf"])
     @commands.guild_only()
