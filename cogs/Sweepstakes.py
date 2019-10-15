@@ -48,9 +48,9 @@ class Sweepstakes(BaseCog):
         if ctx.invoked_subcommand is None:
             pass
 
-    @sweepstakes.command(aliases=["reactions", "gr", "entries"])
+    @sweepstakes.command(aliases=["csv", "report"])
     @commands.guild_only()
-    async def getreactions(self, ctx: commands.Context, jump_url: str):
+    async def entries(self, ctx: commands.Context, jump_url: str):
         """get a list of reactions to a given message"""
         parts = jump_url.split('/')
         channel_id = parts[-2]
@@ -62,21 +62,13 @@ class Sweepstakes(BaseCog):
             for reaction in message.reactions:
                 async for user in reaction.users():
                     reaction_list[user.id] = user
-                # users is now a list of User...
-                # winner = random.choice(users)
+                # winner = random.choice(reaction_list)
                 # await channel.send('{} has won the raffle.'.format(winner))
             await self.send_csv(ctx, reaction_list)
         except Exception as e:
             await Utils.handle_exception(f"Failed to get entries {channel_id}/{message_id}", self, e)
             await ctx.send(f"Failed to get entries {channel_id}/{message_id}")
-        # test
         # ?sweeps reactions 621746950458572801/624267628080267264
-
-    @sweepstakes.command(aliases=["csv"])
-    @commands.guild_only()
-    async def report(self, ctx: commands.Context, message_id):
-        """get a list of reactions to a given message and export as CSV"""
-
 
 
 def setup(bot):
