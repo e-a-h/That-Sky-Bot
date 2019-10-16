@@ -7,9 +7,7 @@ from discord.ext.commands import Bot
 from aiohttp import ClientOSError, ServerDisconnectedError
 from discord import ConnectionClosed, Embed, Colour
 
-from cogs import Welcomer
 from utils import Logging, Configuration, Utils, Emoji, Database
-from utils.Database import CogLoader
 
 
 class Skybot(Bot):
@@ -21,28 +19,11 @@ class Skybot(Bot):
             Logging.BOT_LOG_CHANNEL = self.get_channel(Configuration.get_var("log_channel"))
             Emoji.initialize(self)
 
-            # Migrate from config-based cog loading
-            cog_coercion_list = ["Basic", "CogManager", "Reload", "Bugs", "Welcomer", "Eden", "CustCommands", "Reporting", "AutoResponders"]
-            db_cogs = CogLoader.select(CogLoader.name)
-            db_cog_names = []
-            # List of cogs from db
-            for db_cog in db_cogs:
-                db_cog_names.append(db_cog.name)
-            # force named cogs into the db if they're not there already
-            for name in cog_coercion_list:
-                if name not in db_cog_names:
-                    Logging.info(f"adding {name} to database")
-                    CogLoader.create(name=name)
-
-            db_cogs = CogLoader.select()
-            for db_cog in db_cogs:
+            for cog in Configuration.get_var("cogs"):
                 try:
-                    # TODO: check flags?
-                    #  db_cog.flags will be bitmask with options (what options?) and for now is always 1
-                    #  bit 1 is "enabled" flag
-                    self.load_extension("cogs." + db_cog.name)
+                    self.load_extension("cogs." + cog)
                 except Exception as e:
-                    await Utils.handle_exception(f"Failed to load cog {db_cog.name}", self, e)
+                    await Utils.handle_exception(f"Failed to load cog {cog}", self, e)
             Logging.info("Cogs loaded")
             self.loop.create_task(self.keepDBalive())
             self.loaded = True
