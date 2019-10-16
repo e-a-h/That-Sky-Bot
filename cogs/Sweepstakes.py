@@ -20,22 +20,30 @@ class Sweepstakes(BaseCog):
         # TODO: this should probably be admin and/or custom role
         return ctx.author.guild_permissions.manage_channels
 
-    async def send_csv(self, ctx, user_list: dict):
-        fields = ["id", "nick", "username", "discriminator", "mention"]
+    def get_unique_react_users(self, user_list: dict):
+        fields = ["id", "nick", "username", "discriminator", "mention", "left_guild"]
         data_list = ()
         for user_id, user in user_list.items():
+            if hasattr(user, "nick"):
+                nick = user.nick
+                left_guild = ""
+            else:
+                nick = ""
+                left_guild = "USER LEFT GUILD"
             data_list += ({"id": user.id,
-                           "nick": user.nick,
+                           "nick": nick,
                            "username": user.name,
                            "discriminator": user.discriminator,
-                           "mention": user.mention},)
-        now = datetime.today().timestamp()
+                           "mention": user.mention,
+                           "left_guild": left_guild},)
         out = ""
         for i in data_list:
             out += str(i) + "\n"
+        return {'fields': fields, 'data': data_list}
 
-        await ctx.send(f"There are {len(data_list)} entries (unique reactions) to this drawing.")
-        save_to_disk(f"entries_{now}", data_list, 'csv', fields)
+    async def send_csv(self, ctx, fields: list, data: tuple):
+        now = datetime.today().timestamp()
+        save_to_disk(f"entries_{now}", data, 'csv', fields)
         send_file = File(f"entries_{now}.csv")
         await ctx.send(file=send_file)
         os.remove(f"entries_{now}.csv")
@@ -64,7 +72,9 @@ class Sweepstakes(BaseCog):
                     reaction_list[user.id] = user
                 # winner = random.choice(reaction_list)
                 # await channel.send('{} has won the raffle.'.format(winner))
-            await self.send_csv(ctx, reaction_list)
+            unique_users = self.get_unique_react_users(reaction_list)
+            await ctx.send(f"There are {len(unique_users['data'])} entries (unique reactions) to this drawing.")
+            await self.send_csv(ctx, unique_users['fields'], unique_users['data'])
         except Exception as e:
             await Utils.handle_exception(f"Failed to get entries {channel_id}/{message_id}", self, e)
             await ctx.send(f"Failed to get entries {channel_id}/{message_id}")
