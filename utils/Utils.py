@@ -158,12 +158,6 @@ known_invalid_users = []
 user_cache = OrderedDict()
 
 
-# def is_allowed(person):
-#     for role in person.roles:
-#         if role.id in Configuration.get_var('admin_roles'):
-#             return True
-#     return False
-
 async def get_user(uid, fetch=True):
     UserClass = namedtuple("UserClass", "name id discriminator bot avatar_url created_at is_avatar_animated mention")
     user = BOT.get_user(uid)

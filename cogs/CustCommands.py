@@ -41,7 +41,7 @@ class CustCommands(BaseCog):
     async def command(self, ctx: commands.Context):
         """Show a list of custom commands"""
         if ctx.invoked_subcommand is None:
-            embed = discord.Embed(timestamp=ctx.message.created_at, color=0x663399, title=Lang.get_string("custom_command_list", server_name=ctx.guild.name))
+            embed = discord.Embed(timestamp=ctx.message.created_at, color=0x663399, title=Lang.get_string("custom_commands/list_commands", server_name=ctx.guild.name))
             value = ""
             if len(self.commands[ctx.guild.id].keys()) > 0:
                 for trigger in self.commands[ctx.guild.id].keys():
@@ -52,18 +52,18 @@ class CustCommands(BaseCog):
                 embed.add_field(name="\u200b", value=value)
                 await ctx.send(embed=embed)
             else:
-                await ctx.send(Lang.get_string("custom_command_no_commands"))
+                await ctx.send(Lang.get_string("custom_commands/no_commands"))
 
     @command.command(aliases=["new", "add"])
     @commands.guild_only()
     async def create(self, ctx: commands.Context, trigger: str, *, reply: str = None):
         """command_create_help"""
         if len(trigger) == 0:
-            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_string('custom_command_empty_trigger')}")
+            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_string('custom_commands/empty_trigger')}")
         elif reply is None or reply == "":
-            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_string('custom_command_empty_reply')}")
+            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_string('custom_commands/empty_reply')}")
         elif len(trigger) > 20:
-            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_string('custom_command_trigger_too_long')}")
+            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_string('custom_commands/trigger_too_long')}")
         else:
             trigger = trigger.lower()
             trigger = await Utils.clean(trigger)
@@ -71,15 +71,15 @@ class CustCommands(BaseCog):
             if command is None:
                 CustomCommand.create(serverid = ctx.guild.id, trigger=trigger, response=reply)
                 self.commands[ctx.guild.id][trigger] = reply
-                await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('custom_command_added', trigger=trigger)}")
+                await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('custom_commands/command_added', trigger=trigger)}")
             else:
                 async def yes():
-                    await ctx.send(Lang.get_string('custom_command_updating'))
+                    await ctx.send(Lang.get_string('custom_commands/updating_command'))
                     await ctx.invoke(self.update, trigger, reply=reply)
                 async def no():
-                    await ctx.send(Lang.get_string('custom_command_not_updating'))
+                    await ctx.send(Lang.get_string('custom_commands/not_updating_command'))
 
-                await Questions.ask(self.bot, ctx.channel, ctx.author, Lang.get_string('custom_command_override_confirmation'),
+                await Questions.ask(self.bot, ctx.channel, ctx.author, Lang.get_string('custom_commands/override_confirmation'),
                                     [
                                         Questions.Option('YES', handler=yes),
                                         Questions.Option('NO', handler=no)
@@ -92,13 +92,13 @@ class CustCommands(BaseCog):
         trigger = trigger.lower()
         trigger = await Utils.clean(trigger)
         if len(trigger) > 20:
-            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_string('custom_command_trigger_too_long')}")
+            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_string('custom_commands/trigger_too_long')}")
         elif trigger in self.commands[ctx.guild.id]:
             CustomCommand.get(serverid = ctx.guild.id, trigger=trigger).delete_instance()
             del self.commands[ctx.guild.id][trigger]
-            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('custom_command_removed', trigger=trigger)}")
+            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('custom_commands/command_removed', trigger=trigger)}")
         else:
-            await ctx.send(f"{Emoji.get_chat_emoji('NO')} {Lang.get_string('custom_command_not_found', trigger=trigger)}")
+            await ctx.send(f"{Emoji.get_chat_emoji('NO')} {Lang.get_string('custom_commands/not_found', trigger=trigger)}")
 
     @command.command(aliases=["edit", "set"])
     @commands.guild_only()
@@ -107,17 +107,17 @@ class CustCommands(BaseCog):
         trigger = trigger.lower()
         trigger = await Utils.clean(trigger)
         if reply is None:
-            await ctx.send(f"{Emoji.get_chat_emoji('NO')} {Lang.get_string('custom_command_empty_reply')}")
+            await ctx.send(f"{Emoji.get_chat_emoji('NO')} {Lang.get_string('custom_commands/empty_reply')}")
         else:
             command = CustomCommand.get_or_none(serverid = ctx.guild.id, trigger=trigger)
             if command is None:
-                await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} {Lang.get_string('custom_command_creating')}")
+                await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} {Lang.get_string('custom_commands/creating_command')}")
                 await ctx.invoke(self.create, trigger, reply=reply)
             else:
                 command.response = reply
                 command.save()
                 self.commands[ctx.guild.id][trigger] = reply
-                await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('custom_command_updated', trigger=trigger)}")
+                await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('custom_commands/command_updated', trigger=trigger)}")
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):

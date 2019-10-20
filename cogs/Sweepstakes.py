@@ -17,7 +17,7 @@ class Sweepstakes(BaseCog):
     async def cog_check(self, ctx):
         if not hasattr(ctx.author, 'guild'):
             return False
-        # TODO: this should probably be admin and/or custom role
+        # TODO: should this be admin and/or custom role?
         return ctx.author.guild_permissions.manage_channels
 
     def get_unique_react_users(self, user_list: dict):
@@ -67,6 +67,7 @@ class Sweepstakes(BaseCog):
             channel = await self.bot.fetch_channel(channel_id)
             message = await channel.fetch_message(message_id)
             reaction_list = {}
+            # TODO: remove author from this list
             for reaction in message.reactions:
                 async for user in reaction.users():
                     reaction_list[user.id] = user
