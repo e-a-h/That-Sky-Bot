@@ -1,5 +1,5 @@
 from peewee import MySQLDatabase, Model, PrimaryKeyField, BigIntegerField, CharField, ForeignKeyField, AutoField, \
-    TimestampField
+    TimestampField, SmallIntegerField
 
 from utils import Configuration
 
@@ -64,7 +64,7 @@ class AutoResponder(Model):
     serverid = BigIntegerField()
     trigger = CharField(max_length=300, collation="utf8mb4_general_ci")
     response = CharField(max_length=2000, collation="utf8mb4_general_ci")
-    flags = BigIntegerField(default=0)
+    flags = SmallIntegerField(default=0)
     responsechannelid = BigIntegerField(default=0)
 
     class Meta:

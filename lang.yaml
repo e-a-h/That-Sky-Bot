@@ -1,144 +1,154 @@
-bug_info: "**Report a New Bug!**\nBrowse or search this channel to see bug reports. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."
-shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
-stop_spamming: "{user} stop spamming the bug reaction!"
-start_over: "{user} You are already in the middle of reporting a bug. Do you want to cancel that report to start over?"
-start_over_yes: Cancel my in-progress report and start a new one
-start_over_no: Do not cancel my in-progress report
-skip_step: Skip this step
-abort_report: Ok, I won't ask you any more questions for now. Go back to the bug report channel any time to start a new one!
-latest_not_allowed: Tell me a number! ``Latest`` is not valid because the latest version changes with every update. You might not even have the latest version if you didn't update recently, so an actual number is really helpful here!
-no_numbers: There don't appear to be any numbers in there
-love_letter: Whoa there, I just need a version number, not an entire love letter
-text_too_long: That text seems suspiciously long for the question asked... Try typing up a shorter answer (up to {max} characters) and we'll see if I like it
-report_header: "**Bug Report {id} - submitted by {user}**"
-attachments_yes: Yes, add pictures/videos
-attachment_info: "**Attachment to report {id}**\n{links}"
-attachment_info_plural: "**Attachments to report {id}**\n{links}"
-no_attachments: I can't accept files yet. That step comes later. Just use your words
-attachment_prompt: Send up to {max} files or links to attach to your report
-attachment_prompt_continued: Send up to {max} more files or links
-attachment_prompt_final: You can send one more file or link
-attachment_not_found: There were no files or links in that message. Try sending again
-attachments_overflow: You can only add up to {max} attachments
-attachments_restart: Ok, I've thrown away all the attachments you sent. Do you want to try sending files or links again, or skip this step?
-approve_attachments: Final answer!
-report_confirmation: Thank you! Your report was submitted, and can be found in <#{channel_id}>!
-error_reaction_timeout: "{error_emoji} You didn't react within {timeout}, so this report has been cancelled. Go back to the bug report channel to start a new one!"
-question_ready: |
-  ```css
-  Report a Bug
-  ```
-  Help me collect the following information. It will be *very helpful* in identifying, reproducing, and fixing bugs:
-      - Device type
-      - Operating System Version
-      - Sky App Type
-      - Version of the Sky app
-      - Description of the problem, and how to reproduce it
-      - Attachment(s)
-      - Additional Information
+questions:
+  text_only: I can't accept files yet. That step comes later. Just use your words
+  confirm_prompt: Are you sure {backticks}{message}{backticks} is correct?
+  another_attachment: Do you want to add another attachment?
+  confirm_attachments: Are those all the files you meant to send?
+  restart_attachment_singular: Forget that attachment and try again
+  restart_attachment_plural: Forget those attachments and try again
+  restart_attachments_yes: Yes, try adding attachments again
+  restart_attachments_no: Do not attach any files
+  attachment_prompt: Send up to {max} files or links
+  attachment_prompt_continued: Send up to {max} more files or links
+  attachment_prompt_final: You can send one more file or link
+  attachments_restart: Ok, I've thrown away all the attachments you sent. Do you want to try sending files or links again, or skip this step?
+  attachments_overflow: You can only add up to {max} attachments
+  attachment_not_found: There were no files or links in that message. Try sending again
+  approve_attachments: Final answer!
+  error_reaction_timeout: "{error_emoji} You didn't react within {timeout}, so this report has been cancelled. Go back to the bug report channel to start a new one!"
+bugs:
+  bug_info: "**Report a New Bug!**\nBrowse or search this channel to see bug reports. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."
+  shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
+  stop_spamming: "{user} stop spamming the bug reaction!"
+  start_over: "{user} You are already in the middle of reporting a bug. Do you want to cancel that report to start over?"
+  start_over_yes: Cancel my in-progress report and start a new one
+  start_over_no: Do not cancel my in-progress report
+  skip_step: Skip this step
+  abort_report: Ok, I won't ask you any more questions for now. Go back to the bug report channel any time to start a new one!
+  latest_not_allowed: Tell me a number! ``Latest`` is not valid because the latest version changes with every update. You might not even have the latest version if you didn't update recently, so an actual number is really helpful here!
+  love_letter: Whoa there, I just need a version number, not an entire love letter
+  no_numbers: There don't appear to be any numbers in there
+  text_too_long: That text seems suspiciously long for the question asked... Try typing up a shorter answer (up to {max} characters) and we'll see if I like it
+  report_header: "**Bug Report {id} - submitted by {user}**"
+  attachments_yes: Yes, add pictures/videos
+  attachment_info: "**Attachment to report {id}**\n{links}"
+  attachment_info_plural: "**Attachments to report {id}**\n{links}"
+  report_confirmation: Thank you! Your report was submitted, and can be found in <#{channel_id}>!
+  question_ready: |
+    ```css
+    Report a Bug
+    ```
+    Help me collect the following information. It will be *very helpful* in identifying, reproducing, and fixing bugs:
+        - Device type
+        - Operating System Version
+        - Sky App Type
+        - Version of the Sky app
+        - Description of the problem, and how to reproduce it
+        - Attachment(s)
+        - Additional Information
 
-  **Don't start typing your report yet!** For questions like this one that have reaction icons, press one of the reactions to answer! Ready to start?
-platform: Platform
-question_platform: |
-  ```css
-  Device Type
-  ```
-  Are you using Android or iOS?
-question_platform_version: |
-  ```css
-  Operating System Version
-  ```
-  What {platform} version do you use? This can be found in device settings. You can ***type*** your answer this time
-device_info: Device
-question_device_info: |
-  ```css
-  Device Info
-  ```
-  What model of {platform} device were you using when the bug occurred ({max} characters max)?
-question_app_branch: |
-  ```css
-  Sky App Type
-  ```
-  Are you using the Live or Beta version of Sky? Beta is installed through TestFlight on iOS or through Google Groups on Android. If you are unsure, then choose Live
-app_version: Sky app version
-question_app_version: |
-  ```css
-  Sky App Version Number
-  ```
-  What **version** of the Sky app were you using when you experienced the bug?
-  {version_help}
-  The version number is the number in place of "X.X.X"
-app_build: Sky app build
-question_app_build: |
-  ```css
-  Sky App Build Number
-  ```
-  What **build** of the Sky app were you using when you experienced the bug?
-  See the instructions above. The build number is in parentheses.
-version_android: |
-  **To find Sky version and build on Android devices:**
-  > 1. Device settings
-  > 2. Apps
-  > 3. Sky
-  > 4. Scroll down to find: Version X.X.X (build)
-  For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623647199427035147
-version_ios: |
-  **To find Sky version and build on iOS devices:**
-  > 1. Device settings
-  > 2. Scroll down to Sky
-  > 3. Scroll down to find: Version X.X.X (build)
-  For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623643887977627658
-title: Title/Topic
-question_title: |
-  ```css
-  Title/Topic
-  ```
-  Provide a brief title or topic for your bug ({max} characters max)
-description: Bug description
-question_actual: |
-  ```css
-  Describe the bug
-  ```
-  Describe the problem you experienced, what looked or worked the wrong way. I'll ask for steps to reproduce the problem next, so don't tell me *how* it happened yet ({max} characters max)
-str: Steps to reproduce
-question_steps: |
-  ```css
-  How to Reproduce the Bug
-  ```
-  How did the bug happen? Tell me the steps you took that lead to the problem ({max} characters max). Example:
-  ```
-  - step 1
-  - step 2
-  - step 3
-  ```
-expected: Expected outcome
-question_expected: |
-  ```css
-  Expectation
-  ```
-  When following the steps you gave, what did you expect to happen ({max} characters max)?
-additional_info: Additional information
-question_additional: |
-  ```css
-  Additional Information
-  ```
-  Do you have any other information to add to this report?
-question_additional_info: What other information would you like me to include in your report?
-additional_info_yes: Provide additional information
-question_attachments: |
-  ```css
-  Attachments
-  ```
-  Do you have screenshots, videos, or other documents to add?
-question_ok: This is what your report will look like. Should I **submit** it or **discard** it? You have **{timeout} to review.**
-send_report: All done! Send this report
-mistake: Nope, I made a mistake. Throw away this report and start again
-dm_unable: '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
+    **Don't start typing your report yet!** For questions like this one that have reaction icons, press one of the reactions to answer! Ready to start?
+  platform: Platform
+  question_platform: |
+    ```css
+    Device Type
+    ```
+    Are you using Android or iOS?
+  question_platform_version: |
+    ```css
+    Operating System Version
+    ```
+    What {platform} version do you use? This can be found in device settings. You can ***type*** your answer this time
+  device_info: Device
+  question_device_info: |
+    ```css
+    Device Info
+    ```
+    What model of {platform} device were you using when the bug occurred ({max} characters max)?
+  question_app_branch: |
+    ```css
+    Sky App Type
+    ```
+    Are you using the Live or Beta version of Sky? Beta is installed through TestFlight on iOS or through Google Groups on Android. If you are unsure, then choose Live
+  app_version: Sky app version
+  question_app_version: |
+    ```css
+    Sky App Version Number
+    ```
+    What **version** of the Sky app were you using when you experienced the bug?
+    {version_help}
+    The version number is the number in place of "X.X.X"
+  app_build: Sky app build
+  question_app_build: |
+    ```css
+    Sky App Build Number
+    ```
+    What **build** of the Sky app were you using when you experienced the bug?
+    See the instructions above. The build number is in parentheses.
+  version_android: |
+    **To find Sky version and build on Android devices:**
+    > 1. Device settings
+    > 2. Apps
+    > 3. Sky
+    > 4. Scroll down to find: Version X.X.X (build)
+    For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623647199427035147
+  version_ios: |
+    **To find Sky version and build on iOS devices:**
+    > 1. Device settings
+    > 2. Scroll down to Sky
+    > 3. Scroll down to find: Version X.X.X (build)
+    For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623643887977627658
+  title: Title/Topic
+  question_title: |
+    ```css
+    Title/Topic
+    ```
+    Provide a brief title or topic for your bug ({max} characters max)
+  description: Bug description
+  question_actual: |
+    ```css
+    Describe the bug
+    ```
+    Describe the problem you experienced, what looked or worked the wrong way. I'll ask for steps to reproduce the problem next, so don't tell me *how* it happened yet ({max} characters max)
+  steps_to_reproduce: Steps to reproduce
+  question_steps: |
+    ```css
+    How to Reproduce the Bug
+    ```
+    How did the bug happen? Tell me the steps you took that lead to the problem ({max} characters max). Example:
+    ```
+    - step 1
+    - step 2
+    - step 3
+    ```
+  expected: Expected outcome
+  question_expected: |
+    ```css
+    Expectation
+    ```
+    When following the steps you gave, what did you expect to happen ({max} characters max)?
+  additional_info: Additional information
+  question_additional: |
+    ```css
+    Additional Information
+    ```
+    Do you have any other information to add to this report?
+  question_additional_info: What other information would you like me to include in your report?
+  additional_info_yes: Provide additional information
+  question_attachments: |
+    ```css
+    Attachments
+    ```
+    Do you have screenshots, videos, or other documents to add?
+  question_ok: This is what your report will look like. Should I **submit** it or **discard** it? You have **{timeout} to review.**
+  send_report: All done! Send this report
+  mistake: Nope, I made a mistake. Throw away this report and start again
+  no_live_android: There is no live version available on Android yet, only beta. Go back to the bug report channel any time to start a new report!
+  dm_unable: '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
 eden_reset: |
   The Eye of Eden resets once per week.
   Next reset is on {date} at {time} (In {countdown})
 nope: Something isn't right...
-autoresponders:
+autoresponder:
   you_chose: You chose **{value}**
   list: Auto-responder list for {server_name}.
   none_set: No auto-responders have been created yet.
@@ -181,17 +191,17 @@ autoresponders:
   on_or_off: |
     `{subject}` on or off?
   expect_integer: I was hoping for an integer between {min} and {max}
-custom_command_list: Custom command list for {server_name}.
-custom_command_no_commands: No custom commands have been created yet.
-custom_command_empty_trigger: Empty triggers, isn't that like empty promises? Something you shouldn't do?
-custom_command_empty_reply: You want me to say nothing for that trigger? That makes no sense. If you want to remove an existing trigger then please use remove instead.
-custom_command_trigger_too_long: Custom command triggers can only be up to 20 chars long
-custom_command_added: Command `{trigger}` has been added!
-custom_command_updating: Updating...
-custom_command_not_updating: Keeping the old one.
-custom_command_override_confirmation: This command already exists, do you want to replace it with this new text?
-custom_command_removed: Command `{trigger}` has been removed.
-custom_command_not_found: Unable to remove `{trigger}` as it doesn't seem to exist.
-custom_command_creating: This command does not exist, making it for you instead.
-custom_command_updated: Command `{trigger}` has been updated!
-no_live_android: There is no live version available on Android yet, only beta. Go back to the bug report channel any time to start a new report!
+custom_commands:
+  list_commands: Custom command list for {server_name}.
+  no_commands: No custom commands have been created yet.
+  empty_trigger: Empty triggers, isn't that like empty promises? Something you shouldn't do?
+  empty_reply: You want me to say nothing for that trigger? That makes no sense. If you want to remove an existing trigger then please use remove instead.
+  trigger_too_long: Custom command triggers can only be up to 20 chars long
+  command_added: Command `{trigger}` has been added!
+  updating_command: Updating...
+  not_updating_command: Keeping the old one.
+  override_confirmation: This command already exists, do you want to replace it with this new text?
+  command_removed: Command `{trigger}` has been removed.
+  not_found: Unable to remove `{trigger}` as it doesn't seem to exist.
+  creating_command: This command does not exist, making it for you instead.
+  command_updated: Command `{trigger}` has been updated!

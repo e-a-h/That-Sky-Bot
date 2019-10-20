@@ -37,7 +37,7 @@ async def ask(bot, channel, author, text, options, timeout=60, show_embed=False,
         if delete_after:
             await message.delete()
         await channel.send(
-            Lang.get_string("error_reaction_timeout",
+            Lang.get_string("questions/error_reaction_timeout",
                             error_emoji=Emoji.get_emoji("WARNING"),
                             timeout=timeout_format(timeout)),
             delete_after=10 if delete_after else None)
@@ -87,7 +87,7 @@ async def ask_text(
             while True:
                 message = await bot.wait_for('message', timeout=timeout, check=check)
                 if message.content is None or message.content == "":
-                    result = Lang.get_string("no_attachments")
+                    result = Lang.get_string("questions/text_only")
                 else:
                     message_cleaned = clean_text(message.content)
                     result = validator(message_cleaned) if validator is not None else True
@@ -97,7 +97,7 @@ async def ask_text(
                     await channel.send(result)
         except asyncio.TimeoutError as ex:
             await channel.send(
-                Lang.get_string("error_reaction_timeout",
+                Lang.get_string("questions/error_reaction_timeout",
                                 error_emoji=Emoji.get_emoji("WARNING"),
                                 timeout=timeout_format(timeout))
             )
@@ -106,7 +106,7 @@ async def ask_text(
             content = Utils.escape_markdown(message_cleaned) if escape else message_cleaned
             if confirm:
                 backticks = "``" if len(message_cleaned.splitlines()) is 1 else "```"
-                message = f"Are you sure {backticks}{message_cleaned}{backticks} is correct?"
+                message = Lang.get_string('questions/confirm_prompt', backticks=backticks, message=message_cleaned)
                 await ask(bot, channel, user, message, [
                     Option("YES", handler=confirmed),
                     Option("NO")
@@ -136,9 +136,9 @@ async def ask_attachements(
     async def restart_attachments():
         nonlocal final_attachments
         final_attachments = []
-        await ask(bot, channel, user, Lang.get_string("attachments_restart"), [
-            Option("YES", "Yes, try adding attachments again"),
-            Option("NO", "Do not attach any files", handler=ready)
+        await ask(bot, channel, user, Lang.get_string("questions/attachments_restart"), [
+            Option("YES", Lang.get_string('questions/restart_attachments_yes')),
+            Option("NO", Lang.get_string('questions/restart_attachments_no'), handler=ready)
         ], show_embed=True)
 
     while not done:
@@ -152,13 +152,13 @@ async def ask_attachements(
 
         while ask_again:
             if not final_attachments:
-                await channel.send(Lang.get_string("attachment_prompt", max=max_files))
+                await channel.send(Lang.get_string("questions/attachment_prompt", max=max_files))
             elif len(final_attachments) < max_files - 1:
                 await channel.send(
-                    Lang.get_string("attachment_prompt_continued", max=max_files - len(final_attachments))
+                    Lang.get_string("questions/attachment_prompt_continued", max=max_files - len(final_attachments))
                 )
             elif len(final_attachments):
-                await channel.send(Lang.get_string("attachment_prompt_final"))
+                await channel.send(Lang.get_string("questions/attachment_prompt_final"))
 
             done = False
 
@@ -169,35 +169,35 @@ async def ask_attachements(
                     attachment_links = [str(a.url) for a in message.attachments]
                     if len(links) is not 0 or len(message.attachments) is not 0:
                         if (len(links) + len(message.attachments)) > max_files:
-                            await channel.send(Lang.get_string("attachments_overflow", max=max_files))
+                            await channel.send(Lang.get_string("questions/attachments_overflow", max=max_files))
                         else:
                             final_attachments += links + attachment_links
                             count += len(links) + len(attachment_links)
                             break
                     else:
-                        await channel.send(Lang.get_string("attachment_not_found"))
+                        await channel.send(Lang.get_string("questions/attachment_not_found"))
             except asyncio.TimeoutError as ex:
                 await channel.send(
-                    Lang.get_string("error_reaction_timeout",
+                    Lang.get_string("questions/error_reaction_timeout",
                                     error_emoji=Emoji.get_emoji("WARNING"),
                                     timeout=timeout_format(timeout))
                 )
                 raise ex
             else:
                 if count < max_files:
-                    await ask(bot, channel, user, "Do you want to add another attachment?",
-                              [
-                                  Option("YES"),
-                                  Option("NO", handler=confirmed)
-                              ])
+                    await ask(bot, channel, user, Lang.get_string('questions/another_attachment'),
+                              [Option("YES"), Option("NO", handler=confirmed)])
                 else:
                     ask_again = False
 
-        await ask(bot, channel, user, f"Are those all the files you meant to send?", [
-            Option("YES", Lang.get_string("approve_attachments"), handler=ready),
-            Option("NO",
-                   f"Forget {'that attachment' if len(final_attachments) == 1 else 'those attachments'} and try again",
-                   handler=restart_attachments)
+        prompt_yes = Lang.get_string("questions/approve_attachments")
+        if len(final_attachments) == 1:
+            prompt_no = Lang.get_string('questions/restart_attachment_singular')
+        else:
+            prompt_no = Lang.get_string('questions/restart_attachment_plural')
+        await ask(bot, channel, user, Lang.get_string('questions/confirm_attachments'), [
+            Option("YES", prompt_yes, handler=ready),
+            Option("NO", prompt_no, handler=restart_attachments)
         ], show_embed=True)
 
     return final_attachments
