@@ -216,6 +216,7 @@ sweeps:
     ```Removing reactions from message (ending entry period)...```
   adding_reactions: |
     ```Adding reactions to message (restarting entry period)...```
+  adding_reactions_progress: Added these reactions -
   emoji_fail: Failed to add emoji {emoji} (permissions? emoji comes from another server?)
   partial_emoji_fail: |
     ```Failed to add all reactions back to the original message. You might need to add some manually```
