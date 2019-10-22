@@ -70,7 +70,7 @@ class Sweepstakes(BaseCog):
         for reaction in message.reactions:
             users = []
             async for user in reaction.users():
-                if user.id is not message.author.id:
+                if user.id is not message.author.id and user.id is not self.bot.user.id:
                     users.append(user)
             # store users, indexed by reaction emoji
             key = reaction.emoji.name if hasattr(reaction.emoji, "name") else reaction.emoji
@@ -154,14 +154,14 @@ class Sweepstakes(BaseCog):
     async def end_clean(self, ctx: commands.Context, jump_url: str):
         message: Message = await self.get_reaction_message(ctx, jump_url)
         try:
+            await self.fetch_unique(ctx, message)
+            await self.fetch_all(ctx, message)
             pending = await ctx.send(Lang.get_string('sweeps/removing_reactions'))
             await message.clear_reactions()
             await pending.delete()
         except Exception as e:
             await Utils.handle_exception(f"Failed to clear reactions {message.channel.id}/{message.id}", self, e)
             return
-        await self.fetch_unique(ctx, message)
-        await self.fetch_all(ctx, message)
         await ctx.send(Lang.get_string('sweeps/drawing_closed'))
 
     @end_sweeps.command(aliases=["reset", "restart"])
@@ -227,11 +227,12 @@ class Sweepstakes(BaseCog):
             if my_emoji:
                 pending = await ctx.send(Lang.get_string('sweeps/adding_reactions'))
                 emoji_success = True
+                add_react_msg = await ctx.send(Lang.get_string('sweeps/adding_reactions_progress'))
                 for emoji in my_emoji:
                     try:
                         # emoji = f"{emoji.id}" if hasattr(emoji, "id") else emoji
                         await message.add_reaction(emoji)
-                        await ctx.send(f"Added {emoji}")
+                        await add_react_msg.edit(content=f"{add_react_msg.content} {emoji}")
                     except discord.errors.HTTPException as e:
                         emoji_success = False
                         await ctx.send(Lang.get_string('sweeps/emoji_fail', emoji=emoji))
