@@ -205,3 +205,41 @@ custom_commands:
   not_found: Unable to remove `{trigger}` as it doesn't seem to exist.
   creating_command: This command does not exist, making it for you instead.
   command_updated: Command `{trigger}` has been updated!
+sweeps:
+  jumpurl_prompt: Please provide a jumpurl or [channel_id]/[message_id]
+  unique_result: There are {count} entries (unique reactions) to this drawing.
+  all_invalid_emoji: All of the reaction emojis come from other servers. I won't be able to add any reactions. Do you still want to clear reactions?
+  some_invalid_emoji: Some of the reaction emojis come from other servers. I won't be able to add them all back. Do you still want to clear reactions?
+  invalid_emoji_confirm: Ok I'll continue, but there are at least {count} emoji that I can't add back to the original message. You may need to add some yourself!
+  no_reactions: No reactions on that message. Aborting.
+  removing_reactions: |
+    ```Removing reactions from message (ending entry period)...```
+  adding_reactions: |
+    ```Adding reactions to message (restarting entry period)...```
+  emoji_fail: Failed to add emoji {emoji} (permissions? emoji comes from another server?)
+  partial_emoji_fail: |
+    ```Failed to add all reactions back to the original message. You might need to add some manually```
+  drawing_closed: |
+    ```Reactions removed. Drawing entry closed.```
+  drawing_restarted: |
+    ```Reactions reset. Drawing entry restarted.```
+  fetch_message_failed: Failed to get message {channel_id}/{message_id}
+  fetch_entries_failed: Failed to get entries {channel_id}/{message_id}
+  entries_sub_command: Sub-command required. try `sweeps entries unique` or `sweeps entries all`
+  end_sweeps_sub_command: Sub-command required. try `sweeps end clear` or `sweeps end restart`
+  help: |
+    `sweeps` help:
+      `![sweeps|drawing]` sub-command required
+
+    Sub-commands:
+      `!sweeps [help|h]` This message
+      `!sweeps [entries]` sub-command required
+      `!sweeps [end|cancel|stop]` sub-command required
+
+    Entries Sub-commands:
+      `!sweeps entries [unique] jump_url` fetch a list of unique entrants (users reacting to message)
+      `!sweeps entries [all] jump_url` fetch a list of all entrants, including multiple emoji per user
+
+    End Sub-commands:
+      `!sweeps end [clear|clean] jump_url` List entrants and remove all reactions
+      `!sweeps end [reset|restart] jump_url` List entrants to-date and reset reactions to starting state
