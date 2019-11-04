@@ -1,6 +1,8 @@
 import asyncio
 import math
 
+from discord.ext import commands
+
 from cogs.BaseCog import BaseCog
 from datetime import datetime
 from discord import utils
@@ -57,6 +59,7 @@ class Krill(BaseCog):
         return 0
 
     @command()
+    @commands.guild_only()
     async def krill(self, ctx, victim):
         if not ctx.author.guild_permissions.mute_members:
             return
@@ -74,9 +77,12 @@ class Krill(BaseCog):
                 self.cool_down[ctx.author.id] = datetime.now().timestamp()
 
         try:
-            victim = await UserConverter().convert(ctx, victim)
+            victim_user = await UserConverter().convert(ctx, victim)
+            victim_user = ctx.message.guild.get_member(victim_user.id)
+            victim_name = victim_user.nick or victim_user.name
         except Exception as e:
-            await ctx.send(f"couldn't find anyone called {victim}")
+            victim_name = victim
+            # await ctx.send(f"couldn't find anyone called {victim}")
 
         # EMOJI
         head = utils.get(self.bot.emojis, id=640741616080125981)
@@ -87,16 +93,16 @@ class Krill(BaseCog):
 
         count = 28
         spaces = " " * count
-        message = await ctx.send(f"{victim.mention}{red}{spaces}{head}{body}{tail}")
-        step = 0.5
+        message = await ctx.send(f"{victim_name}{red}{spaces}{head}{body}{tail}")
+        step = 1
         while count:
             count = count-7
             spaces = " " * count
-            await message.edit(content=f"{victim.mention}{red}{spaces}{head}{body}{tail}")
+            await message.edit(content=f"{victim_name}{red}{spaces}{head}{body}{tail}")
             await asyncio.sleep(step)
         while count < 20:
             spaces = " " * count
-            count = count + 5
+            count = count + 10
             await message.edit(content=f"{star}{spaces}{star}{spaces}{star}")
             await asyncio.sleep(step)
 

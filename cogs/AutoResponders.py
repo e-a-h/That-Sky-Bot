@@ -582,6 +582,8 @@ class AutoResponders(BaseCog):
         try:
             channel = self.bot.get_channel(event.channel_id)
             message = await channel.fetch_message(event.message_id)
+            if not hasattr(message.channel, 'guild'):
+                return
             member = message.channel.guild.get_member(event.user_id)
 
             action_exists = event.message_id in self.mod_actions
