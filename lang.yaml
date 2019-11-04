@@ -144,9 +144,11 @@ bugs:
   mistake: Nope, I made a mistake. Throw away this report and start again
   no_live_android: There is no live version available on Android yet, only beta. Go back to the bug report channel any time to start a new report!
   dm_unable: '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
-eden_reset: |
-  The Eye of Eden resets once per week.
-  Next reset is on {date} at {time} (In {countdown})
+eden:
+  reset: |
+    The Eye of Eden resets once per week.
+    Next reset is on {date} at {time} (In {countdown})
+  tz_help: I couldn't find a timezone called '{tz}.' Maybe you can find your timezone in this list <https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568>
 nope: Something isn't right...
 autoresponder:
   mod_action_header: Moderator actions
