@@ -149,6 +149,8 @@ eden_reset: |
   Next reset is on {date} at {time} (In {countdown})
 nope: Something isn't right...
 autoresponder:
+  mod_action_header: Moderator actions
+  mod_action_warning: Moderator action flag will be ignored if response channel is not set. Use `!autoresponder setchannel`
   you_chose: You chose **{value}**
   list: Auto-responder list for {server_name}.
   none_set: No auto-responders have been created yet.

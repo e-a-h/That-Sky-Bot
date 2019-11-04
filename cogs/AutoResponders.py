@@ -2,14 +2,17 @@ import asyncio
 import json
 import random
 import re
+from collections import namedtuple
 from json import JSONDecodeError
 
 import discord
 from discord.ext import commands
 
 from cogs.BaseCog import BaseCog
-from utils import Lang, Utils, Questions, Emoji, Configuration
+from utils import Lang, Utils, Questions, Emoji, Configuration, Logging
 from utils.Database import AutoResponder
+
+mod_action = namedtuple("mod_action", "channel_id message_id response", defaults=(None, None, None))
 
 
 async def nope(ctx, msg: str = None):
@@ -39,7 +42,8 @@ class AutoResponders(BaseCog):
         'full_match': 1,
         'delete': 2,
         'match_case': 3,
-        'ignore_mod': 4
+        'ignore_mod': 4,
+        'mod_action': 5
     }
 
     trigger_length_max = 300
@@ -48,6 +52,7 @@ class AutoResponders(BaseCog):
         super().__init__(bot)
 
         self.triggers = dict()
+        self.mod_actions = dict()
         self.bot.loop.create_task(self.reload_triggers())
         self.loaded = False
 
@@ -169,6 +174,38 @@ class AutoResponders(BaseCog):
                     flags.append(f"**{self.get_flag_name(i)}**")
             return f'{pre} Flags: ' + ', '.join(flags)
         return f"{pre} ***DISABLED***"
+
+    async def add_mod_action(self, message, response_channel, formatted_response):
+        """
+        :param message: Trigger message
+        :param response_channel: Channel to respond in
+        :param formatted_response: prepared auto-response
+        :return: None
+        """
+        embed = discord.Embed(
+            timestamp=message.created_at,
+            color=0xFF0940
+        )
+        embed.add_field(name='Message Author', value=message.author.mention, inline=True)
+        embed.add_field(name='Channel', value=message.channel.mention, inline=True)
+        embed.add_field(name='Jump link', value=f"[Go to message]({message.jump_url})", inline=True)
+        embed.add_field(name='Offending Mesasge', value=f"```{message.content}```", inline=False)
+        embed.add_field(name='Moderator Actions', value=f"""
+            Pass: {Emoji.get_emoji("YES")}
+            Intervene: {Emoji.get_emoji("CANDLE")}
+            Auto-Respond: {Emoji.get_emoji("WARNING")}
+            DESTROY: {Emoji.get_emoji("NO")}
+        """)
+
+        # message add reactions
+        sent_response = await response_channel.send(embed=embed)
+        await sent_response.add_reaction(Emoji.get_emoji("YES"))
+        await sent_response.add_reaction(Emoji.get_emoji("CANDLE"))
+        await sent_response.add_reaction(Emoji.get_emoji("WARNING"))
+        await sent_response.add_reaction(Emoji.get_emoji("NO"))
+
+        action = mod_action(message.channel.id, message.id, formatted_response)
+        self.mod_actions[sent_response.id] = action
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
@@ -451,6 +488,8 @@ class AutoResponders(BaseCog):
             if value:
                 db_trigger.flags = db_trigger.flags | (1 << flag)
                 await ctx.send(f"`{self.get_flag_name(flag)}` flag activated")
+                if flag is self.flags['mod_action']:
+                    await ctx.send(Lang.get_string('autoresponder/mod_action_warning'))
             else:
                 db_trigger.flags = db_trigger.flags & ~(1 << flag)
                 await ctx.send(f"`{self.get_flag_name(flag)}` flag deactivated")
@@ -479,10 +518,11 @@ class AutoResponders(BaseCog):
         for trigger, data in self.triggers[message.channel.guild.id].items():
             # flags
             active = data['flags'][self.flags['active']]
+            delete_trigger = data['flags'][self.flags['delete']]
             ignore_mod = data['flags'][self.flags['ignore_mod']]
             match_case = data['flags'][self.flags['match_case']]
             full_match = data['flags'][self.flags['full_match']]
-            delete_trigger = data['flags'][self.flags['delete']]
+            mod_action = data['flags'][self.flags['mod_action']] and data['responsechannelid']
 
             if not active or (is_mod and ignore_mod):
                 continue
@@ -515,7 +555,7 @@ class AutoResponders(BaseCog):
 
                 # pick from random responses
                 if isinstance(response, list):
-                    response = str(response[random.randint(0, len(response)-1)])
+                    response = random.choice(response)
 
                 # send to channel
                 if data['responsechannelid']:
@@ -523,15 +563,74 @@ class AutoResponders(BaseCog):
                 else:
                     response_channel = message.channel
 
-                await response_channel.send(
-                    response.replace("@", "@\u200b").format(
-                        author=message.author.mention,
-                        channel=message.channel.mention,
-                        link=message.jump_url
-                    )
+                formatted_response = response.replace("@", "@\u200b").format(
+                    author=message.author.mention,
+                    channel=message.channel.mention,
+                    link=message.jump_url,
                 )
+
+                if mod_action:
+                    await self.add_mod_action(message, response_channel, formatted_response)
+                else:
+                    await response_channel.send(formatted_response)
+
                 if delete_trigger:
                     await message.delete()
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, event):
+        try:
+            channel = self.bot.get_channel(event.channel_id)
+            message = await channel.fetch_message(event.message_id)
+            member = message.channel.guild.get_member(event.user_id)
+
+            action_exists = event.message_id in self.mod_actions
+            user_is_bot = event.user_id == self.bot.user.id
+            if user_is_bot or not member.guild_permissions.mute_members or not action_exists:
+                return
+
+            await self.do_mod_action(event.message_id, member, message, event.emoji)
+        except Exception as e:
+            await Utils.handle_exception("auto-responder generic exception", self, e)
+
+    async def do_mod_action(self, action_id, member, message, emoji):
+        """
+        :param action_id: message id for the message being reacted to
+        :param member: member performing the action
+        :param message: message action is performed on
+        :param emoji: the emoji that was added
+        :return: None
+        """
+
+        action: mod_action = self.mod_actions.pop(action_id)
+        trigger_channel = self.bot.get_channel(action.channel_id)
+        trigger_message = await trigger_channel.fetch_message(action.message_id)
+
+        if str(emoji) == str(Emoji.get_emoji("YES")):
+            # delete mode action message, leave the triggering message
+            await message.delete()
+            return
+
+        async def update_embed(my_message, mod):
+            my_embed = my_message.embeds[0]
+            my_embed.add_field(name="Handled by", value=mod.mention, inline=False)
+            await(my_message.edit(embed=my_embed))
+
+        await update_embed(message, member)
+        await message.clear_reactions()
+        await asyncio.sleep(1)
+        await message.add_reaction(emoji)
+
+        if str(emoji) == str(Emoji.get_emoji("CANDLE")):
+            # do nothing
+            pass
+        if str(emoji) == str(Emoji.get_emoji("WARNING")):
+            # send auto-response in the triggering channel
+            await trigger_message.channel.send(action.response)
+        if str(emoji) == str(Emoji.get_emoji("NO")):
+            # delete the triggering message
+            await trigger_message.delete()
+
 
 
 def setup(bot):
