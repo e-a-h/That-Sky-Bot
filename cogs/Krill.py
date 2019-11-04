@@ -60,7 +60,7 @@ class Krill(BaseCog):
 
     @command()
     @commands.guild_only()
-    async def krill(self, ctx, victim):
+    async def krill(self, ctx, *args):
         if not ctx.author.guild_permissions.mute_members:
             return
 
@@ -76,6 +76,7 @@ class Krill(BaseCog):
                 # start a new cool-down timer
                 self.cool_down[ctx.author.id] = datetime.now().timestamp()
 
+        victim = ' '.join(args)
         try:
             victim_user = await UserConverter().convert(ctx, victim)
             victim_user = ctx.message.guild.get_member(victim_user.id)
