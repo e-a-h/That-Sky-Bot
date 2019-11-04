@@ -1,6 +1,6 @@
 from discord.ext import commands
 from cogs.BaseCog import BaseCog
-from utils import Configuration
+from utils import Configuration, Logging
 
 
 class Welcomer(BaseCog):
@@ -40,7 +40,6 @@ class Welcomer(BaseCog):
                 Logging.info("failed")
                 Logging.error(ex)
                 raise ex
-            
 
 
 def setup(bot):
