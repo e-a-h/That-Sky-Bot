@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta
 
 import pytz
@@ -35,6 +36,9 @@ class Eden(BaseCog):
         try:
             if tz is None:
                 tz = server_zone
+            elif re.search(r'@', tz):
+                await ctx.send(Lang.get_string('eden/tz_mention'))
+                return
             else:
                 tz = pytz.timezone(tz)
         except UnknownTimeZoneError as e:

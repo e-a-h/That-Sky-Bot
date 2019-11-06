@@ -149,6 +149,7 @@ eden:
     The Eye of Eden resets once per week.
     Next reset is on {date} at {time} (In {countdown})
   tz_help: I couldn't find a timezone called '{tz}.' Maybe you can find your timezone in this list <https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568>
+  tz_mention: I'm not falling for that again
 nope: Something isn't right...
 autoresponder:
   mod_action_header: Moderator actions
