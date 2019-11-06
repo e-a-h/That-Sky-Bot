@@ -3,6 +3,7 @@ import json
 import random
 import re
 from collections import namedtuple
+from datetime import datetime
 from json import JSONDecodeError
 
 import discord
@@ -614,14 +615,17 @@ class AutoResponders(BaseCog):
             return
 
         async def update_embed(my_message, mod):
+            # replace mod action list with acting mod name and datetime
             my_embed = my_message.embeds[0]
-            my_embed.add_field(name="Handled by", value=mod.mention, inline=False)
+            now = datetime.now()
+            my_embed.set_field_at(-1, name="Handled by", value=mod.mention, inline=True)
+            my_embed.add_field(name="Action Used", value=emoji, inline=True)
+            my_embed.add_field(name="Reaction Time", value=now, inline=True)
             await(my_message.edit(embed=my_embed))
 
         await update_embed(message, member)
         await message.clear_reactions()
         await asyncio.sleep(1)
-        await message.add_reaction(emoji)
 
         if str(emoji) == str(Emoji.get_emoji("CANDLE")):
             # do nothing
