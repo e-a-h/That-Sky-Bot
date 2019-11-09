@@ -212,7 +212,8 @@ custom_commands:
   command_updated: Command `{trigger}` has been updated!
 sweeps:
   jumpurl_prompt: Please provide a jumpurl or [channel_id]/[message_id]
-  unique_result: There are {count} entries (unique reactions) to this drawing.
+  unique_result: There are {count} entrants (unique reactions) to this drawing.
+  total_entries: There are {count} total entries to this drawing.
   all_invalid_emoji: All of the reaction emojis come from other servers. I won't be able to add any reactions. Do you still want to clear reactions?
   some_invalid_emoji: Some of the reaction emojis come from other servers. I won't be able to add them all back. Do you still want to clear reactions?
   invalid_emoji_confirm: Ok I'll continue, but there are at least {count} emoji that I can't add back to the original message. You may need to add some yourself!
