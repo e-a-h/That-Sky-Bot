@@ -82,13 +82,8 @@ class Krill(BaseCog):
         elif not ctx.author.guild_permissions.mute_members:
             return
 
-        if re.search(r'oreo', ''.join(args), re.IGNORECASE):
+        if re.search(r'[o0]r[e3][o0]', ''.join(args), re.IGNORECASE):
             await ctx.send('not Oreo!')
-            return
-
-        # Initial checks passed. Delete command message and check or start
-        await ctx.message.delete()
-        if ctx.author.id not in Configuration.get_var("ADMINS", []) and await self.get_cool_down(ctx):
             return
 
         victim = ' '.join(args)
@@ -99,12 +94,35 @@ class Krill(BaseCog):
         except Exception as e:
             victim_name = victim
             if re.search(r'@', victim_name):
-                await ctx.send('no. no mentions for me. you know what happened the last time I used a mention?')
+                await ctx.send('sorry, I won\'t @-mention anyone like that')
                 return
 
-        victim_name = await Utils.clean(victim_name)
-        if len(victim_name) > 20:
-            victim_name = victim_name[0:22]+"..."
+        # clean emoji and store non-emoji text for length evaluation
+        emoji_used = Utils.EMOJI_MATCHER.findall(victim_name)
+        non_emoji_text = Utils.EMOJI_MATCHER.sub('', victim_name)
+        if len(non_emoji_text) > 40:
+            await ctx.send("too much text!")
+            return
+        if len(emoji_used) > 15:
+            await ctx.send("too many emoji!")
+            return
+
+        # Initial validation passed. Delete command message and check or start
+        await ctx.message.delete()
+        if ctx.author.id not in Configuration.get_var("ADMINS", []) and await self.get_cool_down(ctx):
+            return
+
+        # remove pattern interference
+        reg_clean = re.compile(r'[.\[\](){}\\+]')
+        victim_name = reg_clean.sub('', victim_name)
+        bad_emoji = set()
+        for emoji in emoji_used:
+            if utils.get(self.bot.emojis, id=int(emoji[2])) is None:
+                bad_emoji.add(emoji[2])
+        for bad_id in bad_emoji:
+            # remove bad emoji
+            this_match = re.compile(f'<(a?):([^: \n]+):{bad_id}>')
+            victim_name = this_match.sub('', victim_name)
 
         # EMOJI hard coded because... it must be exactly these
         head = utils.get(self.bot.emojis, id=640741616080125981)
@@ -126,7 +144,7 @@ class Krill(BaseCog):
             await message.edit(content=f"**{spacestep}**{victim_name} {red}{spaces}{head}{body}{tail}")
             await asyncio.sleep(time_step)
 
-        distance = randint(15,25)
+        distance = randint(15, 25)
         step = math.ceil(distance / 3)
         count = 0
         while count < distance:
@@ -135,6 +153,11 @@ class Krill(BaseCog):
             secaps = " " * max(1, distance - count)
             await message.edit(content=f"**{secaps}**{star}{spaces}{ded} {victim_name}{spaces}{star}{spaces}{star}")
             await asyncio.sleep(time_step)
+        await message.edit(content=f"**{secaps}**{star}{spaces}{ded} {victim_name}{spaces}{star}{spaces}{star} : *summoned by {ctx.author.mention}*")
+        # await message.add_reaction(star)
+        # TODO: add message id to persistent vars, listen for reactions.
+        #  if reaction count >= 3 remove id from persistent
+        #  announce victim has been rescued
 
 
 def setup(bot):
