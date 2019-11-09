@@ -109,7 +109,7 @@ class Sweepstakes(BaseCog):
         message_id = message.id
         try:
             reactions = await self.get_all_react_users(message)
-            await ctx.send(f"There are {len(reactions['data'])} entries to this drawing.")
+            await ctx.send(Lang.get_string('sweeps/total_entries', count=len(reactions['data'])))
             await self.send_csv(ctx, reactions['fields'], reactions['data'])
         except Exception as e:
             await Utils.handle_exception(f"Failed to get entries {channel_id}/{message_id}", self, e)
