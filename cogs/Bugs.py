@@ -131,7 +131,6 @@ class Bugs(BaseCog):
         m = self.bot.metrics
         active_question = None
         try:
-            question_timer = 0
             channel = await user.create_dm()
 
             # vars to store everything
