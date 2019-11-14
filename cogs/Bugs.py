@@ -6,6 +6,9 @@ from datetime import datetime
 from discord import Forbidden, Embed, NotFound
 from discord.ext import commands
 from discord.ext.commands import Context, command
+
+import prometheus_client as prom
+
 from cogs.BaseCog import BaseCog
 from utils import Questions, Emoji, Utils, Configuration, Lang
 from utils.Database import BugReport, Attachements
@@ -69,6 +72,8 @@ class Bugs(BaseCog):
 
     async def report_bug(self, user, trigger_channel):
         # fully ignore muted users
+        m = self.bot.metrics
+
         guild = self.bot.get_guild(Configuration.get_var("guild_id"))
         member = guild.get_member(user.id)
         mute_role = guild.get_role(Configuration.get_var("muted_role"))
@@ -78,6 +83,8 @@ class Bugs(BaseCog):
         if mute_role in member.roles:
             # muted, hard ignore
             return
+
+        m.reports_in_progress.inc()
 
         if user.id in self.in_progress:
             # already tracking progress for this user
@@ -109,7 +116,9 @@ class Bugs(BaseCog):
             if should_reset:
                 # cancel running task, delete progress, and fall through to start a new report
                 self.in_progress[user.id].cancel()
-                del self.in_progress[user.id]
+                self.delete_progress(user)
+                m.reports_in_progress.dec()
+
             else:
                 # in-progress report should not be reset. bail out
                 return
@@ -119,7 +128,10 @@ class Bugs(BaseCog):
 
     async def actual_bug_reporter(self, user, trigger_channel):
         # wrap everything so users can't get stuck in limbo
+        m = self.bot.metrics
+        active_question = None
         try:
+            question_timer = 0
             channel = await user.create_dm()
 
             # vars to store everything
@@ -139,7 +151,10 @@ class Bugs(BaseCog):
                 nonlocal asking
                 await user.send(Lang.get_string("bugs/abort_report"))
                 asking = False
+                m.reports_abort_count.inc()
+                m.reports_exit_question.observe(active_question)
                 self.delete_progress(user)
+                m.reports_in_progress.dec()
 
             def set_platform(p):
                 nonlocal platform
@@ -200,14 +215,35 @@ class Bugs(BaseCog):
                 await self.send_bug_info(channel_name)
 
             async def restart():
-                del self.in_progress[user.id]
+                m.reports_restarted.inc()
+                self.delete_progress(user)
                 await self.report_bug(user, trigger_channel)
 
+            # start global report timer and question timer
+            report_start_time = question_start_time = time.time()
+            m.reports_started.inc()
+
+            def update_metrics():
+                nonlocal active_question
+                nonlocal question_start_time
+
+                question_duration = time.time() - question_start_time
+                question_start_time = time.time()
+
+                # m.reports_question_duration.observe(active_question, question_duration)
+                gauge = getattr(m, f"reports_question_{active_question}_duration")
+                gauge.set(question_duration)
+
+                active_question = active_question + 1
+
+            active_question = 0
             await Questions.ask(self.bot, channel, user, Lang.get_string("bugs/question_ready"),
                                 [
                                     Questions.Option("YES", "Press this reaction to answer YES and begin a report"),
                                     Questions.Option("NO", "Press this reaction to answer NO", handler=abort),
                                 ], show_embed=True)
+            update_metrics()
+
             if asking:
                 # question 1: android or ios?
                 await Questions.ask(self.bot, channel, user, Lang.get_string("bugs/question_platform"),
@@ -215,15 +251,21 @@ class Bugs(BaseCog):
                                         Questions.Option("ANDROID", "Android", lambda: set_platform("Android")),
                                         Questions.Option("IOS", "iOS", lambda: set_platform("iOS"))
                                     ], show_embed=True)
+                update_metrics()
 
                 # question 2: android/ios version
                 platform_version = await Questions.ask_text(self.bot, channel, user,
                                                             Lang.get_string("bugs/question_platform_version",
                                                                             platform=platform),
                                                             validator=verify_version)
+                update_metrics()
 
                 # question 3: hardware info
-                deviceinfo = await Questions.ask_text(self.bot, channel, user, Lang.get_string("bugs/question_device_info", platform=platform, max=100), validator=max_length(100))
+                deviceinfo = await Questions.ask_text(self.bot, channel, user,
+                                                      Lang.get_string("bugs/question_device_info",
+                                                                      platform=platform, max=100),
+                                                      validator=max_length(100))
+                update_metrics()
 
                 # question 4: stable or beta?
                 await Questions.ask(self.bot, channel, user, Lang.get_string("bugs/question_app_branch"),
@@ -231,11 +273,12 @@ class Bugs(BaseCog):
                                         Questions.Option("STABLE", "Live", lambda: set_branch("Stable")),
                                         Questions.Option("BETA", "Beta", lambda: set_branch("Beta"))
                                     ], show_embed=True)
-
+                update_metrics()
 
                 # TODO: remove me when android goes live
                 if branch == "Stable" and platform == "Android":
                     await channel.send(Lang.get_string("bugs/no_live_android"))
+                    m.reports_exit_question.observe(active_question)
                     return
 
                 # question 5: sky app version
@@ -246,51 +289,65 @@ class Bugs(BaseCog):
                                                            "bugs/question_app_version",
                                                            version_help=Lang.get_string("bugs/version_" + platform.lower())),
                                                        validator=verify_version)
+                update_metrics()
 
                 # question 6: sky app build number
                 app_build = await Questions.ask_text(self.bot, channel, user, Lang.get_string("bugs/question_app_build"),
                                                      validator=verify_version)
+                update_metrics()
 
                 # question 7: Title
                 title = await Questions.ask_text(self.bot, channel, user, Lang.get_string("bugs/question_title", max=100),
                                                  validator=max_length(100))
+                update_metrics()
 
                 # question 8: "actual" - defect behavior
                 actual = await Questions.ask_text(self.bot, channel, user, Lang.get_string("bugs/question_actual", max=400),
                                                   validator=max_length(400))
+                update_metrics()
 
                 # question 9: steps to reproduce
                 steps = await Questions.ask_text(self.bot, channel, user, Lang.get_string("bugs/question_steps", max=800),
                                                  validator=max_length(800))
+                update_metrics()
 
                 # question 10: expected behavior
                 expected = await Questions.ask_text(self.bot, channel, user,
                                                     Lang.get_string("bugs/question_expected", max=200),
                                                     validator=max_length(200))
+                update_metrics()
 
-                # question 11: attachments
+                # question 11: attachments y/n
                 await Questions.ask(self.bot, channel, user, Lang.get_string("bugs/question_attachments"),
                                     [
                                         Questions.Option("YES", Lang.get_string("bugs/attachments_yes"), handler=add_attachments),
                                         Questions.Option("NO", Lang.get_string("bugs/skip_step"))
                                     ], show_embed=True)
+                update_metrics()
 
                 if attachments:
+                    # question 12: attachments
                     attachment_links = await Questions.ask_attachements(self.bot, channel, user)
+                # update metrics outside condition to keep count up-to-date and reflect skipped question as zero time
+                update_metrics()
 
-                # question 12: additional info
+                # question 13: additional info y/n
                 await Questions.ask(self.bot, channel, user, Lang.get_string("bugs/question_additional"),
                                     [
                                         Questions.Option("YES", Lang.get_string("bugs/additional_info_yes"), handler=add_additional),
                                         Questions.Option("NO", Lang.get_string("bugs/skip_step"))
                                     ], show_embed=True)
+                update_metrics()
 
                 if additional:
+                    # question 14: additional info
                     additional_text = await Questions.ask_text(self.bot, channel, user,
                                                                Lang.get_string("bugs/question_additional_info"),
                                                                validator=max_length(500))
+                # update metrics outside condition to keep count up-to-date and reflect skipped question as zero time
+                update_metrics()
 
-                # assemble the report
+                # assemble the report and show to user for review
                 report = Embed(timestamp=datetime.utcfromtimestamp(time.time()))
                 report.set_author(name=f"{user} ({user.id})", icon_url=user.avatar_url_as(size=32))
                 report.add_field(name=Lang.get_string("bugs/platform"), value=f"{platform} {platform_version}")
@@ -310,24 +367,40 @@ class Bugs(BaseCog):
                     for a in attachment_links:
                         attachment_message += f"{a}\n"
                     await channel.send(attachment_message)
+
                 review_time = 180
+                # Question 15 - final review
                 await Questions.ask(self.bot, channel, user,
                                     Lang.get_string("bugs/question_ok", timeout=Questions.timeout_format(review_time)),
                                     [
                                         Questions.Option("YES", Lang.get_string("bugs/send_report"), send_report),
                                         Questions.Option("NO", Lang.get_string("bugs/mistake"), restart)
                                     ], show_embed=True, timeout=review_time)
+                update_metrics()
+                report_duration = time.time() - report_start_time
+                m.reports_duration.set(report_duration)
+                m.reports_in_progress.dec()
             else:
                 return
 
         except Forbidden:
+            m.bot_cannot_dm_member.inc()
+            m.reports_in_progress.dec()
+
             await trigger_channel.send(
                 Lang.get_string("bugs/dm_unable", user=user.mention),
                 delete_after=30)
         except (asyncio.TimeoutError, CancelledError):
+            m.reports_not_finished.inc()
+            m.reports_in_progress.dec()
+
+            if active_question is not None:
+                m.reports_exit_question.observe(active_question)
             self.delete_progress(user)
         except Exception as ex:
             self.delete_progress(user)
+            m.reports_in_progress.dec()
+
             await Utils.handle_exception("bug reporting", self.bot, ex)
             raise ex
         else:

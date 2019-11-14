@@ -8,6 +8,7 @@ from json import JSONDecodeError
 
 import discord
 from discord.ext import commands
+from discord.errors import NotFound
 
 from cogs.BaseCog import BaseCog
 from utils import Lang, Utils, Questions, Emoji, Configuration, Logging
@@ -570,6 +571,9 @@ class AutoResponders(BaseCog):
                     link=message.jump_url,
                 )
 
+                m = self.bot.metrics
+                m.auto_responder_count.inc()
+
                 if mod_action:
                     await self.add_mod_action(message, response_channel, formatted_response)
                 else:
@@ -586,15 +590,18 @@ class AutoResponders(BaseCog):
             if not hasattr(message.channel, 'guild'):
                 return
             member = message.channel.guild.get_member(event.user_id)
-
-            action_exists = event.message_id in self.mod_actions
-            user_is_bot = event.user_id == self.bot.user.id
-            if user_is_bot or not member.guild_permissions.mute_members or not action_exists:
-                return
-
-            await self.do_mod_action(event.message_id, member, message, event.emoji)
         except Exception as e:
             await Utils.handle_exception("auto-responder generic exception", self, e)
+            return
+
+        action_exists = event.message_id in self.mod_actions
+        user_is_bot = event.user_id == self.bot.user.id
+
+        # TODO: mute permission defined as required permission. change to role-based
+        if user_is_bot or not member.guild_permissions.mute_members or not action_exists:
+            return
+
+        await self.do_mod_action(event.message_id, member, message, event.emoji)
 
     async def do_mod_action(self, action_id, member, message, emoji):
         """
@@ -606,12 +613,19 @@ class AutoResponders(BaseCog):
         """
 
         action: mod_action = self.mod_actions.pop(action_id)
-        trigger_channel = self.bot.get_channel(action.channel_id)
-        trigger_message = await trigger_channel.fetch_message(action.message_id)
+        try:
+            trigger_channel = self.bot.get_channel(action.channel_id)
+            trigger_message = await trigger_channel.fetch_message(action.message_id)
+        except NotFound as e:
+            trigger_message = None
+            pass
+
+        m = self.bot.metrics
 
         if str(emoji) == str(Emoji.get_emoji("YES")):
-            # delete mode action message, leave the triggering message
+            # delete mod action message, leave the triggering message
             await message.delete()
+            m.auto_responder_mod_pass.inc()
             return
 
         async def update_embed(my_message, mod):
@@ -629,14 +643,16 @@ class AutoResponders(BaseCog):
 
         if str(emoji) == str(Emoji.get_emoji("CANDLE")):
             # do nothing
+            m.auto_responder_mod_manual.inc()
             pass
         if str(emoji) == str(Emoji.get_emoji("WARNING")):
             # send auto-response in the triggering channel
+            m.auto_responder_mod_auto.inc()
             await trigger_message.channel.send(action.response)
         if str(emoji) == str(Emoji.get_emoji("NO")):
             # delete the triggering message
+            m.auto_responder_mod_delete_trigger.inc()
             await trigger_message.delete()
-
 
 
 def setup(bot):

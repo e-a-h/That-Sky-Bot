@@ -6,13 +6,20 @@ from discord.ext import commands
 from discord.ext.commands import Bot
 from aiohttp import ClientOSError, ServerDisconnectedError
 from discord import ConnectionClosed, Embed, Colour
+from prometheus_client import CollectorRegistry
 
 from utils import Logging, Configuration, Utils, Emoji, Database
 
+from utils.PrometheusMon import PrometheusMon
 
 class Skybot(Bot):
     loaded = False
     shutting_down = False
+    metrics_reg = CollectorRegistry()
+
+    def __init__(self, *args, loop=None, **kwargs):
+        super().__init__(*args, loop=loop, **kwargs)
+        self.metrics = PrometheusMon(self)
 
     async def on_ready(self):
         if not self.loaded:
