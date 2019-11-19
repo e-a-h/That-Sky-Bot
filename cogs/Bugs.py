@@ -22,6 +22,8 @@ class Bugs(BaseCog):
         self.bug_messages = set()
         self.in_progress = dict()
         self.blocking = set()
+        m = self.bot.metrics
+        m.reports_in_progress.set_function(lambda: len(self.in_progress))
 
     def delete_progress(self, user):
         if user.id in self.in_progress:
@@ -84,8 +86,6 @@ class Bugs(BaseCog):
             # muted, hard ignore
             return
 
-        m.reports_in_progress.inc()
-
         if user.id in self.in_progress:
             # already tracking progress for this user
             if user.id in self.blocking:
@@ -117,7 +117,6 @@ class Bugs(BaseCog):
                 # cancel running task, delete progress, and fall through to start a new report
                 self.in_progress[user.id].cancel()
                 self.delete_progress(user)
-                m.reports_in_progress.dec()
 
             else:
                 # in-progress report should not be reset. bail out
@@ -153,7 +152,6 @@ class Bugs(BaseCog):
                 m.reports_abort_count.inc()
                 m.reports_exit_question.observe(active_question)
                 self.delete_progress(user)
-                m.reports_in_progress.dec()
 
             def set_platform(p):
                 nonlocal platform
@@ -226,10 +224,11 @@ class Bugs(BaseCog):
                 nonlocal active_question
                 nonlocal question_start_time
 
-                question_duration = time.time() - question_start_time
-                question_start_time = time.time()
+                now = time.time()
+                question_duration = now - question_start_time
+                question_start_time = now
 
-                # m.reports_question_duration.observe(active_question, question_duration)
+                # Record the time taken to answer the previous question
                 gauge = getattr(m, f"reports_question_{active_question}_duration")
                 gauge.set(question_duration)
 
@@ -367,7 +366,7 @@ class Bugs(BaseCog):
                         attachment_message += f"{a}\n"
                     await channel.send(attachment_message)
 
-                review_time = 180
+                review_time = 300
                 # Question 15 - final review
                 await Questions.ask(self.bot, channel, user,
                                     Lang.get_string("bugs/question_ok", timeout=Questions.timeout_format(review_time)),
@@ -378,27 +377,23 @@ class Bugs(BaseCog):
                 update_metrics()
                 report_duration = time.time() - report_start_time
                 m.reports_duration.set(report_duration)
-                m.reports_in_progress.dec()
             else:
                 return
 
         except Forbidden:
             m.bot_cannot_dm_member.inc()
-            m.reports_in_progress.dec()
 
             await trigger_channel.send(
                 Lang.get_string("bugs/dm_unable", user=user.mention),
                 delete_after=30)
         except (asyncio.TimeoutError, CancelledError):
-            m.reports_not_finished.inc()
-            m.reports_in_progress.dec()
+            m.report_incomplete_count.inc()
 
             if active_question is not None:
                 m.reports_exit_question.observe(active_question)
             self.delete_progress(user)
         except Exception as ex:
             self.delete_progress(user)
-            m.reports_in_progress.dec()
 
             await Utils.handle_exception("bug reporting", self.bot, ex)
             raise ex

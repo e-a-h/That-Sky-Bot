@@ -612,13 +612,17 @@ class AutoResponders(BaseCog):
         :return: None
         """
 
+        """
+        why is this matching twice:
+        😄 Good Morning Skysapian Sisters & Brothers<:GoTeam:632233128563441667> HappyHappy Sunday<:Handstand:628441812498907147> Hope Y'alls have a Superb Day<:PinesCosmicManta:641037340399370281> As always ...Lots of 🤍❤🧡💛💚💙💜💖🖤 & 🕯 <:GiveLight:632233908603453498> <:CandleLighting:628444936836218881>  to all🥰🤗
+        """
+
         action: mod_action = self.mod_actions.pop(action_id)
         try:
             trigger_channel = self.bot.get_channel(action.channel_id)
             trigger_message = await trigger_channel.fetch_message(action.message_id)
-        except NotFound as e:
+        except (NotFound, AttributeError) as e:
             trigger_message = None
-            pass
 
         m = self.bot.metrics
 
@@ -632,7 +636,10 @@ class AutoResponders(BaseCog):
             # replace mod action list with acting mod name and datetime
             my_embed = my_message.embeds[0]
             now = datetime.now()
+            nonlocal trigger_message
             my_embed.set_field_at(-1, name="Handled by", value=mod.mention, inline=True)
+            if trigger_message is None:
+                my_embed.add_field(name="Deleted", value="Member removed message before action was taken.")
             my_embed.add_field(name="Action Used", value=emoji, inline=True)
             my_embed.add_field(name="Reaction Time", value=now, inline=True)
             await(my_message.edit(embed=my_embed))
@@ -648,11 +655,13 @@ class AutoResponders(BaseCog):
         if str(emoji) == str(Emoji.get_emoji("WARNING")):
             # send auto-response in the triggering channel
             m.auto_responder_mod_auto.inc()
-            await trigger_message.channel.send(action.response)
+            if trigger_message is not None:
+                await trigger_message.channel.send(action.response)
         if str(emoji) == str(Emoji.get_emoji("NO")):
             # delete the triggering message
             m.auto_responder_mod_delete_trigger.inc()
-            await trigger_message.delete()
+            if trigger_message is not None:
+                await trigger_message.delete()
 
 
 def setup(bot):
