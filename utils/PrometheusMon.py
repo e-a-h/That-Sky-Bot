@@ -38,7 +38,7 @@ class PrometheusMon:
         self.reports_started = prom.Counter("reports_started", "Number of reports started")
         self.reports_restarted = prom.Counter("reports_restarted", "Number of reports restarted")
         self.reports_abort_count = prom.Counter("reports_abort_count", "Number of reports aborted")
-        self.reports_not_finished = prom.Counter("report_incomplete_count", "Number of reports failed")
+        self.report_incomplete_count = prom.Counter("report_incomplete_count", "Number of reports failed")
 
         self.reports_question_0_duration = prom.Gauge("report_question_duration_00",
                                                       "Report start question. User called to DM from channel")
@@ -102,11 +102,12 @@ class PrometheusMon:
         bot.metrics_reg.register(self.bot_latency)
         # bot.metrics_reg.register(self.bot_event_counts)
 
+        bot.metrics_reg.register(self.bot_cannot_dm_member)
         bot.metrics_reg.register(self.reports_in_progress)
         bot.metrics_reg.register(self.reports_started)
         bot.metrics_reg.register(self.reports_restarted)
         bot.metrics_reg.register(self.reports_abort_count)
-        bot.metrics_reg.register(self.reports_not_finished)
+        bot.metrics_reg.register(self.report_incomplete_count)
         bot.metrics_reg.register(self.reports_question_0_duration)
         bot.metrics_reg.register(self.reports_question_1_duration)
         bot.metrics_reg.register(self.reports_question_2_duration)

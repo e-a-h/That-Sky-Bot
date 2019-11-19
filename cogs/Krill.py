@@ -17,15 +17,18 @@ class Krill(BaseCog):
     def __init__(self, bot):
         super().__init__(bot)
         self.cool_down = dict()
+        self.krilled = dict()
         bot.loop.create_task(self.startup_cleanup())
 
     async def startup_cleanup(self):
-        krilled = Configuration.get_persistent_var("krilled", dict())
-        for user_id, expiry in krilled.items():
+        self.krilled = Configuration.get_persistent_var("krilled", dict())
+        """
+        for user_id, expiry in self.krilled.items():
             user = self.bot.get_user(user_id)
             # expiry = date(expiry)
             print(f"krilled: {user_id}")
             # if date gt expiry, unkrill, else schedule unkrilling
+        """
 
     async def trigger_krill(self, user_id):
         # TODO: read configured duration
@@ -81,9 +84,8 @@ class Krill(BaseCog):
             pass
         elif not ctx.author.guild_permissions.mute_members:
             return
-
-        if re.search(r'[o0]r[e3][o0]', ''.join(args), re.IGNORECASE):
-            await ctx.send('not Oreo!')
+        if re.search(r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ][rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳ][eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉ][0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ]', arg, re.IGNORECASE):
+            await ctx.send(f'not Oreo! {ctx.author.mention}, you monster!!')
             return
 
         victim = ' '.join(args)
