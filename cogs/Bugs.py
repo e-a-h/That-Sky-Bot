@@ -273,12 +273,6 @@ class Bugs(BaseCog):
                                     ], show_embed=True)
                 update_metrics()
 
-                # TODO: remove me when android goes live
-                if branch == "Stable" and platform == "Android":
-                    await channel.send(Lang.get_string("bugs/no_live_android"))
-                    m.reports_exit_question.observe(active_question)
-                    return
-
                 # question 5: sky app version
                 app_version = await Questions.ask_text(self.bot,
                                                        channel,
