@@ -587,37 +587,30 @@ class AutoResponders(BaseCog):
         try:
             channel = self.bot.get_channel(event.channel_id)
             message = await channel.fetch_message(event.message_id)
-            if not hasattr(message.channel, 'guild'):
-                return
             member = message.channel.guild.get_member(event.user_id)
+            user_is_bot = event.user_id == self.bot.user.id
+            has_permission = member.guild_permissions.mute_members  # TODO: change to role-based?
+            if user_is_bot or not has_permission:
+                return
+            action: mod_action = self.mod_actions.pop(event.message_id)
+        except (NotFound, KeyError, AttributeError) as e:
+            # couldn't find channel, message, member, or action
+            return
         except Exception as e:
             await Utils.handle_exception("auto-responder generic exception", self, e)
             return
 
-        action_exists = event.message_id in self.mod_actions
-        user_is_bot = event.user_id == self.bot.user.id
+        await self.do_mod_action(action, member, message, event.emoji)
 
-        # TODO: mute permission defined as required permission. change to role-based
-        if user_is_bot or not member.guild_permissions.mute_members or not action_exists:
-            return
-
-        await self.do_mod_action(event.message_id, member, message, event.emoji)
-
-    async def do_mod_action(self, action_id, member, message, emoji):
+    async def do_mod_action(self, action, member, message, emoji):
         """
-        :param action_id: message id for the message being reacted to
+        :param action: namedtuple mod_action to execute
         :param member: member performing the action
         :param message: message action is performed on
         :param emoji: the emoji that was added
         :return: None
         """
 
-        """
-        why is this matching twice:
-        😄 Good Morning Skysapian Sisters & Brothers<:GoTeam:632233128563441667> HappyHappy Sunday<:Handstand:628441812498907147> Hope Y'alls have a Superb Day<:PinesCosmicManta:641037340399370281> As always ...Lots of 🤍❤🧡💛💚💙💜💖🖤 & 🕯 <:GiveLight:632233908603453498> <:CandleLighting:628444936836218881>  to all🥰🤗
-        """
-
-        action: mod_action = self.mod_actions.pop(action_id)
         try:
             trigger_channel = self.bot.get_channel(action.channel_id)
             trigger_message = await trigger_channel.fetch_message(action.message_id)
