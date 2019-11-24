@@ -1,23 +1,27 @@
 import asyncio
 import math
 import re
+from datetime import datetime
 from random import randint
 
+import discord
+from discord import utils
 from discord.ext import commands
+from discord.ext.commands import command, UserConverter, BucketType, Command
 
 from cogs.BaseCog import BaseCog
-from datetime import datetime
-from discord import utils
-from discord.ext.commands import command, Context, UserConverter
-from utils import Configuration, Utils
+from utils import Configuration, Utils, Lang, Emoji
+from utils.Database import KrillChannel
+from utils.Utils import CHANNEL_ID_MATCHER
 
 
 class Krill(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        self.cool_down = dict()
         self.krilled = dict()
+        self.channels = dict()
+        self.loaded = False
         bot.loop.create_task(self.startup_cleanup())
 
     async def startup_cleanup(self):
@@ -29,6 +33,24 @@ class Krill(BaseCog):
             print(f"krilled: {user_id}")
             # if date gt expiry, unkrill, else schedule unkrilling
         """
+
+        # Load channels
+        for guild in self.bot.guilds:
+            my_channels = set()
+            for row in KrillChannel.select(KrillChannel.channelid).where(KrillChannel.serverid == guild.id):
+                my_channels.add(row.channelid)
+            self.channels[guild.id] = my_channels
+        self.loaded = True
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild):
+        self.channels[guild.id] = set()
+
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild):
+        del self.channels[guild.id]
+        for row in KrillChannel.select().where(KrillChannel.serverid == guild.id):
+            row.delete_instance()
 
     async def trigger_krill(self, user_id):
         # TODO: read configured duration
@@ -51,44 +73,31 @@ class Krill(BaseCog):
         #  remove mute role
         pass
 
-    async def get_cool_down(self, ctx):
-        remaining = 0
-        now = datetime.now().timestamp()
-        if ctx.author.id in self.cool_down:
-            min_time = 120
-            start_time = self.cool_down[ctx.author.id]
-            elapsed = now - start_time
-            remaining = max(0, min_time - elapsed)
-            if remaining <= 0:
-                del self.cool_down[ctx.author.id]
+    def can_mod_krill(ctx):
+        return ctx.author.guild_permissions.manage_channels
 
-        # clean up expired cool-downs
-        for user_id, start_time in self.cool_down.items():
-            if now - start_time <= 0:
-                del self.cool_down[user_id]
-
-        if remaining > 0:
-            time_display = Utils.to_pretty_time(remaining)
-            await ctx.send(f"Cool it, {ctx.author.mention}. Try again in {time_display}")
-            return True
-        else:
-            # start a new cool-down timer
-            self.cool_down[ctx.author.id] = now
-            return False
+    def can_krill(ctx):
+        # mod, empty channel list, or matching channel required
+        no_channels = ctx.cog.channels[ctx.guild.id] == set()
+        channel_match = ctx.channel.id in ctx.cog.channels[ctx.guild.id]
+        bypass = ctx.author.guild_permissions.mute_members
+        return bypass or no_channels or channel_match
 
     @command()
+    @commands.check(can_krill)
+    @commands.cooldown(1, 120, BucketType.member)
     @commands.guild_only()
-    async def krill(self, ctx, *args):
-        # channel hard-coded because...
-        if ctx.channel.id == 593565781166391316:  # memes channel
-            pass
-        elif not ctx.author.guild_permissions.mute_members:
-            return
-        if re.search(r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ][rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳ][eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉ][0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ]', arg, re.IGNORECASE):
+    async def krill(self, ctx, *, arg=''):
+        o = r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ]'
+        r = r'[rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳ]'
+        e = r'[eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉ]'
+        oreo_pattern = re.compile(f"{o}{r}{e}{o}", re.IGNORECASE)
+        if oreo_pattern.search(arg):
+            self.bot.get_command("krill").reset_cooldown(ctx)
             await ctx.send(f'not Oreo! {ctx.author.mention}, you monster!!')
             return
 
-        victim = ' '.join(args)
+        victim = arg
         try:
             victim_user = await UserConverter().convert(ctx, victim)
             victim_user = ctx.message.guild.get_member(victim_user.id)
@@ -96,6 +105,7 @@ class Krill(BaseCog):
         except Exception as e:
             victim_name = victim
             if re.search(r'@', victim_name):
+                Command.reset_cooldown(ctx)
                 await ctx.send('sorry, I won\'t @-mention anyone like that')
                 return
 
@@ -111,8 +121,6 @@ class Krill(BaseCog):
 
         # Initial validation passed. Delete command message and check or start
         await ctx.message.delete()
-        if ctx.author.id not in Configuration.get_var("ADMINS", []) and await self.get_cool_down(ctx):
-            return
 
         # remove pattern interference
         reg_clean = re.compile(r'[.\[\](){}\\+]')
@@ -133,33 +141,104 @@ class Krill(BaseCog):
         red = utils.get(self.bot.emojis, id=641445732670373916)
         ded = utils.get(self.bot.emojis, id=641445732246880282)
         star = utils.get(self.bot.emojis, id=624094243329146900)
+        blank = utils.get(self.bot.emojis, id=647913138758483977)
 
         time_step = 1
-        step = randint(5, 9)
-        distance = step * 4
-        spaces = " " * distance
-        spacestep = ' '*step
-        message = await ctx.send(f"**{spacestep}**{victim_name} {red}{spaces}{head}{body}{tail}")
+        step = randint(1, 2)
+        distance = step * 3
+        spaces = str(blank) * distance
+        spacestep = str(blank) * step
+        message = await ctx.send(f"{spacestep}{victim_name} {red}{spaces}{head}{body}{tail}")
+        await ctx.send(f"*summoned by {ctx.author.mention}*")
         while distance > 0:
             distance = distance - step
-            spaces = " " * distance
-            await message.edit(content=f"**{spacestep}**{victim_name} {red}{spaces}{head}{body}{tail}")
+            spaces = str(blank) * distance
+            await message.edit(content=f"{spacestep}{victim_name} {red}{spaces}{head}{body}{tail}")
             await asyncio.sleep(time_step)
 
-        distance = randint(15, 25)
-        step = math.ceil(distance / 3)
+        step = randint(0, 2)
+        distance = step*3
         count = 0
+        secaps = ""
         while count < distance:
-            spaces = " " * count
+            spaces = str(blank) * count
             count = count + step
-            secaps = " " * max(1, distance - count)
-            await message.edit(content=f"**{secaps}**{star}{spaces}{ded} {victim_name}{spaces}{star}{spaces}{star}")
+            secaps = str(blank) * (distance - count)
+            await message.edit(content=f"{secaps}{star}{spaces}{ded} {victim_name}{spaces}{star}{spaces}{star}")
             await asyncio.sleep(time_step)
-        await message.edit(content=f"**{secaps}**{star}{spaces}{ded} {victim_name}{spaces}{star}{spaces}{star} : *summoned by {ctx.author.mention}*")
+        await message.edit(content=f"{secaps}{star}{spaces}{ded} {victim_name}{spaces}{star}{spaces}{star}")
         # await message.add_reaction(star)
         # TODO: add message id to persistent vars, listen for reactions.
         #  if reaction count >= 3 remove id from persistent
         #  announce victim has been rescued
+
+    @krill.error
+    async def krill_error(self, ctx, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            if ctx.message.author.guild_permissions.mute_members or ctx.channel.id not in self.channels[ctx.guild.id]:
+                # Bypass cooldown for mute permission and for invocations outside allowed channels
+                await ctx.reinvoke()
+                return
+            time_display = Utils.to_pretty_time(error.retry_after)
+            await ctx.send(f"Cool it, {ctx.author.mention}. Try again in {time_display}")
+
+    @commands.group(name="krillchannel", aliases=['krillchan'], invoke_without_command=True)
+    @commands.guild_only()
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def krill_channel(self, ctx: commands.Context):
+        """Show a list of allowed channels"""
+        # if ctx.invoked_subcommand is None:
+        embed = discord.Embed(timestamp=ctx.message.created_at, color=0x663399, title=Lang.get_string("krill/list_channels", server_name=ctx.guild.name))
+        if len(self.channels[ctx.guild.id]) > 0:
+            value = ""
+            for channel_id in self.channels[ctx.guild.id]:
+                channel_name = await Utils.clean(f"<#{channel_id}>", guild=ctx.guild)
+                if len(channel_name) + len(f"{channel_id}") > 1000:
+                    embed.add_field(name="\u200b", value=value)
+                    value = ""
+                value = f"{channel_name} - id:{channel_id}\n"
+            embed.add_field(name="\u200b", value=value)
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send(Lang.get_string("krill/no_channels"))
+
+    @krill_channel.command(aliases=["new"])
+    @commands.check(can_mod_krill)
+    @commands.guild_only()
+    async def add(self, ctx: commands.Context, channel_id: str):
+        """command_add_help"""
+        # TODO: use Converter for channel_id
+        channel_id = int(channel_id)
+        channel = f"<#{channel_id}>"
+        if CHANNEL_ID_MATCHER.fullmatch(channel) is None or ctx.guild.get_channel(channel_id) is None:
+            await ctx.send(f"No such channel: `{channel_id}`")
+            return
+
+        row = KrillChannel.get_or_none(serverid=ctx.guild.id, channelid=channel_id)
+        channel_name = await Utils.clean(channel, guild=ctx.guild)
+        if row is None:
+            KrillChannel.create(serverid = ctx.guild.id, channelid=channel_id)
+            self.channels[ctx.guild.id].add(channel_id)
+            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('krill/channel_added', channel=channel_name)}")
+        else:
+            await ctx.send(f"The channel {channel_name} is already infested by krill")
+
+    @krill_channel.command(aliases=["del", "delete"])
+    @commands.check(can_mod_krill)
+    @commands.guild_only()
+    async def remove(self, ctx:commands.Context, channel_id):
+        """command_remove_help"""
+        channel_id = int(channel_id)
+        channel = f"<#{channel_id}>"
+        channel_name = await Utils.clean(channel, guild=ctx.guild)
+
+        if channel_id in self.channels[ctx.guild.id]:
+            KrillChannel.get(serverid = ctx.guild.id, channelid=channel_id).delete_instance()
+            self.channels[ctx.guild.id].remove(channel_id)
+            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('krill/channel_removed', channel=channel_id)}")
+        else:
+            await ctx.send(f"{Emoji.get_chat_emoji('NO')} {Lang.get_string('krill/channel_not_found', channel=channel_id)}")
 
 
 def setup(bot):

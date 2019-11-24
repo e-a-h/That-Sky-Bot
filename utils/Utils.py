@@ -214,12 +214,12 @@ async def clean(text, guild=None, markdown=True, links=True, emoji=True):
 
         # resolve channel names
         for uid in set(CHANNEL_ID_MATCHER.findall(text)):
-            channel = guild.get_channel(uid)
+            channel = guild.get_channel(int(uid))
             if channel is None:
                 name = "#UNKNOWN CHANNEL"
             else:
                 name = "#" + channel.name
-            text = text.replace(f"<@#{uid}>", name)
+            text = text.replace(f"<#{uid}>", name)
 
         # re-assemble emoji so such a way that they don't turn into twermoji
 
