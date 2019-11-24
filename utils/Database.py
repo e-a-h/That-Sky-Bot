@@ -40,6 +40,15 @@ class Attachements(Model):
         database = connection
 
 
+class KrillChannel(Model):
+    id = AutoField()
+    channelid = BigIntegerField()
+    serverid = BigIntegerField()
+
+    class Meta:
+        database = connection
+
+
 class Repros(Model):
     id = AutoField()
     user = BigIntegerField()
@@ -74,5 +83,5 @@ class AutoResponder(Model):
 def init():
     global connection
     connection.connect()
-    connection.create_tables([BugReport, Attachements, Repros, CustomCommand, AutoResponder])
+    connection.create_tables([BugReport, Attachements, Repros, CustomCommand, AutoResponder, KrillChannel])
     connection.close()

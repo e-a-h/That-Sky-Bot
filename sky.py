@@ -57,6 +57,9 @@ class Skybot(Bot):
         elif isinstance(error, commands.CheckFailure):
             pass
         elif isinstance(error, commands.CommandOnCooldown):
+            if ctx.command.name in ['krill']:
+                # commands in this list have custom cooldown handler
+                return
             await ctx.send(error)
         elif isinstance(error, commands.MissingRequiredArgument):
             param = list(ctx.command.params.values())[min(len(ctx.args) + len(ctx.kwargs), len(ctx.command.params))]

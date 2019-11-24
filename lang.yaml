@@ -196,6 +196,12 @@ autoresponder:
   on_or_off: |
     `{subject}` on or off?
   expect_integer: I was hoping for an integer between {min} and {max}
+krill:
+  list_channels: Krill channels for {server_name}.
+  no_channels: No channels set for krill command. `!krill` may be used in any channel.
+  channel_added: Channel {channel} is now approved for krilling.
+  channel_removed: Channel {channel} has been fumigated. No more krill allowed.
+  channel_not_found: There are no krill in {channel}
 custom_commands:
   list_commands: Custom command list for {server_name}.
   no_commands: No custom commands have been created yet.
