@@ -165,8 +165,8 @@ autoresponder:
   override_confirmation: This auto-responder already exists, do you want to replace it with this new text?
   empty_reply: Empty response? Why bother with me at all. Just shout your triggers into the wind and you already get no response! (use remove if you want me to stop responding to a trigger)
   empty_trigger: Your trigger is empty... so... you want me to react to *literally nothing??*
-  channel_unset: Okay, I'll respond to `{trigger}` in the same channel it's matched in
-  channel_set: Okay, I'll respond to `{trigger}` in {channel}
+  channel_unset: Okay, I'll {mode} to `{trigger}` in the same channel it's matched in
+  channel_set: Okay, I'll {mode} to `{trigger}` in {channel}
   no_channel: No channel set.
   updating: Updating...
   not_updating: Keeping the old one.
@@ -175,8 +175,9 @@ autoresponder:
   which_flag: |
     Which flag do you want? (type a number)
     {options}
+  which_mode: Set channel to listen in, or channel to respond in?
   which_trigger: Which trigger would you like? (type a number)
-  prompt_channel_id: Which channel should this trigger respond in? (channel id)
+  prompt_channel_id: Which channel should this trigger {mode} in? (channel id)
   prompt_response: How would you like me to respond?
   prompt_trigger: What should the new trigger be?
   help: |

@@ -106,7 +106,8 @@ class AutoResponders(BaseCog):
                     'match_list': match_list,
                     'response': response,
                     'flags': flags,
-                    'responsechannelid': responder.responsechannelid
+                    'responsechannelid': responder.responsechannelid,
+                    'listenchannelid': responder.listenchannelid
                 }
         self.loaded = True
 
@@ -122,6 +123,8 @@ class AutoResponders(BaseCog):
                 flags_description = self.get_flags_description(trigger_obj)
                 if trigger_obj['responsechannelid']:
                     flags_description += f"\n**\u200b \u200b **Respond in Channel: <#{trigger_obj['responsechannelid']}>"
+                if trigger_obj['listenchannelid']:
+                    flags_description += f"\n**\u200b \u200b **Listen in Channel: <#{trigger_obj['listenchannelid']}>"
                 embed.add_field(name=f"**__trigger:__** {get_trigger_description(trigger)}", value=flags_description, inline=False)
             await ctx.send(embed=embed)
         else:
@@ -398,7 +401,27 @@ class AutoResponders(BaseCog):
 
     @autor.command(aliases=["channel", "sc"])
     @commands.guild_only()
-    async def setchannel(self, ctx: commands.Context, trigger: str = None, channel_id: int = None):
+    async def setchannel(self, ctx: commands.Context, mode: str = None, trigger: str = None, channel_id: int = None):
+        if mode is None or mode not in ['respond', 'listen']:
+            def choose(val):
+                nonlocal mode
+                mode = val
+
+            try:
+                await Questions.ask(self.bot,
+                                    ctx.channel,
+                                    ctx.author,
+                                    Lang.get_string('autoresponder/which_mode'),
+                                    [
+                                        Questions.Option(f"NUMBER_1", 'Response Channel', handler=choose, args=['respond']),
+                                        Questions.Option(f"NUMBER_2", 'Listen Channel', handler=choose, args=['listen'])
+                                    ],
+                                    delete_after=True, show_embed=True)
+            except (ValueError, asyncio.TimeoutError) as e:
+                print("here we are at the end of all things")
+                await ctx.send("broken")
+                return
+
         if trigger is None:
             try:
                 trigger = await self.choose_trigger(ctx)
@@ -411,7 +434,7 @@ class AutoResponders(BaseCog):
             channel_id = await Questions.ask_text(self.bot,
                                                   ctx.channel,
                                                   ctx.author,
-                                                  Lang.get_string("autoresponder/prompt_channel_id"))
+                                                  Lang.get_string("autoresponder/prompt_channel_id", mode=mode))
 
         channel_id = re.sub(r'[^\d]', '', channel_id)
         if db_trigger is None or not re.match(r'^\d+$', channel_id):
@@ -421,15 +444,20 @@ class AutoResponders(BaseCog):
         channel = self.bot.get_channel(int(channel_id))
         if channel_id is "0":
             await ctx.send(Lang.get_string("autoresponder/channel_unset",
+                                           mode=mode,
                                            trigger=get_trigger_description(trigger)))
         elif channel is not None:
             await ctx.send(Lang.get_string("autoresponder/channel_set",
                                            channel=channel.mention,
+                                           mode=mode,
                                            trigger=get_trigger_description(trigger)))
         else:
-            await ctx.send(Lang.get_string("autoresponder/no_channel"))
+            await ctx.send(Lang.get_string("autoresponder/no_channel", mode=mode))
             return
-        db_trigger.responsechannelid = channel_id
+        if mode == "respond":
+            db_trigger.responsechannelid = channel_id
+        elif mode == "listen":
+            db_trigger.listenchannelid = channel_id
         db_trigger.save()
         await self.reload_triggers(ctx)
 
@@ -527,6 +555,9 @@ class AutoResponders(BaseCog):
             mod_action = data['flags'][self.flags['mod_action']] and data['responsechannelid']
 
             if not active or (is_mod and ignore_mod):
+                continue
+
+            if data['listenchannelid'] and data['listenchannelid'] != message.channel.id:
                 continue
 
             if data['match_list'] is not None:
