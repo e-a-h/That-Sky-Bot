@@ -418,8 +418,6 @@ class AutoResponders(BaseCog):
                                     ],
                                     delete_after=True, show_embed=True)
             except (ValueError, asyncio.TimeoutError) as e:
-                print("here we are at the end of all things")
-                await ctx.send("broken")
                 return
 
         if trigger is None:
@@ -543,7 +541,7 @@ class AutoResponders(BaseCog):
         if message.author.bot or command_context or not_in_guild:
             return
 
-        is_mod = message.author.guild_permissions.ban_members
+        is_mod = message.author.guild_permissions.mute_members
         # search guild auto-responders
         for trigger, data in self.triggers[message.channel.guild.id].items():
             # flags
