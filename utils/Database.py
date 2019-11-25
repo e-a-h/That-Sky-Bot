@@ -75,6 +75,7 @@ class AutoResponder(Model):
     response = CharField(max_length=2000, collation="utf8mb4_general_ci")
     flags = SmallIntegerField(default=0)
     responsechannelid = BigIntegerField(default=0)
+    listenchannelid = BigIntegerField(default=0)
 
     class Meta:
         database = connection
