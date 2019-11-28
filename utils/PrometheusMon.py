@@ -3,9 +3,8 @@ import prometheus_client as prom
 
 class PrometheusMon:
     def __init__(self, bot) -> None:
-        self.command_counter = prom.Counter("command_counter", "Number of commands run", [
-            "command_name",
-        ])
+        self.command_counter = prom.Counter("command_counter", "Number of commands run", ["command_name"])
+        self.word_counter = prom.Counter("word_counter", "Count of occurrences of words in chat", ["word"])
 
         self.guild_messages = prom.Counter("guild_messages", "What messages have been sent and by who", [
             "guild_id"
@@ -92,6 +91,7 @@ class PrometheusMon:
                                                               "Auto-responder - mod action: delete trigger")
 
         bot.metrics_reg.register(self.command_counter)
+        bot.metrics_reg.register(self.word_counter)
         bot.metrics_reg.register(self.guild_messages)
         bot.metrics_reg.register(self.user_message_raw_count)
         bot.metrics_reg.register(self.bot_message_raw_count)

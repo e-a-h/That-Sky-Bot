@@ -217,6 +217,13 @@ custom_commands:
   not_found: Unable to remove `{trigger}` as it doesn't seem to exist.
   creating_command: This command does not exist, making it for you instead.
   command_updated: Command `{trigger}` has been updated!
+word_counter:
+  list_words: Words being counted for metrics in the {server_name} server
+  no_words: There are no words currently being counted.
+  word_added: The word "{word}" is now being counted.
+  word_found: The word "{word}" is already being counted.
+  word_removed: The word "{word}" is no longer being counted.
+  word_not_found: I didn't find the word "{word}" in the database
 sweeps:
   jumpurl_prompt: Please provide a jumpurl or [channel_id]/[message_id]
   unique_result: There are {count} entrants (unique reactions) to this drawing.
