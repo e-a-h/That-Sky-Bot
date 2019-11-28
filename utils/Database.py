@@ -81,8 +81,17 @@ class AutoResponder(Model):
         database = connection
 
 
+class CountWord(Model):
+    id = PrimaryKeyField()
+    serverid = BigIntegerField()
+    word = CharField(max_length=300, collation="utf8mb4_general_ci")
+
+    class Meta:
+        database = connection
+
+
 def init():
     global connection
     connection.connect()
-    connection.create_tables([BugReport, Attachements, Repros, CustomCommand, AutoResponder, KrillChannel])
+    connection.create_tables([BugReport, Attachements, Repros, CustomCommand, AutoResponder, KrillChannel, CountWord])
     connection.close()
