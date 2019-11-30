@@ -109,6 +109,7 @@ class WordCounter(BaseCog):
         words = set(pattern.findall(message.content))
         for word in words:
             # increment counters
+            word = str(word).lower()
             m.word_counter.labels(word=word).inc()
 
 

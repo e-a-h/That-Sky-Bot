@@ -25,9 +25,20 @@ class Bugs(BaseCog):
         m = self.bot.metrics
         m.reports_in_progress.set_function(lambda: len(self.in_progress))
 
-    def delete_progress(self, user):
+    async def sweep_trash(self, user):
+        await asyncio.sleep(Configuration.get_var("bug_trash_sweep_minutes")*60)
         if user.id in self.in_progress:
-            del self.in_progress[user.id]
+            if not self.in_progress[user.id].done() or not self.in_progress[user.id].cancelled():
+                await user.send(Lang.get_string("bugs/sweep_trash"))
+            self.delete_progress(user.id)
+
+    def delete_progress(self, uid):
+        if uid in self.in_progress:
+            try:
+                self.in_progress[uid].cancel()
+            except CancelledError:
+                pass
+            del self.in_progress[uid]
 
     async def shutdown(self):
         for name, cid in Configuration.get_var("channels").items():
@@ -65,12 +76,23 @@ class Bugs(BaseCog):
         self.bug_messages.add(message.id)
         Configuration.set_persistent_var(f"{key}_message", message.id)
 
-    @command()
+    @commands.group(name='bug', invoke_without_command=True)
     async def bug(self, ctx: Context):
         # remove command to not flood chat (unless we are in a DM already)
         if ctx.guild is not None:
             await ctx.message.delete()
         await self.report_bug(ctx.author, ctx.channel)
+
+    @commands.guild_only()
+    @bug.command(aliases=["resetactive", "reset_in_progress", "resetinprogress", "reset"])
+    async def reset_active(self, ctx):
+        is_owner = await ctx.bot.is_owner(ctx.author)
+        if is_owner:
+            to_kill = len(self.in_progress)
+            for uid in self.in_progress.keys():
+                self.delete_progress(uid)
+            self.in_progress = dict()
+            await ctx.send(f"Ok. Number of dead bugs cleaned up: {to_kill}. Number now alive: {len(self.in_progress)}")
 
     async def report_bug(self, user, trigger_channel):
         # fully ignore muted users
@@ -116,13 +138,14 @@ class Bugs(BaseCog):
             if should_reset:
                 # cancel running task, delete progress, and fall through to start a new report
                 self.in_progress[user.id].cancel()
-                self.delete_progress(user)
+                self.delete_progress(user.id)
 
             else:
                 # in-progress report should not be reset. bail out
                 return
         # Start a bug report
         task = self.bot.loop.create_task(self.actual_bug_reporter(user, trigger_channel))
+        self.bot.loop.create_task(self.sweep_trash(user))
         self.in_progress[user.id] = task
 
     async def actual_bug_reporter(self, user, trigger_channel):
@@ -151,7 +174,7 @@ class Bugs(BaseCog):
                 asking = False
                 m.reports_abort_count.inc()
                 m.reports_exit_question.observe(active_question)
-                self.delete_progress(user)
+                self.delete_progress(user.id)
 
             def set_platform(p):
                 nonlocal platform
@@ -213,7 +236,7 @@ class Bugs(BaseCog):
 
             async def restart():
                 m.reports_restarted.inc()
-                self.delete_progress(user)
+                self.delete_progress(user.id)
                 await self.report_bug(user, trigger_channel)
 
             # start global report timer and question timer
@@ -374,25 +397,24 @@ class Bugs(BaseCog):
             else:
                 return
 
-        except Forbidden:
+        except Forbidden as ex:
             m.bot_cannot_dm_member.inc()
 
             await trigger_channel.send(
                 Lang.get_string("bugs/dm_unable", user=user.mention),
                 delete_after=30)
-        except (asyncio.TimeoutError, CancelledError):
+        except (asyncio.TimeoutError, CancelledError) as ex:
             m.report_incomplete_count.inc()
-
+            # TODO: check if timeout and message user that report is cancelled
             if active_question is not None:
                 m.reports_exit_question.observe(active_question)
-            self.delete_progress(user)
+            self.bot.loop.call_soon(self.delete_progress, user.id)
         except Exception as ex:
-            self.delete_progress(user)
-
+            self.bot.loop.call_soon(self.delete_progress, user.id)
             await Utils.handle_exception("bug reporting", self.bot, ex)
             raise ex
         else:
-            self.delete_progress(user)
+            self.bot.loop.call_soon(self.delete_progress, user.id)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):

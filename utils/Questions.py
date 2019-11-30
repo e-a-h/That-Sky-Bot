@@ -97,6 +97,7 @@ async def ask_text(
                     await channel.send(result)
         except asyncio.TimeoutError as ex:
             await channel.send(
+                # TODO: remove "bug" from lang string. send report cancel language from Bugs.py exception handler
                 Lang.get_string("questions/error_reaction_timeout",
                                 error_emoji=Emoji.get_emoji("WARNING"),
                                 timeout=timeout_format(timeout))
