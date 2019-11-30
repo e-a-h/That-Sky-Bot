@@ -14,6 +14,7 @@
         "ios_stable":  0
     },
     "question_timeout_seconds": 300,
+    "bug_trash_sweep_minutes": 40,
     "max_attachments": 3,
     "log_channel": 0,
     "rules_react_message_id": 0,
