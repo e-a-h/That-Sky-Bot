@@ -6,3 +6,4 @@ sentry-sdk==0.13.2
 pyyaml==5.1
 pillow==6.2.1
 prometheus_client==0.7.1
+cairosvg==2.4.2

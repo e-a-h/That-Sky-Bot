@@ -1,5 +1,7 @@
 import asyncio
+import os
 import signal
+import sys
 
 import sentry_sdk
 from discord.ext import commands
@@ -20,6 +22,10 @@ class Skybot(Bot):
     def __init__(self, *args, loop=None, **kwargs):
         super().__init__(*args, loop=loop, **kwargs)
         self.metrics = PrometheusMon(self)
+        sys.path.append(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "sky-python-music-sheet-maker",
+                         "python"))
 
     async def on_ready(self):
         if not self.loaded:
