@@ -265,3 +265,16 @@ sweeps:
     End Sub-commands:
       `!sweeps end [clear|clean] jump_url` List entrants and remove all reactions
       `!sweeps end [reset|restart] jump_url` List entrants to-date and reset reactions to starting state
+music:
+  start_prompt_01: |
+    ```VISUAL MUSIC SHEETS FOR SKY:CHILDREN OF THE LIGHT```
+    **Enter music in one of these accepted music notes formats:**
+  start_prompt_02: |
+    **These notation rules apply to all of the above formats:**
+    Notes comprising a chord must be glued together (e.g. `A1B1C1`).
+    Separate consecutive notes and chords with "`{ICON_DELIMITER}`".
+    Use `{PAUSE}` for a silence (rest).
+    Use `{QUAVER_DELIMITER}` to link notes within an icon, for triplets, quavers... (e.g. `A1{QUAVER_DELIMITER}B1{QUAVER_DELIMITER}C1`).
+    Add `{REPEAT_INDICATOR}2` after a chord to indicate repetition.
+
+    `Sharps # and flats b (semitones) are not supported in Sky.`
