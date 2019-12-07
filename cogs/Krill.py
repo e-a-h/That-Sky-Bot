@@ -222,7 +222,7 @@ class Krill(BaseCog):
             self.channels[ctx.guild.id].add(channel_id)
             await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('krill/channel_added', channel=channel_name)}")
         else:
-            await ctx.send(f"The channel {channel_name} is already infested by krill")
+            await ctx.send(Lang.get_string('krill/channel_found', channel=channel_name))
 
     @krill_channel.command(aliases=["del", "delete"])
     @commands.check(can_mod_krill)
