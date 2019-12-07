@@ -90,8 +90,18 @@ class CountWord(Model):
         database = connection
 
 
+class ArtChannel(Model):
+    id = PrimaryKeyField()
+    serverid = BigIntegerField()
+    channelid = BigIntegerField(default=0)
+    tag = CharField(max_length=30, collation="utf8mb4_general_ci")
+
+    class Meta:
+        database = connection
+
+
 def init():
     global connection
     connection.connect()
-    connection.create_tables([BugReport, Attachements, Repros, CustomCommand, AutoResponder, KrillChannel, CountWord])
+    connection.create_tables([BugReport, Attachements, Repros, CustomCommand, AutoResponder, KrillChannel, CountWord, ArtChannel])
     connection.close()
