@@ -204,6 +204,14 @@ krill:
   channel_added: Channel {channel} is now approved for krilling.
   channel_removed: Channel {channel} has been fumigated. No more krill allowed.
   channel_not_found: There are no krill in {channel}
+  channel_found: The channel {channel} is already infested by krill
+art:
+  list_channels: Art channels for {server_name}.
+  no_channels: No channels set for art collection. No art will be colelcted
+  channel_added: Channel {channel} is now approved for arting. Tag \#{tag}
+  channel_removed: There's been a robbery at the art museum! Channel {channel} can't collect art anymore! Tag \#{tag}
+  channel_not_found: There is no art in {channel} for tag \#{tag}
+  channel_found: The channel {channel} is already collecting art. Tag \#{tag}
 custom_commands:
   list_commands: Custom command list for {server_name}.
   no_commands: No custom commands have been created yet.
