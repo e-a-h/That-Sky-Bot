@@ -295,3 +295,9 @@ def to_pretty_time(seconds):
         if seconds == 0:
             break
     return duration.strip()
+
+
+def split_list(input_list, chunk_size):
+    for i in range(0, len(input_list), chunk_size):
+        yield input_list[i:i + chunk_size]
+

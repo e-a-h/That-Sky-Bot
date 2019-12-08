@@ -150,13 +150,32 @@ class ArtCollector(BaseCog):
             for tag in tags:
                 channel = self.bot.get_channel(self.channels[ctx.guild.id][tag])
                 for attachment in message.attachments:
-                    sent = await channel.send(content=f"**#{tag}**\n{message.content}\n{attachment.url}")
+                    embed = discord.Embed(
+                        timestamp=message.created_at,
+                        color=0x663399)
+                    embed.add_field(name="Author", value=message.author.mention)
+                    embed.add_field(name="Tag", value=f"#{tag}")
+                    embed.add_field(name="Jump Link", value=f"[Go to message]({message.jump_url})")
+                    embed.add_field(name="URL", value=f"[Download]({attachment.url})")
+                    if message.content:
+                        embed.add_field(name="Message Content", value=message.content)
+                    embed.set_image(url=attachment.url)
+                    sent = await channel.send(embed=embed)
                     await sent.add_reaction(Emoji.get_emoji("YES"))
                     await sent.add_reaction(Emoji.get_emoji("NO"))
         else:
             channel = self.bot.get_channel(self.channels[ctx.guild.id][self.main_tag])
             for attachment in message.attachments:
-                sent = await channel.send(content=f"{message.content}\n{attachment.url}")
+                embed = discord.Embed(
+                    timestamp=message.created_at,
+                    color=0x663399)
+                embed.add_field(name="Author", value=message.author.mention)
+                embed.add_field(name="Jump Link", value=f"[Go to message]({message.jump_url})")
+                embed.add_field(name="URL", value=f"[Download]({attachment.url})")
+                if message.content:
+                    embed.add_field(name="Message Content", value=message.content)
+                embed.set_image(url=attachment.url)
+                sent = await channel.send(embed=embed)
                 await sent.add_reaction(Emoji.get_emoji("YES"))
                 await sent.add_reaction(Emoji.get_emoji("NO"))
 
