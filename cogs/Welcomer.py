@@ -10,15 +10,13 @@ class Welcomer(BaseCog):
     async def cog_check(self, ctx):
         return ctx.author.guild_permissions.ban_members
 
-    async def is_member_verified(self, member):
+    def is_member_verified(self, member):
         try:
             guild = self.bot.get_guild(Configuration.get_var("guild_id"))
-            if member not in guild.members:
+            if member.guild.id != guild.id:
                 return True  # non-members are "verified" so we don't try to interact with them
             member_role = guild.get_role(Configuration.get_var("member_role"))
-            nonmember_role = guild.get_role(Configuration.get_var("nonmember_role"))
             if member_role not in member.roles:
-                await member.add_roles(nonmember_role)
                 return False
             return True
         except Exception as ex:
@@ -26,7 +24,7 @@ class Welcomer(BaseCog):
 
     async def send_welcome(self, member):
         guild = self.bot.get_guild(Configuration.get_var("guild_id"))
-        if member.guild.id != guild.id or await self.is_member_verified(member):
+        if member.guild.id != guild.id or self.is_member_verified(member):
             return False
 
         try:
@@ -71,9 +69,18 @@ class Welcomer(BaseCog):
     async def welcome(self, ctx):
         await ctx.send("welcome (recent) [hours]")
 
+    @welcome.command(aliases=["count", "cr"])
+    @commands.guild_only()
+    async def count_recent(self, ctx, time_delta: int = 1):
+        await ctx.send(f"counting members who joined in the last {time_delta} hours...")
+        recent = self.fetch_recent(time_delta)
+        await ctx.send(f"There are {len(recent['unverified'])} members who joined within {time_delta} hours, but who still haven't verified")
+        await ctx.send(f"There are {len(recent['unverified'])} unverified members who joined more than {time_delta} hours ago")
+        await ctx.send(f"There are {len(recent['verified'])} verified members")
+
     @welcome.command()
     @commands.guild_only()
-    async def recent(self, ctx, time_delta: int = 24, ping: bool = False):
+    async def recent(self, ctx, time_delta: int = 1, ping: bool = False):
         """
         Manually welcome all members who have joined within a certain number of hours
         :param ctx:
@@ -82,7 +89,7 @@ class Welcomer(BaseCog):
         :return:
         """
         await ctx.send(f"fetching members who joined in the last {time_delta} hours...")
-        recent = await self.fetch_recent(time_delta)
+        recent = self.fetch_recent(time_delta)
 
         verified = recent['verified']
         unverified = recent['unverified']
@@ -98,7 +105,7 @@ class Welcomer(BaseCog):
         pending_welcome = []
         for member in unverified:
             if not ping:
-                if not await self.is_member_verified(member[0]):
+                if not self.is_member_verified(member[0]):
                     pending_welcome.append(member[1])
                 continue
             try:
@@ -124,7 +131,7 @@ class Welcomer(BaseCog):
         await ctx.send(f"**Ignored {len(verified)} members who already have a verified role**")
         await ctx.send(f"**There are {len(too_old)} unverified members who joined too long ago**")
 
-    async def fetch_recent(self, time_delta: int = 24):
+    def fetch_recent(self, time_delta: int = 24):
         """
         fetch all members who have joined within a certain number of hours
         :param ctx:
@@ -139,7 +146,9 @@ class Welcomer(BaseCog):
         verified_members = []
         for member in members:
             if member.bot or member.guild.id != Configuration.get_var("guild_id"):
+                # Don't count bots or people who aren't in primary server
                 continue
+
             # guild members, non-bot:
             nick = ""
             if member.nick:
@@ -147,12 +156,15 @@ class Welcomer(BaseCog):
             member_description = f"{member.name}#{member.discriminator} ({member.id}) {nick} " \
                                  f"- joined {int((now-member.joined_at.timestamp())/60/60)} hours ago"
 
-            if await self.is_member_verified(member):
+            if self.is_member_verified(member):
                 verified_members.append([member, member_description])
+                continue
 
             if member.joined_at.timestamp() > then:
+                # Joined since X hours ago
                 unverified_members.append([member, member_description])
             else:
+                # unverified, but joined a long time ago
                 too_old_members.append([member, member_description])
         return {
             "unverified": unverified_members,
