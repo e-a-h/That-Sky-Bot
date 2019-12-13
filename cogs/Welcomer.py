@@ -1,8 +1,9 @@
+import asyncio
 from datetime import date, datetime
 
 from discord.ext import commands
 from cogs.BaseCog import BaseCog
-from utils import Configuration, Logging, Utils
+from utils import Configuration, Logging, Utils, Lang
 
 
 class Welcomer(BaseCog):
@@ -10,128 +11,7 @@ class Welcomer(BaseCog):
     async def cog_check(self, ctx):
         return ctx.author.guild_permissions.ban_members
 
-    def is_member_verified(self, member):
-        try:
-            guild = self.bot.get_guild(Configuration.get_var("guild_id"))
-            if member.guild.id != guild.id:
-                return True  # non-members are "verified" so we don't try to interact with them
-            member_role = guild.get_role(Configuration.get_var("member_role"))
-            if member_role not in member.roles:
-                return False
-            return True
-        except Exception as ex:
-            return True  # exceptions are "verified" so we don't try to interact with them *again*
-
-    async def send_welcome(self, member):
-        guild = self.bot.get_guild(Configuration.get_var("guild_id"))
-        if member.guild.id != guild.id or self.is_member_verified(member):
-            return False
-
-        try:
-            txt = Configuration.get_var("welcome_msg")
-            welcome_channel = self.bot.get_channel(Configuration.get_var('welcome_channel'))
-            txt = txt.format(user=member.mention)
-            if welcome_channel is not None:
-                await welcome_channel.send(txt)
-                return True
-        except Exception as ex:
-            Logging.info(f"failed to welcome {member.id}")
-            Logging.error(ex)
-            raise ex
-        return False
-
-    @commands.Cog.listener()
-    async def on_member_join(self, member):
-        guild = self.bot.get_guild(Configuration.get_var("guild_id"))
-        if member.guild.id != guild.id:
-            return
-
-        nonmember_role = guild.get_role(Configuration.get_var("nonmember_role"))
-        await member.add_roles(nonmember_role)
-        await self.send_welcome(member)
-
-    @commands.Cog.listener()
-    async def on_raw_reaction_add(self, event):
-        react_user_id = event.user_id
-        rules_message_id = Configuration.get_var('rules_react_message_id')
-        if react_user_id != self.bot.user.id and event.message_id == rules_message_id:
-            await self.handle_reaction_change("add", str(event.emoji), react_user_id)
-
-    @commands.Cog.listener()
-    async def on_raw_reaction_remove(self, event):
-        react_user_id = event.user_id
-        rules_message_id = Configuration.get_var('rules_react_message_id')
-        if react_user_id != self.bot.user.id and event.message_id == rules_message_id:
-            await self.handle_reaction_change("remove", str(event.emoji), react_user_id)
-
-    @commands.group(name="welcome", invoke_without_command=True)
-    @commands.guild_only()
-    async def welcome(self, ctx):
-        await ctx.send("welcome (recent) [hours]")
-
-    @welcome.command(aliases=["count", "cr"])
-    @commands.guild_only()
-    async def count_recent(self, ctx, time_delta: int = 1):
-        await ctx.send(f"counting members who joined in the last {time_delta} hours...")
-        recent = self.fetch_recent(time_delta)
-        await ctx.send(f"There are {len(recent['unverified'])} members who joined within {time_delta} hours, but who still haven't verified")
-        await ctx.send(f"There are {len(recent['unverified'])} unverified members who joined more than {time_delta} hours ago")
-        await ctx.send(f"There are {len(recent['verified'])} verified members")
-
-    @welcome.command()
-    @commands.guild_only()
-    async def recent(self, ctx, time_delta: int = 1, ping: bool = False):
-        """
-        Manually welcome all members who have joined within a certain number of hours
-        :param ctx:
-        :param time_delta: number of hours within which members have joined
-        :param ping: send welcome to members in welcome channel
-        :return:
-        """
-        await ctx.send(f"fetching members who joined in the last {time_delta} hours...")
-        recent = self.fetch_recent(time_delta)
-
-        verified = recent['verified']
-        unverified = recent['unverified']
-        too_old = recent['too_old']
-
-        if not unverified:
-            await ctx.send(f"Couldn't find any unverified member who has joined within {time_delta} hours")
-            return
-
-        welcomed = []
-        not_welcomed = []
-        failed_welcome = []
-        pending_welcome = []
-        for member in unverified:
-            if not ping:
-                if not self.is_member_verified(member[0]):
-                    pending_welcome.append(member[1])
-                continue
-            try:
-                sent = await self.send_welcome(member[0])
-            except Exception as ex:
-                sent = False
-            if sent:
-                welcomed.append(member[1])
-            else:
-                failed_welcome.append(member[1])
-
-        welcomed_lists = list(Utils.split_list(welcomed, 50))
-        failed_lists = list(Utils.split_list(not_welcomed, 50))
-        pending_welcome_lists = list(Utils.split_list(pending_welcome, 50))
-
-        for members in welcomed_lists:
-            await ctx.send("**Welcomed these members:**\n " + '\n '.join(members))
-        for members in failed_lists:
-            await ctx.send("**Failed to welcome these members:**\n " + '\n '.join(members))
-        for members in pending_welcome_lists:
-            await ctx.send(f"**These members joined in the last {time_delta} hours and need to be welcomed:**" + "\n " + '\n '.join(members))
-
-        await ctx.send(f"**Ignored {len(verified)} members who already have a verified role**")
-        await ctx.send(f"**There are {len(too_old)} unverified members who joined too long ago**")
-
-    def fetch_recent(self, time_delta: int = 24):
+    def fetch_recent(self, time_delta: int = 1):
         """
         fetch all members who have joined within a certain number of hours
         :param ctx:
@@ -171,6 +51,200 @@ class Welcomer(BaseCog):
             "verified": verified_members,
             "too_old": too_old_members
         }
+
+    def fetch_non_role(self, time_delta: int = 1):
+        # fetch members without the verified role
+        recent = self.fetch_recent(time_delta)
+
+        # narrow results to members who ALSO do not have the unverified role
+        unverified = []
+        for member in recent['unverified']:
+            if not self.is_member_unverified(member[0]):
+                unverified.append(member[0])
+        too_old = []
+        for member in recent['too_old']:
+            if not self.is_member_unverified(member[0]):
+                too_old.append(member[0])
+        return {
+            "unverified": unverified,
+            "too_old": too_old
+        }
+
+    def is_member_verified(self, member):
+        try:
+            guild = self.bot.get_guild(Configuration.get_var("guild_id"))
+            if member.guild.id != guild.id:
+                return True  # non-members are "verified" so we don't try to interact with them
+            member_role = guild.get_role(Configuration.get_var("member_role"))
+            if member_role not in member.roles:
+                return False
+            return True
+        except Exception as ex:
+            return True  # exceptions are "verified" so we don't try to interact with them *again*
+
+    def is_member_unverified(self, member):
+        try:
+            guild = self.bot.get_guild(Configuration.get_var("guild_id"))
+            if member.guild.id != guild.id:
+                return True  # non-members are "verified" so we don't try to interact with them
+            nonmember_role = guild.get_role(Configuration.get_var("nonmember_role"))
+            if nonmember_role not in member.roles:
+                return False
+            return True
+        except Exception as ex:
+            return True  # exceptions are "verified" so we don't try to interact with them *again*
+
+    async def send_welcome(self, member):
+        guild = self.bot.get_guild(Configuration.get_var("guild_id"))
+        if member.guild.id != guild.id or self.is_member_verified(member):
+            return False
+
+        try:
+            txt = Configuration.get_var("welcome_msg")
+            welcome_channel = self.bot.get_channel(Configuration.get_var('welcome_channel'))
+            txt = txt.format(user=member.mention)
+            if welcome_channel is not None:
+                await welcome_channel.send(txt)
+                return True
+        except Exception as ex:
+            Logging.info(f"failed to welcome {member.id}")
+            Logging.error(ex)
+            raise ex
+        return False
+
+    @commands.group(name="welcome", invoke_without_command=True)
+    @commands.guild_only()
+    async def welcome(self, ctx):
+        await ctx.send(Lang.get_string('welcome/help'))
+
+    @welcome.command(aliases=["count", "cr"])
+    @commands.guild_only()
+    async def count_recent(self, ctx, time_delta: int = 1):
+        await ctx.send(f"counting members who joined in the last {time_delta} hours...")
+        recent = self.fetch_recent(time_delta)
+        content = f"There are {len(recent['unverified'])} members who joined within {time_delta} hours, but who still haven't verified" + '\n'
+        content += f"There are {len(recent['too_old'])} unverified members who joined more than {time_delta} hours ago" + '\n'
+        content += f"There are {len(recent['verified'])} verified members"
+
+    @welcome.command(aliases=["darken", "darkness", "give_shadows"])
+    @commands.guild_only()
+    async def give_shadow(self, ctx, time_delta: int = 1, add_role: bool = False):
+        recent = self.fetch_non_role(time_delta)
+        string_name = 'welcome/darkness' if (len(recent['unverified']) == 1) else 'welcome/darkness_plural'
+        await ctx.send(Lang.get_string(string_name,
+                                       unverified=len(recent['unverified']),
+                                       time_delta=time_delta,
+                                       too_old=len(recent['too_old'])))
+        if add_role:
+            nonmember_role = ctx.guild.get_role(Configuration.get_var("nonmember_role"))
+            # slowly add roles, since this may be a large number of members
+            count = 0
+            try:
+                for member in recent['unverified']:
+                    await member.add_roles(nonmember_role)
+                    count += 1
+                    await asyncio.sleep(0.3)
+            except Exception as ex:
+                await Utils.handle_exception("problem adding shadow role", self, ex)
+            string_name = 'welcome/darkened' if count == 1 else 'welcome/darkened_plural'
+            await ctx.send(Lang.get_string(string_name, count=count))
+
+    @welcome.command(aliases=["nonmember", "shadows", "shadow"])
+    @commands.guild_only()
+    async def ping_unverified(self, ctx):
+        guild = self.bot.get_guild(Configuration.get_var("guild_id"))
+        try:
+            nonmember_role = guild.get_role(Configuration.get_var("nonmember_role"))
+            txt = Configuration.get_var("welcome_msg")
+            welcome_channel = self.bot.get_channel(Configuration.get_var('welcome_channel'))
+            txt = txt.format(user=nonmember_role.mention)
+            if welcome_channel is not None:
+                await nonmember_role.edit(mentionable=True)
+                await welcome_channel.send(txt)
+                await nonmember_role.edit(mentionable=False)
+                return True
+        except Exception as ex:
+            Logging.info(f"failed to welcome unverified role.")
+            Logging.error(ex)
+            raise ex
+        return False
+
+    @welcome.command()
+    @commands.guild_only()
+    async def recent(self, ctx, time_delta: int = 1, ping: bool = False):
+        """
+        Manually welcome all members who have joined within a certain number of hours
+        :param ctx:
+        :param time_delta: number of hours within which members have joined
+        :param ping: send welcome to members in welcome channel
+        :return:
+        """
+        await ctx.send(f"counting members who joined in the last {time_delta} hours...")
+        recent = self.fetch_recent(time_delta)
+
+        verified = recent['verified']
+        unverified = recent['unverified']
+        too_old = recent['too_old']
+
+        if not unverified:
+            await ctx.send(f"Couldn't find any unverified member who has joined within {time_delta} hours")
+            return
+
+        welcomed = []
+        not_welcomed = []
+        failed_welcome = []
+        pending_welcome = []
+        for member in unverified:
+            if not ping:
+                pending_welcome.append(member[1])
+                continue
+            try:
+                sent = await self.send_welcome(member[0])
+                await asyncio.sleep(0.3)
+            except Exception as ex:
+                sent = False
+            if sent:
+                welcomed.append(member[1])
+            else:
+                failed_welcome.append(member[1])
+
+        failed_lists = list(Utils.split_list(not_welcomed, 50))
+
+        content = f"**Ignored {len(verified)} members who already have a verified role**" + '\n'
+        content += f"**There are {len(too_old)} unverified members who joined too long ago**" + '\n'
+        if ping:
+            content += f"**Welcomed {len(welcomed)} members**" + '\n'
+        else:
+            content += f"**There are  {len(unverified)} members to welcome**" + '\n'
+
+        for members in failed_lists:
+            content += "**Failed to welcome these members:**\n " + '\n '.join(members)
+
+        await ctx.send(content)
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member):
+        guild = self.bot.get_guild(Configuration.get_var("guild_id"))
+        if member.guild.id != guild.id:
+            return
+
+        nonmember_role = guild.get_role(Configuration.get_var("nonmember_role"))
+        await member.add_roles(nonmember_role)
+        await self.send_welcome(member)
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, event):
+        react_user_id = event.user_id
+        rules_message_id = Configuration.get_var('rules_react_message_id')
+        if react_user_id != self.bot.user.id and event.message_id == rules_message_id:
+            await self.handle_reaction_change("add", str(event.emoji), react_user_id)
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, event):
+        react_user_id = event.user_id
+        rules_message_id = Configuration.get_var('rules_react_message_id')
+        if react_user_id != self.bot.user.id and event.message_id == rules_message_id:
+            await self.handle_reaction_change("remove", str(event.emoji), react_user_id)
 
     async def handle_reaction_change(self, t, reaction, user_id):
         roles = Configuration.get_var("roles")

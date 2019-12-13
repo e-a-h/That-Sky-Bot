@@ -152,6 +152,26 @@ eden:
   tz_help: I couldn't find a timezone called '{tz}.' Maybe you can find your timezone in this list <https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568>
   tz_mention: I'm not falling for that again
 nope: Something isn't right...
+welcome:
+  darkness: I see {unverified} lost soul lurking near, and {too_old} since before time.
+  darkness_plural: I see {unverified} lost souls lurking near, and {too_old} since before time.
+  darkened: |
+    {count} of my children have fallen into darkness.
+  darkened_plural: |
+    {count} of my children have fallen into darkness.
+  help: |
+    `welcome` help:
+      `!welcome` Show this message
+
+    Sub-commands:
+      `!welcome [count|cr|count_recent] [hours=1]`
+      ```Count the members who have joined recently (within specified number of hours) but don't have member role.```
+      `!welcome [darken|darkness|give_shadows|give_shadow] [hours=1] [add_role=0]`
+      ```Count the members who have joined recently (within specified number of hours) but don't have member role or the nonmember role. Optionally add the nonmember role.```
+      `!welcome [nonmember|shadows|shadow|ping_unverified]`
+      ```Send a welcome message that pings the nonmember role in the welcome channel. (Warning: this could ping a large number of people so check the count first)```
+      `!welcome recent [hours=1] [ping=False]`
+      ```Count the members who have joined recently (within specified number of hours) but don't have member role. Optionally welcome each recent member individually in the welcome channel. Be sure the run without ping first so you know how many will be welcomed.```
 autoresponder:
   mod_action_header: Moderator actions
   mod_action_warning: Moderator action flag will be ignored if response channel is not set. Use `!autoresponder setchannel`
@@ -195,6 +215,12 @@ autoresponder:
       `!ar [setchannel|channel|sc]` Set a response channel for a trigger
       `!ar [getraw|raw]` Show the raw response text for a trigger
       `!ar reload` Reload all responses for the current guild from database
+
+    Tokens:
+      All auto-responders can include these tokens
+      `{author}` mentions the user who triggered
+      `{channel}` mentions the channel in which response was triggered
+      `{link}` links to the message that triggered response
   on_or_off: |
     `{subject}` on or off?
   expect_integer: I was hoping for an integer between {min} and {max}

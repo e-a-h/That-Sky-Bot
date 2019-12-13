@@ -91,7 +91,7 @@ class Krill(BaseCog):
         o = r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ]'
         r = r'[rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳ]'
         e = r'[eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉ]'
-        oreo_pattern = re.compile(f"{o}{r}{e}{o}", re.IGNORECASE)
+        oreo_pattern = re.compile(f"{o}\\s*{r}\\s*{e}\\s*{o}", re.IGNORECASE)
         if oreo_pattern.search(arg):
             self.bot.get_command("krill").reset_cooldown(ctx)
             await ctx.send(f'not Oreo! {ctx.author.mention}, you monster!!')

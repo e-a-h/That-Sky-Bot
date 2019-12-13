@@ -21,6 +21,7 @@ class Bugs(BaseCog):
         bot.loop.create_task(self.startup_cleanup())
         self.bug_messages = set()
         self.in_progress = dict()
+        self.sweeps = dict()
         self.blocking = set()
         m = self.bot.metrics
         m.reports_in_progress.set_function(lambda: len(self.in_progress))
@@ -39,6 +40,11 @@ class Bugs(BaseCog):
             except CancelledError:
                 pass
             del self.in_progress[uid]
+        if uid in self.sweeps:
+            try:
+                self.sweeps[uid].cancel()
+            except CancelledError:
+                pass
 
     async def shutdown(self):
         for name, cid in Configuration.get_var("channels").items():
@@ -137,15 +143,14 @@ class Bugs(BaseCog):
 
             if should_reset:
                 # cancel running task, delete progress, and fall through to start a new report
-                self.in_progress[user.id].cancel()
                 self.delete_progress(user.id)
-
             else:
                 # in-progress report should not be reset. bail out
                 return
+
         # Start a bug report
         task = self.bot.loop.create_task(self.actual_bug_reporter(user, trigger_channel))
-        self.bot.loop.create_task(self.sweep_trash(user))
+        sweep = self.bot.loop.create_task(self.sweep_trash(user))
         self.in_progress[user.id] = task
 
     async def actual_bug_reporter(self, user, trigger_channel):
