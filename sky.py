@@ -20,6 +20,7 @@ class Skybot(Bot):
     def __init__(self, *args, loop=None, **kwargs):
         super().__init__(*args, loop=loop, **kwargs)
         self.metrics = PrometheusMon(self)
+        self.config_channels = dict()
 
     async def on_ready(self):
         if not self.loaded:
@@ -36,6 +37,15 @@ class Skybot(Bot):
             self.loaded = True
 
         await Logging.bot_log("Sky bot soaring through the skies!")
+
+    def get_config_channel(self, guild_id: int, channel_name: str):
+        if Utils.validate_channel_name(channel_name):
+            try:
+                this_channel_id = self.config_channels[guild_id][channel_name]
+                return self.get_channel(this_channel_id)
+            except Exception as ex:
+                pass
+        return None
 
     async def close(self):
         if not self.shutting_down:
