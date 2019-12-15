@@ -323,35 +323,37 @@ class AutoResponders(BaseCog):
     @commands.guild_only()
     async def update(self, ctx: commands.Context, trigger: str = None, *, reply: str = None):
         """ar_update_help"""
-        if trigger is None:
-            try:
-                trigger = await self.choose_trigger(ctx)
-            except ValueError:
-                return
+        try:
+            if trigger is None:
+                try:
+                    trigger = await self.choose_trigger(ctx)
+                except ValueError:
+                    return
 
-        trigger = await Utils.clean(trigger, links=False)
-        if reply is None:
-            reply = await Questions.ask_text(self.bot,
-                                             ctx.channel,
-                                             ctx.author,
-                                             Lang.get_string("autoresponder/prompt_response"),
-                                             escape=False)
+            trigger = await Utils.clean(trigger, links=False)
+            if reply is None:
+                reply = await Questions.ask_text(self.bot,
+                                                 ctx.channel,
+                                                 ctx.author,
+                                                 Lang.get_string("autoresponder/prompt_response"),
+                                                 escape=False)
 
-        trigger = AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
-        if trigger is None:
-            await ctx.send(
-                f"{Emoji.get_chat_emoji('WARNING')} {Lang.get_string('autoresponder/creating')}"
-            )
-            await ctx.invoke(self.create, trigger, reply=reply)
-        else:
-            trigger.response = reply
-            trigger.save()
-            # self.triggers[ctx.guild.id][trigger]['response'] = reply
-            await self.reload_triggers(ctx)
+            trigger = AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
+            if trigger is None:
+                await ctx.send(
+                    f"{Emoji.get_chat_emoji('WARNING')} {Lang.get_string('autoresponder/creating')}"
+                )
+                await ctx.invoke(self.create, trigger, reply=reply)
+            else:
+                trigger.response = reply
+                trigger.save()
+                await self.reload_triggers(ctx)
 
-            await ctx.send(
-                f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('autoresponder/updated', trigger=trigger)}"
-            )
+                await ctx.send(
+                    f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('autoresponder/updated', trigger=get_trigger_description(trigger.trigger))}"
+                )
+        except Exception as ex:
+            pass
 
     @autor.command(aliases=["edittrigger", "settrigger", "trigger", "st"])
     @commands.guild_only()

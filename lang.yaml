@@ -14,11 +14,13 @@ questions:
   attachments_overflow: You can only add up to {max} attachments
   attachment_not_found: There were no files or links in that message. Try sending again
   approve_attachments: Final answer!
-  error_reaction_timeout: "{error_emoji} You didn't react within {timeout}, so this report has been cancelled. Go back to the bug report channel to start a new one!"
+  error_reaction_timeout: "{error_emoji} You didn't react within {timeout}"
+channel_config:
+  channel_set: Config channel "{channel_name}" set to <#{channel_id}>
 bugs:
   bug_info: "**Report a New Bug!**\nBrowse or search this channel to see bug reports. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."
   shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
-  sweep_trash: Sorry to bother you, but you had an in-progress bug report that was idle for too long. I deleted it. If you think you received this message in error, please report me to the proper authorites
+  sweep_trash: Sorry to bother you, but you had an in-progress bug report that was idle for too long. I deleted it. If you think you received this message in error, please report me to the proper authorites (a moderator in the Sky server)
   stop_spamming: "{user} stop spamming the bug reaction!"
   start_over: "{user} You are already in the middle of reporting a bug. Do you want to cancel that report to start over?"
   start_over_yes: Cancel my in-progress report and start a new one
@@ -30,6 +32,7 @@ bugs:
   no_numbers: There don't appear to be any numbers in there
   text_too_long: That text seems suspiciously long for the question asked... Try typing up a shorter answer (up to {max} characters) and we'll see if I like it
   report_header: "**Bug Report {id} - submitted by {user}**"
+  report_timeout: This report has been cancelled. Go back to the bug report channel to start a new one!
   attachments_yes: Yes, add pictures/videos
   attachment_info: "**Attachment to report {id}**\n{links}"
   attachment_info_plural: "**Attachments to report {id}**\n{links}"
@@ -152,6 +155,28 @@ eden:
   tz_help: I couldn't find a timezone called '{tz}.' Maybe you can find your timezone in this list <https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568>
   tz_mention: I'm not falling for that again
 nope: Something isn't right...
+welcome:
+  welcome_msg: Welcome, {user}! Please read through all the items posted in our {rules_channel} channel. When you're done, click the {accept_emoji} emote at the end of the rules to join the community and gain access to the other channels.
+  welcome_help: Hi {author}! If you'd like to access the rest of the channels and chat with other members, please read the {rules_channel} and follow the directions there. If you're having trouble with reactions, make sure they're enabled in **user settings > text and images > show emoji reactions on messages**
+  darkness: I see {unverified} lost soul lurking near, and {too_old} from before time.
+  darkness_plural: I see {unverified} lost souls lurking near, and {too_old} from before time.
+  darkened: |
+    {count} of my children have fallen into darkness.
+  darkened_plural: |
+    {count} of my children have fallen into darkness.
+  help: |
+    `welcome` help:
+      `!welcome` Show this message
+
+    Sub-commands:
+      `!welcome [count|cr|count_recent] [hours=1]`
+      ```Count the members who have joined recently (within specified number of hours) but don't have member role.```
+      `!welcome [darken|darkness|give_shadows|give_shadow] [hours=1] [add_role=0]`
+      ```Count the members who have joined recently (within specified number of hours) but don't have member role or the nonmember role. Optionally add the nonmember role.```
+      `!welcome [nonmember|shadows|shadow|ping_unverified]`
+      ```Send a welcome message that pings the nonmember role in the welcome channel. (Warning: this could ping a large number of people so check the count first)```
+      `!welcome recent [hours=1] [ping=False]`
+      ```Count the members who have joined recently (within specified number of hours) but don't have member role. Optionally welcome each recent member individually in the welcome channel. Be sure the run without ping first so you know how many will be welcomed.```
 autoresponder:
   mod_action_header: Moderator actions
   mod_action_warning: Moderator action flag will be ignored if response channel is not set. Use `!autoresponder setchannel`
@@ -195,6 +220,12 @@ autoresponder:
       `!ar [setchannel|channel|sc]` Set a response channel for a trigger
       `!ar [getraw|raw]` Show the raw response text for a trigger
       `!ar reload` Reload all responses for the current guild from database
+
+    Tokens:
+      All auto-responders can include these tokens
+      `{author}` mentions the user who triggered
+      `{channel}` mentions the channel in which response was triggered
+      `{link}` links to the message that triggered response
   on_or_off: |
     `{subject}` on or off?
   expect_integer: I was hoping for an integer between {min} and {max}
