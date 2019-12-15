@@ -1,15 +1,38 @@
 import asyncio
 from datetime import date, datetime
 
+import discord
+import typing
 from discord.ext import commands
+
 from cogs.BaseCog import BaseCog
-from utils import Configuration, Logging, Utils, Lang
+from utils import Configuration, Logging, Utils, Lang, Emoji
 
 
 class Welcomer(BaseCog):
 
+    def __init__(self, bot):
+        super().__init__(bot)
+        self.welcome_talkers = dict()
+        bot.loop.create_task(self.startup_cleanup())
+
+    async def startup_cleanup(self):
+        for guild in self.bot.guilds:
+            my_friends = set()
+            self.welcome_talkers[guild.id] = dict()
+
     async def cog_check(self, ctx):
+        if not hasattr(ctx.author, 'guild'):
+            return False
         return ctx.author.guild_permissions.ban_members
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild):
+        self.welcome_talkers[guild.id] = dict()
+
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild):
+        del self.welcome_talkers[guild.id]
 
     def fetch_recent(self, time_delta: int = 1):
         """
@@ -100,10 +123,14 @@ class Welcomer(BaseCog):
             return False
 
         try:
-            txt = Configuration.get_var("welcome_msg")
-            welcome_channel = self.bot.get_channel(Configuration.get_var('welcome_channel'))
-            txt = txt.format(user=member.mention)
-            if welcome_channel is not None:
+            welcome_channel = self.bot.get_config_channel(guild.id, Utils.welcome_channel)
+            rules_channel = self.bot.get_config_channel(guild.id, Utils.rules_channel)
+
+            if welcome_channel and rules_channel:
+                txt = Lang.get_string("welcome/welcome_msg",
+                                      user=member.mention,
+                                      rules_channel=rules_channel.mention,
+                                      accept_emoji=Emoji.get_chat_emoji('CANDLE'))
                 await welcome_channel.send(txt)
                 return True
         except Exception as ex:
@@ -125,10 +152,11 @@ class Welcomer(BaseCog):
         content = f"There are {len(recent['unverified'])} members who joined within {time_delta} hours, but who still haven't verified" + '\n'
         content += f"There are {len(recent['too_old'])} unverified members who joined more than {time_delta} hours ago" + '\n'
         content += f"There are {len(recent['verified'])} verified members"
+        await ctx.send(content)
 
     @welcome.command(aliases=["darken", "darkness", "give_shadows"])
     @commands.guild_only()
-    async def give_shadow(self, ctx, time_delta: int = 1, add_role: bool = False):
+    async def give_shadow(self, ctx, time_delta: typing.Optional[int] = 1, add_role: bool = False):
         recent = self.fetch_non_role(time_delta)
         string_name = 'welcome/darkness' if (len(recent['unverified']) == 1) else 'welcome/darkness_plural'
         await ctx.send(Lang.get_string(string_name,
@@ -156,9 +184,16 @@ class Welcomer(BaseCog):
         try:
             nonmember_role = guild.get_role(Configuration.get_var("nonmember_role"))
             txt = Configuration.get_var("welcome_msg")
-            welcome_channel = self.bot.get_channel(Configuration.get_var('welcome_channel'))
-            txt = txt.format(user=nonmember_role.mention)
-            if welcome_channel is not None:
+
+            welcome_channel = self.bot.get_config_channel(guild.id, Utils.welcome_channel)
+            rules_channel = self.bot.get_config_channel(guild.id, Utils.rules_channel)
+
+            if welcome_channel and rules_channel:
+                txt = Lang.get_string("welcome/welcome_msg",
+                                      user=nonmember_role.mention,
+                                      rules_channel=rules_channel.mention,
+                                      accept_emoji=Emoji.get_chat_emoji('CANDLE'))
+
                 await nonmember_role.edit(mentionable=True)
                 await welcome_channel.send(txt)
                 await nonmember_role.edit(mentionable=False)
@@ -171,7 +206,7 @@ class Welcomer(BaseCog):
 
     @welcome.command()
     @commands.guild_only()
-    async def recent(self, ctx, time_delta: int = 1, ping: bool = False):
+    async def recent(self, ctx, time_delta: typing.Optional[int] = 1, ping: bool = False):
         """
         Manually welcome all members who have joined within a certain number of hours
         :param ctx:
@@ -245,6 +280,45 @@ class Welcomer(BaseCog):
         rules_message_id = Configuration.get_var('rules_react_message_id')
         if react_user_id != self.bot.user.id and event.message_id == rules_message_id:
             await self.handle_reaction_change("remove", str(event.emoji), react_user_id)
+
+    @commands.guild_only()
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.author.bot or message.author.guild_permissions.mute_members:
+            return
+
+        welcome_channel = self.bot.get_config_channel(message.guild.id, Utils.welcome_channel)
+        rules_channel = self.bot.get_config_channel(message.guild.id, Utils.rules_channel)
+        log_channel = self.bot.get_config_channel(message.guild.id, Utils.log_channel)
+        if not welcome_channel or not rules_channel:
+            # ignore when channels not configured
+            return
+
+        if message.channel.id != welcome_channel.id:
+            return
+
+        now = datetime.now().timestamp()
+        then = 0
+        grace_period = 3 * 60  # 3 minutes
+
+        try:
+            was_welcomed = self.welcome_talkers[message.guild.id][message.author.id]
+            then = was_welcomed + grace_period
+        except Exception as ex:
+            pass
+
+        if then > now:
+            print("it hasn't been 3 minutes...")
+            return
+
+        # record the time so member won't be pinged again too soon if they keep talking
+        self.welcome_talkers[message.guild.id][message.author.id] = now
+        await welcome_channel.send(Lang.get_string("welcome/welcome_help",
+                                                   author=message.author.mention,
+                                                   rules_channel=rules_channel.id))
+        # ping log channel with detail
+        if log_channel:
+            await log_channel.send(f"{message.author.mention} spoke in {welcome_channel.mention} ```{message.content}```")
 
     async def handle_reaction_change(self, t, reaction, user_id):
         roles = Configuration.get_var("roles")
