@@ -287,6 +287,10 @@ class Welcomer(BaseCog):
         if message.author.bot or message.author.guild_permissions.mute_members:
             return
 
+        member_role = message.guild.get_role(Configuration.get_var("member_role"))
+        if member_role in message.author.roles:
+            return
+
         welcome_channel = self.bot.get_config_channel(message.guild.id, Utils.welcome_channel)
         rules_channel = self.bot.get_config_channel(message.guild.id, Utils.rules_channel)
         log_channel = self.bot.get_config_channel(message.guild.id, Utils.log_channel)
@@ -299,7 +303,7 @@ class Welcomer(BaseCog):
 
         now = datetime.now().timestamp()
         then = 0
-        grace_period = 3 * 60  # 3 minutes
+        grace_period = 10 * 60  # 3 minutes
 
         try:
             was_welcomed = self.welcome_talkers[message.guild.id][message.author.id]
@@ -308,14 +312,14 @@ class Welcomer(BaseCog):
             pass
 
         if then > now:
-            print("it hasn't been 3 minutes...")
+            # print("it hasn't been 10 minutes...")
             return
 
         # record the time so member won't be pinged again too soon if they keep talking
         self.welcome_talkers[message.guild.id][message.author.id] = now
         await welcome_channel.send(Lang.get_string("welcome/welcome_help",
                                                    author=message.author.mention,
-                                                   rules_channel=rules_channel.id))
+                                                   rules_channel=rules_channel.mention))
         # ping log channel with detail
         if log_channel:
             await log_channel.send(f"{message.author.mention} spoke in {welcome_channel.mention} ```{message.content}```")
