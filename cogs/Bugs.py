@@ -3,7 +3,7 @@ import time
 from concurrent.futures import CancelledError
 from datetime import datetime
 
-from discord import Forbidden, Embed, NotFound
+from discord import Forbidden, Embed, NotFound, PermissionOverwrite
 from discord.ext import commands
 from discord.ext.commands import Context, command
 
@@ -94,12 +94,17 @@ class Bugs(BaseCog):
 
         # show/hide maintenance channel
         maint_message_channel = self.bot.get_channel(Configuration.get_var("bug_maintenance_channel"))
-        await maint_message_channel.set_permissions(member_role, read_messages=active)
+
+        overwrite = maint_message_channel.overwrites[member_role]
+        overwrite.read_messages = active
+        await maint_message_channel.set_permissions(member_role, overwrite=overwrite)
 
         for name, cid in Configuration.get_var("channels").items():
             # show/hide reporting channels
             channel = self.bot.get_channel(cid)
-            await channel.set_permissions(member_role, read_messages=None if active else True)
+            overwrite = channel.overwrites[member_role]
+            overwrite.read_messages = None if active else True
+            await channel.set_permissions(member_role, overwrite=overwrite)
 
     @commands.group(name='bug', invoke_without_command=True)
     async def bug(self, ctx: Context):
