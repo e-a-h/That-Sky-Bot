@@ -16,6 +16,10 @@ questions:
   approve_attachments: Final answer!
   error_reaction_timeout: "{error_emoji} You didn't react within {timeout}"
 channel_config:
+  info: Channel Config for {server_name}
+  commands: |
+      `![channel_config|chanconf] reload`
+      `![channel_config|chanconf] set channel_name channel_id`
   channel_set: Config channel "{channel_name}" set to <#{channel_id}>
 bugs:
   bug_info: "**Report a New Bug!**\nBrowse or search this channel to see bug reports. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."

@@ -1,6 +1,7 @@
 import json
 from collections import namedtuple
 
+import discord
 from discord.ext import commands
 
 from cogs.BaseCog import BaseCog
@@ -45,12 +46,18 @@ class ChannelConfig(BaseCog):
     @commands.group(name="channel_config", aliases=["chanconf", "channelconfig"], invoke_without_command=True)
     @commands.guild_only()
     async def channel_config(self, ctx):
-        help = f"""
-        channel_config help
-          - `![channel_config|chanconf] reload`
-          - `![channel_config|chanconf] set channel_name channel_id` 
-        """
-        await ctx.send(help)
+        embed = discord.Embed(
+            timestamp=ctx.message.created_at,
+            color=0x663399,
+            title=Lang.get_string("channel_config/info", server_name=ctx.guild.name))
+        embed.add_field(name='Commands', value=Lang.get_string("channel_config/commands"), inline=False)
+        embed.add_field(name='Configurable Channels',
+                        value=f"[{Utils.welcome_channel}|{Utils.rules_channel}|{Utils.log_channel}]",
+                        inline=False)
+
+        for row in ConfigChannel.select().where(ConfigChannel.serverid == ctx.guild.id):
+            embed.add_field(name=row.configname, value=f"<#{row.channelid}>", inline=False)
+        await ctx.send(embed=embed)
 
     @channel_config.command()
     @commands.is_owner()
