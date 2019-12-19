@@ -114,15 +114,16 @@ class Bugs(BaseCog):
         await self.report_bug(ctx.author, ctx.channel)
 
     @commands.guild_only()
-    @bug.command(aliases=["resetactive", "reset_in_progress", "resetinprogress", "reset"])
+    @bug.command(aliases=["resetactive", "reset_in_progress", "resetinprogress", "reset", "clean"])
     async def reset_active(self, ctx):
         is_owner = await ctx.bot.is_owner(ctx.author)
         if is_owner:
             to_kill = len(self.in_progress)
-            for uid in self.in_progress.keys():
+            active_keys = self.in_progress.keys()
+            for uid in active_keys:
                 await self.delete_progress(uid)
             self.in_progress = dict()
-            await ctx.send(f"Ok. Number of dead bugs cleaned up: {to_kill}. Number now alive: {len(self.in_progress)}")
+            await ctx.send(f"Ok. Number of dead bugs cleaned up: {active_keys}. Number still alive: {len(self.in_progress)}")
 
     async def report_bug(self, user, trigger_channel):
         # fully ignore muted users
