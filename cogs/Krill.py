@@ -1,5 +1,4 @@
 import asyncio
-import math
 import re
 from datetime import datetime
 from random import randint
@@ -21,6 +20,7 @@ class Krill(BaseCog):
         super().__init__(bot)
         self.krilled = dict()
         self.channels = dict()
+        self.monsters = dict()
         self.loaded = False
         bot.loop.create_task(self.startup_cleanup())
 
@@ -88,13 +88,21 @@ class Krill(BaseCog):
     @commands.cooldown(1, 120, BucketType.member)
     @commands.guild_only()
     async def krill(self, ctx, *, arg=''):
-        o = r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ]'
-        r = r'[rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳ]'
-        e = r'[eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉ]'
+        if ctx.message.author.id in self.monsters.keys():
+            now = datetime.now().timestamp()
+            hour = 60 * 60
+            if self.monsters[ctx.author.id] + hour > now:
+                remain = (self.monsters[ctx.author.id] + hour) - now
+                await ctx.send(f"{ctx.author.mention} is a horrible person and can spend the next {Utils.to_pretty_time(remain)} thinking about what they've done")
+                return
+        o = r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ𝕠🅞⓪ⓞⓄ]'
+        r = r'[rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳᖇɹ𝕣🅡ⓡⓇ]'
+        e = r'[eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉEǝ€𝕖🅔ⓔⒺ]'
         oreo_pattern = re.compile(f"{o}\\s*{r}\\s*{e}\\s*{o}", re.IGNORECASE)
         if oreo_pattern.search(arg):
             self.bot.get_command("krill").reset_cooldown(ctx)
             await ctx.send(f'not Oreo! {ctx.author.mention}, you monster!!')
+            self.monsters[ctx.author.id] = datetime.now().timestamp()
             return
 
         victim = arg
