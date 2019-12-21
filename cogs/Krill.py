@@ -95,10 +95,11 @@ class Krill(BaseCog):
                 remain = (self.monsters[ctx.author.id] + hour) - now
                 await ctx.send(f"{ctx.author.mention} is a horrible person and can spend the next {Utils.to_pretty_time(remain)} thinking about what they've done")
                 return
-        o = r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ𝕠🅞⓪ⓞⓄ]'
-        r = r'[rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳᖇɹ𝕣🅡ⓡⓇ]'
-        e = r'[eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉEǝ€𝕖🅔ⓔⒺ]'
-        oreo_pattern = re.compile(f"{o}\\s*{r}\\s*{e}\\s*{o}", re.IGNORECASE)
+        o = r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ𝕠🅞⓪ⓞⓄớồ🇴]'
+        r = r'[rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳᖇɹ𝕣🅡ⓡⓇ🇷]'
+        e = r'[eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉEǝ€𝕖🅔ⓔⒺểé🇪]'
+        sp = r'[\s\x00\u200b\u200c\u200d]'
+        oreo_pattern = re.compile(f"{o}{sp}*{r}{sp}*{e}{sp}*{o}", re.IGNORECASE)
         if oreo_pattern.search(arg):
             self.bot.get_command("krill").reset_cooldown(ctx)
             await ctx.send(f'not Oreo! {ctx.author.mention}, you monster!!')
@@ -113,8 +114,8 @@ class Krill(BaseCog):
         except Exception as e:
             victim_name = victim
             if re.search(r'@', victim_name):
-                Command.reset_cooldown(ctx)
-                await ctx.send('sorry, I won\'t @-mention anyone like that')
+                self.bot.get_command("krill").reset_cooldown(ctx)
+                await ctx.send(f"That's a dirty trick, {ctx.author.mention}, and I'm not falling for it")
                 return
 
         # clean emoji and store non-emoji text for length evaluation
