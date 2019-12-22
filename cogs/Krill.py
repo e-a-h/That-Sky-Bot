@@ -95,10 +95,11 @@ class Krill(BaseCog):
                 remain = (self.monsters[ctx.author.id] + hour) - now
                 await ctx.send(f"{ctx.author.mention} is a horrible person and can spend the next {Utils.to_pretty_time(remain)} thinking about what they've done")
                 return
-        o = r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ𝕠🅞⓪ⓞⓄớồ🇴ợ口ỡờộốổọỏロㅇ]'
+
+        o = r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ𝕠🅞⓪ⓞⓄớồ🇴ợ口ỡờộốổọỏロㅇ°⭕]'
         r = r'[rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳᖇɹ𝕣🅡ⓡⓇ🇷厂尺]'
-        e = r'[eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉEǝ€𝕖🅔ⓔⒺểé🇪ề已ệêễẹẽèẻ巨]'
-        sp = r'[\s\x00\u200b\u200c\u200d\.\[\](){}\\+-_=~]'
+        e = r'[eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉEǝ€𝕖🅔ⓔⒺểé🇪ề已ệêễẹẽèẻ巨ㅌ]'
+        sp = r'[\s\x00\u200b\u200c\u200d\.\[\](){}\\-_=]'
         oreo_pattern = re.compile(f"{o}+{sp}*{r}+{sp}*{e}+{sp}*{o}+", re.IGNORECASE)
         monster = False
         if oreo_pattern.search(arg):
@@ -144,17 +145,17 @@ class Krill(BaseCog):
                 this_match = re.compile(f'<(a?):([^: \n]+):{bad_id}>')
                 victim_name = this_match.sub('', victim_name)
 
-        # Initial validation passed. Delete command message and check or start
-        await ctx.message.delete()
+            # Initial validation passed. Delete command message and check or start
+            await ctx.message.delete()
 
         # EMOJI hard coded because... it must be exactly these
         head = utils.get(self.bot.emojis, id=640741616080125981)
         body = utils.get(self.bot.emojis, id=640741616281452545)
         tail = utils.get(self.bot.emojis, id=640741616319070229)
         red = utils.get(self.bot.emojis, id=641445732670373916)
-        ded = utils.get(self.bot.emojis, id=641445732246880282)
         star = utils.get(self.bot.emojis, id=624094243329146900)
         blank = utils.get(self.bot.emojis, id=647913138758483977)
+        ded = u"\U0001F916" if victim_name == "thatskybot" else utils.get(self.bot.emojis, id=641445732246880282)
 
         time_step = 1
         step = randint(1, 2)
