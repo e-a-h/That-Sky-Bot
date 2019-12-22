@@ -95,11 +95,11 @@ class Krill(BaseCog):
                 remain = (self.monsters[ctx.author.id] + hour) - now
                 await ctx.send(f"{ctx.author.mention} is a horrible person and can spend the next {Utils.to_pretty_time(remain)} thinking about what they've done")
                 return
-        o = r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ𝕠🅞⓪ⓞⓄớồ🇴]'
-        r = r'[rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳᖇɹ𝕣🅡ⓡⓇ🇷]'
-        e = r'[eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉEǝ€𝕖🅔ⓔⒺểé🇪]'
-        sp = r'[\s\x00\u200b\u200c\u200d]'
-        oreo_pattern = re.compile(f"{o}{sp}*{r}{sp}*{e}{sp}*{o}", re.IGNORECASE)
+        o = r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ𝕠🅞⓪ⓞⓄớồ🇴ợ口ỡờộốổọỏ]'
+        r = r'[rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳᖇɹ𝕣🅡ⓡⓇ🇷厂]'
+        e = r'[eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉEǝ€𝕖🅔ⓔⒺểé🇪ề已ệêễẹẽèẻ]'
+        sp = r'[\s\x00\u200b\u200c\u200d\.\[\](){}\\+-_=~]'
+        oreo_pattern = re.compile(f"{o}+{sp}*{r}+{sp}*{e}+{sp}*{o}+", re.IGNORECASE)
         if oreo_pattern.search(arg):
             self.bot.get_command("krill").reset_cooldown(ctx)
             await ctx.send(f'not Oreo! {ctx.author.mention}, you monster!!')
