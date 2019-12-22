@@ -95,53 +95,57 @@ class Krill(BaseCog):
                 remain = (self.monsters[ctx.author.id] + hour) - now
                 await ctx.send(f"{ctx.author.mention} is a horrible person and can spend the next {Utils.to_pretty_time(remain)} thinking about what they've done")
                 return
-        o = r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ𝕠🅞⓪ⓞⓄớồ🇴ợ口ỡờộốổọỏ]'
-        r = r'[rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳᖇɹ𝕣🅡ⓡⓇ🇷厂]'
-        e = r'[eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉEǝ€𝕖🅔ⓔⒺểé🇪ề已ệêễẹẽèẻ]'
+        o = r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ𝕠🅞⓪ⓞⓄớồ🇴ợ口ỡờộốổọỏロㅇ]'
+        r = r'[rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳᖇɹ𝕣🅡ⓡⓇ🇷厂尺]'
+        e = r'[eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉEǝ€𝕖🅔ⓔⒺểé🇪ề已ệêễẹẽèẻ巨]'
         sp = r'[\s\x00\u200b\u200c\u200d\.\[\](){}\\+-_=~]'
         oreo_pattern = re.compile(f"{o}+{sp}*{r}+{sp}*{e}+{sp}*{o}+", re.IGNORECASE)
+        monster = False
         if oreo_pattern.search(arg):
             self.bot.get_command("krill").reset_cooldown(ctx)
             await ctx.send(f'not Oreo! {ctx.author.mention}, you monster!!')
+            monster = True
             self.monsters[ctx.author.id] = datetime.now().timestamp()
-            return
 
-        victim = arg
-        try:
-            victim_user = await UserConverter().convert(ctx, victim)
-            victim_user = ctx.message.guild.get_member(victim_user.id)
-            victim_name = victim_user.nick or victim_user.name
-        except Exception as e:
-            victim_name = victim
-            if re.search(r'@', victim_name):
-                self.bot.get_command("krill").reset_cooldown(ctx)
-                await ctx.send(f"That's a dirty trick, {ctx.author.mention}, and I'm not falling for it")
+        if monster:
+            victim_name = ctx.author.mention
+        else:
+            victim = arg
+            try:
+                victim_user = await UserConverter().convert(ctx, victim)
+                victim_user = ctx.message.guild.get_member(victim_user.id)
+                victim_name = victim_user.nick or victim_user.name
+            except Exception as e:
+                victim_name = victim
+                if re.search(r'@', victim_name):
+                    self.bot.get_command("krill").reset_cooldown(ctx)
+                    await ctx.send(f"That's a dirty trick, {ctx.author.mention}, and I'm not falling for it")
+                    return
+
+            # clean emoji and store non-emoji text for length evaluation
+            emoji_used = Utils.EMOJI_MATCHER.findall(victim_name)
+            non_emoji_text = Utils.EMOJI_MATCHER.sub('', victim_name)
+            if len(non_emoji_text) > 40:
+                await ctx.send("too much text!")
+                return
+            if len(emoji_used) > 15:
+                await ctx.send("too many emoji!")
                 return
 
-        # clean emoji and store non-emoji text for length evaluation
-        emoji_used = Utils.EMOJI_MATCHER.findall(victim_name)
-        non_emoji_text = Utils.EMOJI_MATCHER.sub('', victim_name)
-        if len(non_emoji_text) > 40:
-            await ctx.send("too much text!")
-            return
-        if len(emoji_used) > 15:
-            await ctx.send("too many emoji!")
-            return
+            # remove pattern interference
+            reg_clean = re.compile(r'[.\[\](){}\\+]')
+            victim_name = reg_clean.sub('', victim_name)
+            bad_emoji = set()
+            for emoji in emoji_used:
+                if utils.get(self.bot.emojis, id=int(emoji[2])) is None:
+                    bad_emoji.add(emoji[2])
+            for bad_id in bad_emoji:
+                # remove bad emoji
+                this_match = re.compile(f'<(a?):([^: \n]+):{bad_id}>')
+                victim_name = this_match.sub('', victim_name)
 
         # Initial validation passed. Delete command message and check or start
         await ctx.message.delete()
-
-        # remove pattern interference
-        reg_clean = re.compile(r'[.\[\](){}\\+]')
-        victim_name = reg_clean.sub('', victim_name)
-        bad_emoji = set()
-        for emoji in emoji_used:
-            if utils.get(self.bot.emojis, id=int(emoji[2])) is None:
-                bad_emoji.add(emoji[2])
-        for bad_id in bad_emoji:
-            # remove bad emoji
-            this_match = re.compile(f'<(a?):([^: \n]+):{bad_id}>')
-            victim_name = this_match.sub('', victim_name)
 
         # EMOJI hard coded because... it must be exactly these
         head = utils.get(self.bot.emojis, id=640741616080125981)
@@ -158,7 +162,8 @@ class Krill(BaseCog):
         spaces = str(blank) * distance
         spacestep = str(blank) * step
         message = await ctx.send(f"{spacestep}{victim_name} {red}{spaces}{head}{body}{tail}")
-        await ctx.send(f"*summoned by {ctx.author.mention}*")
+        if not monster:
+            await ctx.send(f"*summoned by {ctx.author.mention}*")
         while distance > 0:
             distance = distance - step
             spaces = str(blank) * distance
