@@ -180,7 +180,7 @@ class AutoResponders(BaseCog):
             return f'{pre} Flags: ' + ', '.join(flags)
         return f"{pre} ***DISABLED***"
 
-    async def add_mod_action(self, message, response_channel, formatted_response):
+    async def add_mod_action(self, trigger, matched, message, response_channel, formatted_response):
         """
         :param message: Trigger message
         :param response_channel: Channel to respond in
@@ -188,6 +188,7 @@ class AutoResponders(BaseCog):
         :return: None
         """
         embed = discord.Embed(
+            title=f"Trigger: {matched or get_trigger_description(trigger)}",
             timestamp=message.created_at,
             color=0xFF0940
         )
@@ -596,17 +597,20 @@ class AutoResponders(BaseCog):
                 else:
                     response_channel = message.channel
 
+                matched = ', '.join(match.groups()) or trigger
+
                 formatted_response = response.replace("@", "@\u200b").format(
                     author=message.author.mention,
                     channel=message.channel.mention,
                     link=message.jump_url,
+                    matched=matched
                 )
 
                 m = self.bot.metrics
                 m.auto_responder_count.inc()
 
                 if mod_action:
-                    await self.add_mod_action(message, response_channel, formatted_response)
+                    await self.add_mod_action(trigger, matched, message, response_channel, formatted_response)
                 else:
                     await response_channel.send(formatted_response)
 
@@ -659,13 +663,15 @@ class AutoResponders(BaseCog):
         async def update_embed(my_message, mod):
             # replace mod action list with acting mod name and datetime
             my_embed = my_message.embeds[0]
-            now = datetime.now()
+            start = message.created_at
+            react_time = datetime.utcnow()
+            time_d = Utils.to_pretty_time((react_time-start).seconds)
             nonlocal trigger_message
             my_embed.set_field_at(-1, name="Handled by", value=mod.mention, inline=True)
             if trigger_message is None:
                 my_embed.add_field(name="Deleted", value="Member removed message before action was taken.")
             my_embed.add_field(name="Action Used", value=emoji, inline=True)
-            my_embed.add_field(name="Reaction Time", value=now, inline=True)
+            my_embed.add_field(name="Reaction Time", value=time_d, inline=True)
             await(my_message.edit(embed=my_embed))
 
         await update_embed(message, member)
