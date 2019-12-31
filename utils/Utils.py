@@ -26,6 +26,24 @@ URL_MATCHER = re.compile(r'((?:https?://)[a-z0-9]+(?:[-._][a-z0-9]+)*\.[a-z]{2,5
 EMOJI_MATCHER = re.compile('<(a?):([^: \n]+):([0-9]+)>')
 NUMBER_MATCHER = re.compile(r"\d+")
 
+welcome_channel = "welcome_channel"
+rules_channel = "rules_channel"
+log_channel = "log_channel"
+
+
+def validate_channel_name(channel_name):
+    return channel_name in (welcome_channel, rules_channel, log_channel)
+
+
+def get_chanconf_description(bot, guild_id):
+    message = f"guild {guild_id}" + '\n'
+    try:
+        for name, id in bot.config_channels[guild_id].items():
+            message += f"**{name}**: <#{id}>" + '\n'
+    except Exception as ex:
+        pass
+    return message
+
 
 def extract_info(o):
     info = ""
@@ -295,3 +313,9 @@ def to_pretty_time(seconds):
         if seconds == 0:
             break
     return duration.strip()
+
+
+def split_list(input_list, chunk_size):
+    for i in range(0, len(input_list), chunk_size):
+        yield input_list[i:i + chunk_size]
+

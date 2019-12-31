@@ -9,6 +9,7 @@ connection = MySQLDatabase(Configuration.get_var("DATABASE_NAME"),
                            host=Configuration.get_var("DATABASE_HOST"),
                            port=Configuration.get_var("DATABASE_PORT"), use_unicode=True, charset="utf8mb4")
 
+
 class BugReport(Model):
     id = AutoField()
     reporter = BigIntegerField()
@@ -31,7 +32,7 @@ class BugReport(Model):
         database = connection
 
 
-class Attachements(Model):
+class Attachments(Model):
     id = AutoField()
     url = CharField(collation="utf8mb4_general_ci")
     report = ForeignKeyField(BugReport, backref="attachments")
@@ -42,6 +43,16 @@ class Attachements(Model):
 
 class KrillChannel(Model):
     id = AutoField()
+    channelid = BigIntegerField()
+    serverid = BigIntegerField()
+
+    class Meta:
+        database = connection
+
+
+class ConfigChannel(Model):
+    id = AutoField()
+    configname = CharField(max_length=100, collation="utf8mb4_general_ci")
     channelid = BigIntegerField()
     serverid = BigIntegerField()
 
@@ -90,8 +101,28 @@ class CountWord(Model):
         database = connection
 
 
+class ArtChannel(Model):
+    id = PrimaryKeyField()
+    serverid = BigIntegerField()
+    channelid = BigIntegerField(default=0)
+    tag = CharField(max_length=30, collation="utf8mb4_general_ci")
+
+    class Meta:
+        database = connection
+
+
 def init():
     global connection
     connection.connect()
-    connection.create_tables([BugReport, Attachements, Repros, CustomCommand, AutoResponder, KrillChannel, CountWord])
+    connection.create_tables([
+        ArtChannel,
+        Attachments,
+        AutoResponder,
+        BugReport,
+        ConfigChannel,
+        CountWord,
+        CustomCommand,
+        KrillChannel,
+        Repros,
+    ])
     connection.close()
