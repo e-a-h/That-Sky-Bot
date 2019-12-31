@@ -30,8 +30,9 @@ class Reload(BaseCog):
     async def load(self, ctx, cog: str):
         if os.path.isfile(f"cogs/{cog}.py"):
             self.bot.load_extension(f"cogs.{cog}")
-            Configuration.MASTER_CONFIG["cogs"].append(cog)
-            Configuration.save()
+            if cog not in Configuration.MASTER_CONFIG["cogs"]:
+                Configuration.MASTER_CONFIG["cogs"].append(cog)
+                Configuration.save()
             await ctx.send(f"**{cog}** has been loaded!")
             await Logging.bot_log(f"**{cog}** has been loaded by {ctx.author.name}.")
             Logging.info(f"{cog} has been loaded")
@@ -42,8 +43,9 @@ class Reload(BaseCog):
     async def unload(self, ctx, cog: str):
         if cog in ctx.bot.cogs:
             self.bot.unload_extension(f"cogs.{cog}")
-            Configuration.get_var("cogs").remove(cog)
-            Configuration.save()
+            if cog in Configuration.MASTER_CONFIG["cogs"]:
+                Configuration.get_var("cogs").remove(cog)
+                Configuration.save()
             await ctx.send(f'**{cog}** has been unloaded.')
             await Logging.bot_log(f'**{cog}** has been unloaded by {ctx.author.name}')
             Logging.info(f"{cog} has been unloaded")

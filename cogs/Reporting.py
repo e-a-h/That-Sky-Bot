@@ -9,7 +9,7 @@ from discord.ext import commands
 from discord.ext.commands import command
 
 from cogs.BaseCog import BaseCog
-from utils.Database import BugReport, Attachements, connection
+from utils.Database import BugReport, Attachments, connection
 from utils.Utils import save_to_disk
 
 
@@ -78,12 +78,12 @@ class Reporting(BaseCog):
             # count backward from end of data
             query = BugReport.select().where(conditions).order_by(BugReport.id.desc()).limit(abs(start))
         else:
-            query = BugReport.select().where(conditions)  # .prefetch(Attachements)
+            query = BugReport.select().where(conditions)  # .prefetch(Attachments)
 
         ids = []
         for row in query:
             ids.append(row.id)
-        attachquery = Attachements.select().where(Attachements.report.in_(ids))
+        attachquery = Attachments.select().where(Attachments.report.in_(ids))
 
         for row in query:
             row.attachments = []

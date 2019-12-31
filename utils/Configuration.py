@@ -7,6 +7,7 @@ MASTER_LOADED = False
 PERSISTENT = dict()
 PERSISTENT_LOADED = False
 
+
 def save():
     global MASTER_CONFIG
     with open('config.json', 'w') as jsonfile:
@@ -32,7 +33,7 @@ def get_var(key, default=None):
     global MASTER_CONFIG, MASTER_LOADED
     if not MASTER_LOADED:
         load()
-    if not key in MASTER_CONFIG.keys():
+    if key not in MASTER_CONFIG.keys():
         MASTER_CONFIG[key] = default
         save()
     return MASTER_CONFIG[key]
