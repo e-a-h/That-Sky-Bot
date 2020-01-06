@@ -1,37 +1,52 @@
+/* Fill in details and REMOVE ALL COMMENTS */
 {
+    "ADMINS": [
+        /* list of IDs of users allowed to admin the bot */
+    ],
     "token": "",
-    "SENTRY_DSN": "",
-    "bot_prefix": "!",
-    "DATABASE_NAME": "",
-    "DATABASE_USER": "",
-    "DATABASE_PASS": "",
-    "DATABASE_HOST": "",
-    "DATABASE_PORT": 0,
+    "SENTRY_DSN": "your discord bot token goes here",
+    "bot_prefix": "!", // choose any string that doesn't conflict with other bots present e.g. "z!"
+    "DATABASE_NAME": "sky",
+    "DATABASE_USER": "db_user",
+    "DATABASE_PASS": "db_user_password",
+    "DATABASE_HOST": "localhost",
+    "DATABASE_PORT": 3306,
     "channels": {
         "android_beta":  0,
         "android_stable":  0,
         "ios_beta":  0,
         "ios_stable":  0
     },
+    "EMOJI": {
+        /* custom emoji overrides. see utils/Emoji.py for defaults that can be overriden */
+        "NO": 624094243371352084,
+        "YES": 624094243329146900
+    },
     "question_timeout_seconds": 300,
+    "bug_maintenance_channel": 0,
     "bug_trash_sweep_minutes": 40,
     "max_attachments": 3,
     "log_channel": 0,
     "rules_react_message_id": 0,
     "welcome_channel": 0,
-    "welcome_msg": "Welcome, {user}! Please read through all the items posted in our <#0> channel. When you're done, click the :candle: emote at the end of the rules to join the community and gain access to the other channels.",
     "cogs": [
+        /* list of cogs to load */
         "Basic",
         "Reload",
-        "Bugs",
         "Welcomer",
         "Eden",
-        "CustCommands"
+        "CustCommands",
+        "AutoResponders",
+        "ChannelConfig",
+        "Music"
     ],
      "roles": {
+         /* reaction:role associations */
         "\uD83D\uDD6F": 0
     },
     "admin_roles": [],
+    "member_role": 0,
+    "muted_role": 0,
+    "nonmember_role": 0,
     "guild_id": 0,
-    "muted_role": 0
 }
