@@ -243,10 +243,10 @@ krill:
 art:
   list_channels: Art channels for {server_name}.
   no_channels: No channels set for art collection. No art will be colelcted
-  channel_added: Channel {channel} is now approved for arting. Tag \#{tag}
-  channel_removed: There's been a robbery at the art museum! Channel {channel} can't collect art anymore! Tag \#{tag}
-  channel_not_found: There is no art in {channel} for tag \#{tag}
-  channel_found: The channel {channel} is already collecting art. Tag \#{tag}
+  channel_added: Channel {listenchannel} is now approved for arting. Collecting "\#{tag}" into {collectchannel}
+  channel_not_found: I didn't find a collector for {listenchannel}, "\#{tag}"->{collectchannel}
+  channel_found: The channel {listenchannel} is already collecting art "\#{tag}"->{collectchannel}
+  channel_removed: There's been a robbery at the art museum! Channel {listenchannel} can't collect art anymore! "\#{tag}"->{collectchannel}
 custom_commands:
   list_commands: Custom command list for {server_name}.
   no_commands: No custom commands have been created yet.
