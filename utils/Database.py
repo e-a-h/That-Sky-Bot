@@ -104,7 +104,8 @@ class CountWord(Model):
 class ArtChannel(Model):
     id = PrimaryKeyField()
     serverid = BigIntegerField()
-    channelid = BigIntegerField(default=0)
+    listenchannelid = BigIntegerField(default=0)
+    collectionchannelid = BigIntegerField(default=0)
     tag = CharField(max_length=30, collation="utf8mb4_general_ci")
 
     class Meta:
