@@ -192,6 +192,7 @@ autoresponder:
   added: Auto-responder for `{trigger}` has been added!
   removed: Auto-responder `{trigger}` has been removed.
   updated: Auto-responder `{trigger}` has been updated!
+  chanceset: Chance that `{trigger}` will trigger a response is now {chance}%
   override_confirmation: This auto-responder already exists, do you want to replace it with this new text?
   empty_reply: Empty response? Why bother with me at all. Just shout your triggers into the wind and you already get no response! (use remove if you want me to stop responding to a trigger)
   empty_trigger: Your trigger is empty... so... you want me to react to *literally nothing??*
@@ -210,6 +211,7 @@ autoresponder:
   prompt_channel_id: Which channel should this trigger {mode} in? (channel id)
   prompt_response: How would you like me to respond?
   prompt_trigger: What should the new trigger be?
+  prompt_chance: How often should I respond? (floating point percent e.g. `35.15`)
   help: |
     `Auto-responder` help:
       `![autor|auto|ar]` Show a list of responder tags and their flags
