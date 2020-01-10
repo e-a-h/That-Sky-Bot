@@ -101,11 +101,13 @@ class AutoResponders(BaseCog):
                     match_list = None
 
                 trigger = responder.trigger
+                chance = responder.chance / 10000  # chance is 0-10,000. make it look more like a percentage
 
                 self.triggers[guild.id][trigger] = {
                     'match_list': match_list,
                     'response': response,
                     'flags': flags,
+                    'chance': chance,
                     'responsechannelid': responder.responsechannelid,
                     'listenchannelid': responder.listenchannelid
                 }
@@ -121,6 +123,8 @@ class AutoResponders(BaseCog):
             for trigger in guild_triggers.keys():
                 trigger_obj = guild_triggers[trigger]
                 flags_description = self.get_flags_description(trigger_obj)
+                if trigger_obj['chance'] < 1:
+                    flags_description += f"\n**\u200b \u200b **Chance of response: {trigger_obj['chance']*100}%"
                 if trigger_obj['responsechannelid']:
                     flags_description += f"\n**\u200b \u200b **Respond in Channel: <#{trigger_obj['responsechannelid']}>"
                 if trigger_obj['listenchannelid']:
@@ -245,7 +249,7 @@ class AutoResponders(BaseCog):
         Flags are unset when initialized, so newly created responders will not be active.
         Use `autoresponder setflag` to activate
         """
-        if self.validate_trigger(ctx, trigger) and self.validate_reply(ctx, reply):
+        if await self.validate_trigger(ctx, trigger) and await self.validate_reply(ctx, reply):
             db_trigger = await get_db_trigger(ctx.guild.id, trigger)
             if db_trigger is None:
                 AutoResponder.create(serverid=ctx.guild.id, trigger=trigger, response=reply)
@@ -402,6 +406,39 @@ class AutoResponders(BaseCog):
         trigger = await Utils.clean(trigger)
         await ctx.send(f"`{get_trigger_description(trigger)}`: {self.get_flags_description(trigger_obj)}")
 
+    @autor.command(aliases=["set_chance", "chance"])
+    @commands.guild_only()
+    async def setchance(self, ctx: commands.Context, trigger: str = None, *, chance: float = None):
+        if trigger is None:
+            try:
+                trigger = await self.choose_trigger(ctx)
+            except ValueError:
+                return
+
+        if chance is None:
+            chance = float(await Questions.ask_text(self.bot,
+                                                    ctx.channel,
+                                                    ctx.author,
+                                                    Lang.get_string("autoresponder/prompt_chance"),
+                                                    escape=False))
+
+        try:
+            db_trigger = await get_db_trigger(ctx.guild.id, trigger)
+            if db_trigger is None:
+                await nope(ctx)
+                return
+
+            chance = int(chance * 100)
+            db_trigger.chance = chance
+            db_trigger.save()
+        except Exception as e:
+            await Utils.handle_exception("autoresponder setchance exception", self.bot, e)
+        await ctx.send(
+            Lang.get_string('autoresponder/chanceset',
+                            chance=chance/100,
+                            trigger=get_trigger_description(trigger)))
+        await self.reload_triggers(ctx)
+
     @autor.command(aliases=["channel", "sc"])
     @commands.guild_only()
     async def setchannel(self, ctx: commands.Context, mode: str = None, trigger: str = None, channel_id: int = None):
@@ -554,6 +591,7 @@ class AutoResponders(BaseCog):
             match_case = data['flags'][self.flags['match_case']]
             full_match = data['flags'][self.flags['full_match']]
             mod_action = data['flags'][self.flags['mod_action']] and data['responsechannelid']
+            chance = data['chance']
 
             if not active or (is_mod and ignore_mod):
                 continue
@@ -612,7 +650,9 @@ class AutoResponders(BaseCog):
                 if mod_action:
                     await self.add_mod_action(trigger, matched, message, response_channel, formatted_response)
                 else:
-                    await response_channel.send(formatted_response)
+                    roll = random.random()
+                    if chance == 1 or roll < chance:
+                        await response_channel.send(formatted_response)
 
                 if delete_trigger:
                     await message.delete()
