@@ -183,7 +183,7 @@ class Welcomer(BaseCog):
         guild = self.bot.get_guild(Configuration.get_var("guild_id"))
         try:
             nonmember_role = guild.get_role(Configuration.get_var("nonmember_role"))
-            txt = Configuration.get_var("welcome_msg")
+            txt = Lang.get_string("welcome/welcome_msg")
 
             welcome_channel = self.bot.get_config_channel(guild.id, Utils.welcome_channel)
             rules_channel = self.bot.get_config_channel(guild.id, Utils.rules_channel)

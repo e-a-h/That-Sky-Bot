@@ -85,6 +85,7 @@ class AutoResponder(Model):
     trigger = CharField(max_length=300, collation="utf8mb4_general_ci")
     response = CharField(max_length=2000, collation="utf8mb4_general_ci")
     flags = SmallIntegerField(default=0)
+    chance = SmallIntegerField(default=10000)
     responsechannelid = BigIntegerField(default=0)
     listenchannelid = BigIntegerField(default=0)
 
@@ -104,7 +105,8 @@ class CountWord(Model):
 class ArtChannel(Model):
     id = PrimaryKeyField()
     serverid = BigIntegerField()
-    channelid = BigIntegerField(default=0)
+    listenchannelid = BigIntegerField(default=0)
+    collectionchannelid = BigIntegerField(default=0)
     tag = CharField(max_length=30, collation="utf8mb4_general_ci")
 
     class Meta:
