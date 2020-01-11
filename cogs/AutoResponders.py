@@ -199,7 +199,11 @@ class AutoResponders(BaseCog):
         embed.add_field(name='Message Author', value=message.author.mention, inline=True)
         embed.add_field(name='Channel', value=message.channel.mention, inline=True)
         embed.add_field(name='Jump link', value=f"[Go to message]({message.jump_url})", inline=True)
-        embed.add_field(name='Offending Mesasge', value=f"```{message.content}```", inline=False)
+        contents = Utils.paginate(message.content, max_chars=1024)
+        i = 0
+        for chunk in contents:
+            i = i + 1
+            embed.add_field(name=f"Original message{ ', part '+str(i) if len(contents) > 1 else ''}", value=f"```{chunk}```", inline=False)
         embed.add_field(name='Moderator Actions', value=f"""
             Pass: {Emoji.get_emoji("YES")}
             Intervene: {Emoji.get_emoji("CANDLE")}
