@@ -205,10 +205,10 @@ class ArtCollector(BaseCog):
                 embed.add_field(name="Author", value=my_message.author.mention)
                 if my_tag is not self.no_tag:
                     embed.add_field(name="Tag", value=f"#{my_tag}")
-                embed.add_field(name="Jump Link", value=f"[Go to mmessage]({my_message.jump_url})")
+                embed.add_field(name="Jump Link", value=f"[Go to message]({my_message.jump_url})")
                 embed.add_field(name="URL", value=f"[Download]({attachment.url})")
                 if my_message.content and not content_shown:
-                    # Add mmessage content to the first of multiples, when many attachments to a single my_message.
+                    # Add message content to the first of multiples, when many attachments to a single my_message.
                     embed.add_field(name="Message Content", value=my_message.content, inline=False)
                     content_shown = True
                 embed.set_image(url=attachment.url)
