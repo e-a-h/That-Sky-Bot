@@ -16,6 +16,10 @@ from utils import Lang, Emoji
 
 class BotResponder(Responder):
 
+    def init_working_directory(self):
+
+        pass
+
     def ask(self, question):
         user_response = None
 
@@ -30,7 +34,7 @@ class BotResponder(Responder):
         if self.get_response_mode() == ResponseMode.BOT:
             print(output)
 
-    def create_song_bot(self):
+    def create_song(self):
 
         self.set_parser(SongParser(self))
 
@@ -70,6 +74,7 @@ class Music(BaseCog):
         super().__init__(bot)
         self.responder = BotResponder()
         self.responder.set_response_mode(ResponseMode.BOT)
+        print(os.getcwd())
         # self.responder.create_song_bot()  # Create a parser object
         # new commands from the program can be put under here
 
@@ -79,14 +84,14 @@ class Music(BaseCog):
 
         start_prompt = Lang.get_string('music/start_prompt_01')
 
-        start_prompt += f"""
-"""
-        start_prompt += '\n'
-        start_prompt += Lang.get_string('music/start_prompt_02',
-                                        ICON_DELIMITER=self.ICON_DELIMITER,
-                                        PAUSE=self.PAUSE,
-                                        QUAVER_DELIMITER=self.QUAVER_DELIMITER,
-                                        REPEAT_INDICATOR=self.REPEAT_INDICATOR)
+        #start_prompt += f"""
+        # """
+        # start_prompt += '\n'
+        # start_prompt += Lang.get_string('music/start_prompt_02',
+        #                                 ICON_DELIMITER=' ',
+        #                                 PAUSE='.',
+        #                                 QUAVER_DELIMITER='-',
+        #                                 REPEAT_INDICATOR='*')
 
         await ctx.send(start_prompt)
         return
