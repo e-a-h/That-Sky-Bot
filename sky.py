@@ -14,6 +14,7 @@ from utils import Logging, Configuration, Utils, Emoji, Database
 
 from utils.PrometheusMon import PrometheusMon
 
+
 class Skybot(Bot):
     loaded = False
     shutting_down = False
@@ -134,7 +135,7 @@ if __name__ == '__main__':
 
     try:
         for signame in ('SIGINT', 'SIGTERM'):
-           loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(skybot.close()))
+            loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(skybot.close()))
     except NotImplementedError:
         pass
 
