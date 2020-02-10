@@ -243,12 +243,38 @@ krill:
   channel_not_found: There are no krill in {channel}
   channel_found: The channel {channel} is already infested by krill
 art:
+  abort_submit: Ok I won't take your art from you now... maybe you can give me some later.
+  art_header: |
+    ```css
+    Your submission so far
+    [Please be patient while I download your files, this may take a moment...]
+    ```
+  art_info: "**Share your Sky creations!**\nTo share in this channel, click/tap the {emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to post in this channel."
+  attachment_info: "**Attachment to report {id}**\n{links}"
+  attachment_info_plural: "**Attachments to report {id}**\n{links}"
+  cancel_submission: no sendy
+  channel_added: Channel {listenchannel} is now approved for arting. Collecting "\#{tag}" into {collectchannel}
+  channel_found: The channel {listenchannel} is already collecting art "\#{tag}"->{collectchannel}
+  channel_not_found: I didn't find a collector for {listenchannel}, "\#{tag}"->{collectchannel}
+  channel_removed: There's been a robbery at the art museum! Channel {listenchannel} can't collect art anymore! "\#{tag}"->{collectchannel}
   list_channels: Art channels for {server_name}.
   no_channels: No channels set for art collection. No art will be colelcted
-  channel_added: Channel {listenchannel} is now approved for arting. Collecting "\#{tag}" into {collectchannel}
-  channel_not_found: I didn't find a collector for {listenchannel}, "\#{tag}"->{collectchannel}
-  channel_found: The channel {listenchannel} is already collecting art "\#{tag}"->{collectchannel}
-  channel_removed: There's been a robbery at the art museum! Channel {listenchannel} can't collect art anymore! "\#{tag}"->{collectchannel}
+  question_description: this is question description. Please provide a description for your artwork?
+  question_mode: |
+    ```css
+    Art Collector
+    ```
+    If you want to send me the artwork, you gotta tell me what's what
+  title: Title
+  sescription: Description
+  question_ready: You wanna send some arts?
+  question_title: What's the title of your artwork?
+  report_confirmation: Does this look ok? Shoudl I post it now?
+  report_header: Top of art submission
+  send_art: Ok let's send some artwork
+  shutdown_message: This bot is going offline, sharing in this channel is not possible at this time. Please check back later to show your work!
+  stop_spamming: "{user} stop spamming the reaction!"
+  text_too_long: That text seems suspiciously long for the question asked... Try typing up a shorter answer (up to {max} characters) and we'll see if I like it
 custom_commands:
   list_commands: Custom command list for {server_name}.
   no_commands: No custom commands have been created yet.

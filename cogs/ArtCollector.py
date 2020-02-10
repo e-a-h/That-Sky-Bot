@@ -1,10 +1,17 @@
+import asyncio
+import io
+import mimetypes
 import re
+import time
+from asyncio import CancelledError
+from datetime import datetime
 
 import discord
-from discord import NotFound
+import requests
+from discord import NotFound, Forbidden, Embed
 from discord.ext import commands
 
-from utils import Lang, Utils, Emoji
+from utils import Lang, Utils, Emoji, Configuration, Questions
 from utils.Database import ArtChannel
 
 from cogs.BaseCog import BaseCog
@@ -16,21 +23,299 @@ class ArtCollector(BaseCog):
     no_tag = "no_tag"
     listen_tag = "listen"
 
+    art = "art"
+    title = "title"
+    description = "description"
+    submit = "submit"
+    cancel = "cancel"
+
     async def cog_check(self, ctx):
         return ctx.author.guild_permissions.ban_members
 
     def __init__(self, bot):
         super().__init__(bot)
         self.channels = dict()
+        self.in_progress = dict()
         self.collection_channels = dict()
+        self.art_messages = dict()
+        self.ro_art_channels = dict()
+
         bot.loop.create_task(self.startup_cleanup())
 
+    async def shutdown(self):
+        for guild_id, channel in self.ro_art_channels.items():
+            message = await channel.send(Lang.get_string("art/shutdown_message"))
+            Configuration.set_persistent_var(f"art_shutdown_{guild_id}", message.id)
+
     async def startup_cleanup(self):
-        # Load channels
+        await asyncio.sleep(2)
         for guild in self.bot.guilds:
+            channel = self.bot.get_config_channel(guild.id, Utils.ro_art_channel)
+            self.ro_art_channels[guild.id] = channel
+            if channel is None:
+                Utils.Logging.error(f"""
+                ArtCollector read-only channel in guild "{guild.name}" is not set.
+                Use `!channel_config set 'ro_art_channel', [id]` in that guild to initialize""")
+
+            # Load channels
             await self.load_channels(guild)
 
+        # clear shutdown messages and place trigger message in R/O art channel
+        for guild_id, channel in self.ro_art_channels.items():
+            if channel is not None:
+                tracker = f"art_shutdown_{guild_id}"
+                shutdown_id = Configuration.get_persistent_var(tracker)
+                if shutdown_id != 0 and shutdown_id is not None:
+                    message = await channel.fetch_message(shutdown_id)
+                    if message is not None:
+                        await message.delete()
+                    Configuration.set_persistent_var(tracker, 0)
+                await self.send_ro_art_info(channel)
+
+    async def send_ro_art_info(self, channel):
+        guild_id = channel.guild.id
+        if channel is None or guild_id == 0:
+            return
+
+        info_msg_id = self.get_ro_art_info_message_id(guild_id)
+
+        if info_msg_id is not None:
+            try:
+                message = await channel.fetch_message(info_msg_id)
+            except NotFound:
+                pass
+            else:
+                await message.delete()
+                info_msg_id = 0
+
+        bugemoji = Emoji.get_emoji('BUG')
+        message = await channel.send(Lang.get_string("art/art_info", emoji=bugemoji))
+        await message.add_reaction(bugemoji)
+        Configuration.set_persistent_var(f"art_message_{guild_id}", message.id)
+
+    def get_ro_art_info_message_id(self, guild_id):
+        tracker = f"art_message_{guild_id}"
+        return Configuration.get_persistent_var(tracker)
+
+    async def send_art(self, user, trigger_channel):
+        await asyncio.sleep(1)
+        guild = self.bot.get_guild(Configuration.get_var("guild_id"))
+        member = guild.get_member(user.id)
+        # fully ignore muted users
+        mute_role = guild.get_role(Configuration.get_var("muted_role"))
+        if member is None:
+            # user isn't even on the server, how did we get here?
+            return
+        if mute_role in member.roles:
+            # muted, hard ignore
+            return
+
+        if user.id in self.in_progress:
+            await self.delete_progress(user.id)
+
+        # Start a bug report
+        task = self.bot.loop.create_task(self.actual_art_sender(user, trigger_channel))
+        self.in_progress[user.id] = task
+        try:
+            await task
+        except CancelledError as ex:
+            pass
+
+    async def delete_progress(self, uid):
+        if uid in self.in_progress:
+            self.in_progress[uid].cancel()
+            del self.in_progress[uid]
+
+    async def actual_art_sender(self, user, trigger_channel):
+        # wrap everything so users can't get stuck in limbo
+        active_question = None
+        art_count = 0
+        art_max = 3
+        channel = None
+
+        try:
+            channel = await user.create_dm()
+
+            # vars to store everything
+            asking = True
+            attachment_links = []
+            report = None
+            title = ""
+            description = ""
+            mode = None
+
+            # define all the parts we need as inner functions for easier sinfulness
+
+            def question_mode(input_mode):
+                nonlocal mode
+                mode = input_mode
+
+            async def abort():
+                nonlocal asking
+                await user.send(Lang.get_string("art/abort_submit"))
+                asking = False
+                await self.delete_progress(user.id)
+
+            def max_length(length):
+                def real_check(text):
+                    if len(text) > length:
+                        return Lang.get_string("art/text_too_long", max=length)
+                    return True
+                return real_check
+
+            async def send_art():
+                # send art
+                nonlocal report
+                c = self.ro_art_channels[trigger_channel.guild.id]
+                message = await self.bot.get_channel(c).send(
+                    content=Lang.get_string("art/report_header", user=user.mention), embed=report)
+                if len(attachment_links) != 0:
+                    key = "attachment_info" if len(attachment_links) == 1 else "attachment_info_plural"
+                    attachment = await self.bot.get_channel(c).send(
+                        Lang.get_string(f"art/{key}", id=0, links="\n".join(attachment_links)))
+                await channel.send(Lang.get_string("art/report_confirmation", channel_id=c))
+                await self.send_ro_art_info(channel)
+
+            async def prompt_user():
+                nonlocal mode
+                nonlocal title
+                nonlocal description
+                nonlocal attachment_links
+                if mode == "art":
+                    print("art")
+                    # ask for art, show count/max
+                    attachment_links = await Questions.ask_attachements(self.bot, channel, user)
+                    return
+                if mode == "title":
+                    # ask for title. if title exists show current and instruct new title overwrites.
+                    title = await Questions.ask_text(self.bot,
+                                                     channel,
+                                                     user,
+                                                     Lang.get_string("art/question_title",
+                                                                     title=title),
+                                                     validator=max_length(200))
+                    return
+                if mode == "description":
+                    # ask for description. if description exists show current and instruct new description overwrites.
+                    description = await Questions.ask_text(self.bot,
+                                                           channel,
+                                                           user,
+                                                           Lang.get_string("art/question_description",
+                                                                           description=description),
+                                                           validator=max_length(1024))
+                    return
+                if mode == "submit":
+                    print("submit")
+                    # ask for review approval? then submit or ask again
+                    return
+                if mode == "cancel":
+                    print("cancel")
+                    # ask for cancel confirm
+                    await abort()
+                    return
+                pass
+
+            active_question = 0
+            await Questions.ask(self.bot, channel, user, Lang.get_string("art/question_ready"),
+                                [
+                                    Questions.Option("YES", "Press this reaction to answer YES and send artwork"),
+                                    Questions.Option("NO", "Press this reaction to answer NO", handler=abort),
+                                ], show_embed=True)
+
+            while asking:
+                # multiple-choice looping:
+                # a. artwork 0/3 attachments w counter
+                # b. title
+                # c. description
+                # d. complete/send
+                # e. discard/cancel
+
+                # :frame_photo: - Artwork 0/3
+                # :paintbrush: - Title
+                # :scroll: - Description
+                # :love_letter: - Done/Submit
+                # :no_entry_sign: - Cancel/Discard
+
+                await Questions.ask(self.bot, channel, user, Lang.get_string("art/question_mode"),
+                                    [
+                                        Questions.Option("ART", f"Artwork {art_count}/{art_max}", lambda: question_mode(self.art)),
+                                        Questions.Option("BRUSH", "Title", lambda: question_mode(self.title)),
+                                        Questions.Option("SCROLL", "Description", lambda: question_mode(self.description)),
+                                        Questions.Option("LOVE_LETTER", "Done/Submit", lambda: question_mode(self.submit)),
+                                        Questions.Option("NO", "Cancel/Discard", lambda: question_mode(self.cancel)),
+                                    ], show_embed=True)
+
+                await prompt_user()
+
+                # assemble the final post and show to user for review
+                report = Embed(timestamp=datetime.utcfromtimestamp(time.time()))
+
+                # get author from guild, derive by-line from author nick/name
+                author = trigger_channel.guild.get_member(user.id)
+                author = author.nick or author.name
+                report.set_author(name=f"Artwork by {author}", icon_url=user.avatar_url_as(size=32))
+                if title:
+                    report.add_field(name=Lang.get_string("art/title"), value=title, inline=False)
+                if description:
+                    report.add_field(name=Lang.get_string("art/description"), value=description, inline=False)
+
+                # TODO: use file instead and post image directly instead of link
+                if len(attachment_links) == 1:
+                    url = str(attachment_links[0])
+                    report.set_image(url=url)
+
+                await channel.send(content=Lang.get_string("art/art_header", id="##", user=user.mention),
+                                   embed=report)
+                if attachment_links:
+                    i = 0
+                    for url in attachment_links:
+                        i = i+1
+                        # download attachment and put it in a buffer, then send the final images
+                        u = requests.get(url)
+                        content_type = u.headers['content-type']
+                        extension = mimetypes.guess_extension(content_type)
+                        f = io.StringIO()
+                        buffer = io.BytesIO()
+                        # use it as any other file here to write to it
+                        buffer.write(u.content)
+                        buffer.seek(0)  # reset the reader to the beginning
+                        # TODO: add cleaned author name or other unique identifier to filename
+                        await channel.send(file=discord.File(buffer, f"art_file_{i}.{extension}"))
+
+            review_time = 300
+            await asyncio.sleep(1)
+
+            # Question 15 - final review
+            await Questions.ask(self.bot, channel, user,
+                                Lang.get_string("bugs/question_ok", timeout=Questions.timeout_format(review_time)),
+                                [
+                                    Questions.Option("YES", Lang.get_string("art/send_art"), send_art),
+                                    Questions.Option("NO", Lang.get_string("art/cancel_submission"))
+                                ], show_embed=True, timeout=review_time)
+
+        except Forbidden as ex:
+            await trigger_channel.send(
+                Lang.get_string("bugs/dm_unable", user=user.mention),
+                delete_after=30)
+        except asyncio.TimeoutError as ex:
+            if channel is not None:
+                await channel.send(Lang.get_string("bugs/report_timeout"))
+            self.bot.loop.create_task(self.delete_progress(user.id))
+        except CancelledError as ex:
+            pass
+        except Exception as ex:
+            self.bot.loop.create_task(self.delete_progress(user.id))
+            await Utils.handle_exception("bug reporting", self.bot, ex)
+            raise ex
+        else:
+            self.bot.loop.create_task(self.delete_progress(user.id))
+
     async def load_channels(self, guild):
+        """
+        set up collectors for all recorded art channels
+        :param guild: guild object
+        :return:
+        """
         my_channels = dict()
         my_collection_channels = set()
         for row in ArtChannel.select().where(ArtChannel.serverid == guild.id):
@@ -172,7 +457,7 @@ class ArtCollector(BaseCog):
     async def on_message(self, message: discord.Message):
         """
         Message listener. watch art channels for attachments. share attachments to collection channel
-        optionally use tags for sort posts into tag collection channels.
+        optionally use tags to sort posts into tag collection channels.
         :param message:
         :return:
         """
@@ -222,6 +507,7 @@ class ArtCollector(BaseCog):
         else:
             await do_collect(message, self.no_tag)
 
+    @commands.guild_only()
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):
         """
@@ -234,20 +520,25 @@ class ArtCollector(BaseCog):
             channel = self.bot.get_channel(event.channel_id)
             message = await channel.fetch_message(event.message_id)
 
-            if event.channel_id not in self.collection_channels[message.channel.guild.id]:
-                return
+            # listen for reactions to bot dialog
+            if self.get_ro_art_info_message_id(channel.guild.id) == event.message_id:
+                user = self.bot.get_user(event.user_id)
+                if user.bot:
+                    return
+                await message.remove_reaction(event.emoji, user)
+                await self.send_art(user, channel)
+            elif event.channel_id in self.collection_channels[message.channel.guild.id]:
+                member = message.channel.guild.get_member(event.user_id)
+                user_is_bot = event.user_id == self.bot.user.id
+                has_permission = member.guild_permissions.mute_members  # TODO: change to role-based?
+                if user_is_bot or not has_permission:
+                    return
 
-            member = message.channel.guild.get_member(event.user_id)
-            user_is_bot = event.user_id == self.bot.user.id
-            has_permission = member.guild_permissions.mute_members  # TODO: change to role-based?
-            if user_is_bot or not has_permission:
-                return
-
-            await message.clear_reactions()  # any reaction will remove the bot reacts
-            if str(event.emoji) == str(Emoji.get_emoji("NO")):
-                # delete message
-                await message.delete()
-                return
+                await message.clear_reactions()  # any reaction will remove the bot reacts
+                if str(event.emoji) == str(Emoji.get_emoji("NO")):
+                    # delete message
+                    await message.delete()
+                    return
 
         except (NotFound, KeyError, AttributeError) as e:
             # couldn't find channel, message, member, or action
