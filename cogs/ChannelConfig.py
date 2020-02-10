@@ -70,7 +70,10 @@ class ChannelConfig(BaseCog):
     @commands.guild_only()
     async def set(self, ctx, channel_name: str = "", channel_id: int = 0):
         if not validate_channel_name(channel_name) or channel_id == 0:
-            await ctx.send(f"`channel set` requires both config channel [{Utils.welcome_channel}|{Utils.rules_channel}|{Utils.log_channel}] and channel_id")
+            await ctx.send(f"""
+`channel set` requires both config channel name and channel_id.
+`[{Utils.ro_art_channel}|{Utils.welcome_channel}|{Utils.rules_channel}|{Utils.log_channel}]`
+""")
             return
         channel_added = await self.set_channel(ctx, channel_name, channel_id)
         if channel_added:
