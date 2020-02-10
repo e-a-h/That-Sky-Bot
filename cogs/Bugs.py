@@ -333,8 +333,8 @@ class Bugs(BaseCog):
                 # question 3: hardware info
                 deviceinfo = await Questions.ask_text(self.bot, channel, user,
                                                       Lang.get_string("bugs/question_device_info",
-                                                                      platform=platform, max=100),
-                                                      validator=max_length(100))
+                                                                      platform=platform, max=200),
+                                                      validator=max_length(200))
                 update_metrics()
 
                 # question 4: stable or beta?
@@ -361,13 +361,13 @@ class Bugs(BaseCog):
                 update_metrics()
 
                 # question 7: Title
-                title = await Questions.ask_text(self.bot, channel, user, Lang.get_string("bugs/question_title", max=100),
-                                                 validator=max_length(100))
+                title = await Questions.ask_text(self.bot, channel, user, Lang.get_string("bugs/question_title", max=300),
+                                                 validator=max_length(300))
                 update_metrics()
 
                 # question 8: "actual" - defect behavior
-                actual = await Questions.ask_text(self.bot, channel, user, Lang.get_string("bugs/question_actual", max=400),
-                                                  validator=max_length(400))
+                actual = await Questions.ask_text(self.bot, channel, user, Lang.get_string("bugs/question_actual", max=800),
+                                                  validator=max_length(800))
                 update_metrics()
 
                 # question 9: steps to reproduce
@@ -377,8 +377,8 @@ class Bugs(BaseCog):
 
                 # question 10: expected behavior
                 expected = await Questions.ask_text(self.bot, channel, user,
-                                                    Lang.get_string("bugs/question_expected", max=200),
-                                                    validator=max_length(200))
+                                                    Lang.get_string("bugs/question_expected", max=800),
+                                                    validator=max_length(800))
                 update_metrics()
 
                 # question 11: attachments y/n

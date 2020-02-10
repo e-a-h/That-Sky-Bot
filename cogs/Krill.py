@@ -1,7 +1,7 @@
 import asyncio
 import re
 from datetime import datetime
-from random import randint
+from random import randint, random, choice
 
 import discord
 from discord import utils
@@ -226,6 +226,45 @@ class Krill(BaseCog):
         star = utils.get(self.bot.emojis, id=624094243329146900)
         blank = utils.get(self.bot.emojis, id=647913138758483977)
         ded = u"\U0001F916" if victim_name == "thatskybot" else utils.get(self.bot.emojis, id=641445732246880282)
+
+        # alternate bodies
+        # KrillRiderHead       664191325104504880>
+        # KrillRideraTail      664191324869754881>
+        # KrillRiderBodyOreo   664262338874048512>
+        # KrillRiderBodya9     664239237696323596>
+        # KrillRiderBodya8     664237187184853012>
+        # KrillRiderBodya7     664191324911697960>
+        # KrillRiderBodya6     664242877492101159>
+        # KrillRiderBodya5     664235527607812107>
+        # KrillRiderBodya4     664234216145289216>
+        # KrillRiderBodya3     664246386727845939>
+        # KrillRiderBodya2     664230982169264135>
+        # KrillRiderBodya11    664259346234081283>
+        # KrillRiderBodya10    664256923784314898>
+        # KrillRiderBodya1     664230982378979347>
+        # KrillRiderBodya      664251608212832256>
+
+        chance = 0.25
+        roll = random()
+        if roll < chance:
+            body_id = choice([
+                664262338874048512,
+                664239237696323596,
+                664237187184853012,
+                664191324911697960,
+                664242877492101159,
+                664235527607812107,
+                664234216145289216,
+                664246386727845939,
+                664230982169264135,
+                664259346234081283,
+                664256923784314898,
+                664230982378979347,
+                664251608212832256
+            ])
+            head = utils.get(self.bot.emojis, id=664191325104504880)
+            tail = utils.get(self.bot.emojis, id=664191324869754881)
+            body = utils.get(self.bot.emojis, id=body_id)
 
         time_step = 1
         step = randint(1, 2)

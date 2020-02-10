@@ -409,7 +409,7 @@ class Welcomer(BaseCog):
     @commands.guild_only()
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.author.bot or message.author.guild_permissions.mute_members:
+        if message.author.bot or not hasattr(message.author, "guild") or message.author.guild_permissions.mute_members:
             return
 
         member_role = message.guild.get_role(Configuration.get_var("member_role"))

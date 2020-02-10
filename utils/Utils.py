@@ -29,10 +29,11 @@ NUMBER_MATCHER = re.compile(r"\d+")
 welcome_channel = "welcome_channel"
 rules_channel = "rules_channel"
 log_channel = "log_channel"
+ro_art_channel = "ro_art_channel"
 
 
 def validate_channel_name(channel_name):
-    return channel_name in (welcome_channel, rules_channel, log_channel)
+    return channel_name in (welcome_channel, rules_channel, log_channel, ro_art_channel)
 
 
 def get_chanconf_description(bot, guild_id):
