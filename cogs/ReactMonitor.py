@@ -9,7 +9,7 @@ from discord.ext import commands
 from cogs.BaseCog import BaseCog
 from utils import Utils, Configuration, Lang
 
-min_react_lifespan = 3
+
 muted_roles = {
     621746949485232154: 624294429838147634,
     575762611111592007: 600490107472052244
@@ -26,6 +26,8 @@ class ReactMonitor(BaseCog):
         self.react_removers = dict()
         self.ban_lists = dict()
         self.watch_lists = dict()
+        # TODO: make this persistent key guild-specific
+        self.min_react_lifespan = Configuration.get_persistent_var("min_react_lifespan", 2)
         super().__init__(bot)
         bot.loop.create_task(self.startup_cleanup())
 
@@ -59,7 +61,7 @@ class ReactMonitor(BaseCog):
         is_owner = await self.bot.is_owner(self.bot.get_user(event.user_id))
         is_admin = event.user_id in Configuration.get_var("ADMINS", [])
         has_admin = event.user_id in Configuration.get_var("admin_roles", [])
-        if not server_is_listening or is_bot or is_owner or is_admin or has_admin:
+        if (event.event_type == "REACTION_REMOVE" and not server_is_listening) or is_bot or is_owner or is_admin or has_admin:
             return True
         return False
 
@@ -77,13 +79,16 @@ class ReactMonitor(BaseCog):
             color=0x663399,
             title=Lang.get_string("react_monitor/info_title", server_name=ctx.guild.name))
 
-        embed.add_field(name="Monitor React Removal", value="Yes" if watch.watchremoves else "No", inline=False)
+        embed.add_field(name="Monitor React Removal", value="Yes" if watch.watchremoves else "No")
 
-        if ctx.guild.id in self.ban_lists and self.ban_lists[ctx.guild.id]:
+        if watch.watchremoves:
+            embed.add_field(name="Reaction minimum lifespan", value=str(self.min_react_lifespan))
+
+        if ctx.guild.id in self.ban_lists and self.ban_lists[ctx.guild.id] and ' '.join(self.ban_lists[ctx.guild.id]):
             # banned emoji list is not empty set
             embed.add_field(name="Banned Emojis", value=' '.join(self.ban_lists[ctx.guild.id]), inline=False)
 
-        if ctx.guild.id in self.watch_lists and self.watch_lists[ctx.guild.id]:
+        if ctx.guild.id in self.watch_lists and self.watch_lists[ctx.guild.id] and ' '.join(self.watch_lists[ctx.guild.id]):
             # watched emoji list is not empty set
             embed.add_field(name="Watched Emojis", value=' '.join(self.watch_lists[ctx.guild.id]), inline=False)
 
@@ -102,6 +107,15 @@ class ReactMonitor(BaseCog):
     async def off(self, ctx: commands.Context):
         self.deactivate_react_watch(ctx.guild.id)
         await ctx.send("OK, I'll stop watching for reaction spams")
+
+    @react_monitor.command(aliases=["time", "reacttime"])
+    @commands.guild_only()
+    @commands.check(has_control)
+    async def react_time(self, ctx: commands.Context, react_time: float):
+        self.min_react_lifespan = react_time
+        # TODO: make this persistent key guild-specific
+        Configuration.set_persistent_var("min_react_lifespan", react_time)
+        await ctx.send(f"Reactions that are removed before {react_time} seconds have passed will be flagged")
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
@@ -160,12 +174,12 @@ class ReactMonitor(BaseCog):
         if self.recent_reactions[event.guild_id]:
             my_reacts = copy.deepcopy(self.recent_reactions[event.guild_id])
             min_key = min(my_reacts.keys())
-            t = float(min_key) + min_react_lifespan
+            t = float(min_key) + self.min_react_lifespan
             while t < now:
                 my_reacts.pop(min_key, None)
                 if my_reacts:
                     min_key = min(my_reacts.keys())
-                    t = float(min_key) + min_react_lifespan
+                    t = float(min_key) + self.min_react_lifespan
                 else:
                     break
             self.recent_reactions[event.guild_id] = copy.deepcopy(my_reacts)
