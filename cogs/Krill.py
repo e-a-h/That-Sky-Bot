@@ -85,14 +85,15 @@ class Krill(BaseCog):
 
     @command()
     @commands.check(can_krill)
-    @commands.cooldown(1, 120, BucketType.member)
+    @commands.cooldown(1, 600, BucketType.member)
     @commands.guild_only()
     async def krill(self, ctx, *, arg=''):
         if ctx.message.author.id in self.monsters.keys():
             now = datetime.now().timestamp()
             hour = 60 * 60
-            if self.monsters[ctx.author.id] + hour > now:
-                remain = (self.monsters[ctx.author.id] + hour) - now
+            penalty = 6 * hour
+            if self.monsters[ctx.author.id] + penalty > now:
+                remain = (self.monsters[ctx.author.id] + penalty) - now
                 await ctx.send(f"{ctx.author.mention} is a horrible person and can spend the next {Utils.to_pretty_time(remain)} thinking about what they've done")
                 return
 
@@ -100,7 +101,8 @@ class Krill(BaseCog):
         r = r'[rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳᖇɹ𝕣🅡ⓡⓇ🇷厂尺]'
         e = r'[eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉEǝ€𝕖🅔ⓔⒺểé🇪ề已ệêễẹẽèẻ巨ㅌе]'
         sp = r'[\s\x00\u200b\u200c\u200d\.\[\](){}\\-_=]'
-        oreo_pattern = re.compile(f"{o}+{sp}*{r}+{sp}*{e}+{sp}*{o}+", re.IGNORECASE)
+        n = '{0,10}'
+        oreo_pattern = re.compile(f"{o}+{sp}{n}{r}+{sp}{n}{e}+{sp}{n}{o}+", re.IGNORECASE)
         monster = False
         if oreo_pattern.search(arg):
             self.bot.get_command("krill").reset_cooldown(ctx)

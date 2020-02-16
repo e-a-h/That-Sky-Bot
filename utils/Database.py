@@ -1,5 +1,5 @@
 from peewee import MySQLDatabase, Model, PrimaryKeyField, BigIntegerField, CharField, ForeignKeyField, AutoField, \
-    TimestampField, SmallIntegerField
+    TimestampField, SmallIntegerField, BooleanField
 
 from utils import Configuration
 
@@ -102,6 +102,19 @@ class CountWord(Model):
         database = connection
 
 
+class ReactWatch(Model):
+    id = PrimaryKeyField()
+    serverid = BigIntegerField()
+    logtochannel = BigIntegerField(default=0)
+    watchlist = CharField(max_length=2000, collation="utf8mb4_general_ci", default="")
+    banlist = CharField(max_length=2000, collation="utf8mb4_general_ci", default="")
+    mutebanned = BooleanField(default=True)
+    watchremoves = BooleanField(default=False)
+
+    class Meta:
+        database = connection
+
+
 class ArtChannel(Model):
     id = PrimaryKeyField()
     serverid = BigIntegerField()
@@ -126,5 +139,6 @@ def init():
         CustomCommand,
         KrillChannel,
         Repros,
+        ReactWatch
     ])
     connection.close()

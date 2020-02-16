@@ -242,6 +242,8 @@ krill:
   channel_removed: Channel {channel} has been fumigated. No more krill allowed.
   channel_not_found: There are no krill in {channel}
   channel_found: The channel {channel} is already infested by krill
+react_monitor:
+  info_title: Emoji reaction monitor settings
 art:
   abort_submit: Ok I won't take your art from you now... maybe you can give me some later.
   art_header: |
