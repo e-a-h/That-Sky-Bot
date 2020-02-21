@@ -14,13 +14,29 @@ class Welcomer(BaseCog):
     def __init__(self, bot):
         super().__init__(bot)
         self.welcome_talkers = dict()
+        self.join_cooldown = dict()
         bot.loop.create_task(self.startup_cleanup())
 
     async def startup_cleanup(self):
         for guild in self.bot.guilds:
             my_friends = set()
             self.welcome_talkers[guild.id] = dict()
+            self.join_cooldown[guild.id] = dict()
 
+    async def check_cooldown(self, user):
+        now = datetime.now()
+        user_age = now - user.created_at
+        await asyncio.sleep(600)
+        for guild in self.bot.guilds:
+            mute_role = guild.get_role(Configuration.get_var("muted_role"))
+            for user.id, join_time in self.join_cooldown[guild.id].items():
+                elapsed = now - join_time
+                cooldown_time = 600  # 10 minutes
+                if user_age.seconds < 60*60*24:  # 1 day
+                    cooldown_time = 1200  # 20 minutes for new users
+                if elapsed > cooldown_time:
+                    user.remove_roles(mute_role)
+                    
     async def cog_check(self, ctx):
         if not hasattr(ctx.author, 'guild'):
             return False
@@ -29,10 +45,12 @@ class Welcomer(BaseCog):
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
         self.welcome_talkers[guild.id] = dict()
+        self.join_cooldown[guild.id] = dict()
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
         del self.welcome_talkers[guild.id]
+        del self.join_cooldown[guild.id]
 
     def fetch_recent(self, time_delta: int = 1):
         """
@@ -263,8 +281,10 @@ class Welcomer(BaseCog):
         if member.guild.id != guild.id:
             return
 
-        nonmember_role = guild.get_role(Configuration.get_var("nonmember_role"))
-        await member.add_roles(nonmember_role)
+        mute_role = guild.get_role(Configuration.get_var("muted_role"))
+        # Auto-mute new members, pending cooldown
+        await member.add_roles(mute_role)
+        self.join_cooldown[guild.id][member.id] = datetime.now()
         await self.send_welcome(member)
 
     @commands.Cog.listener()

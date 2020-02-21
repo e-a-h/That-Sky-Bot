@@ -160,7 +160,7 @@ eden:
   tz_mention: I'm not falling for that again
 nope: Something isn't right...
 welcome:
-  welcome_msg: Welcome, {user}! Please read through all the items posted in our {rules_channel} channel. When you're done, click the {accept_emoji} emote at the end of the rules to join the community and gain access to the other channels.
+  welcome_msg: Welcome, {user}! Please read through all the items posted in our {rules_channel} channel. When you're done, click the {accept_emoji} emote at the end of the rules to join the community and gain access to the other channels. New members will need to wait a few minutes before chat is allowed; until then, look around in the cahnnels and get to know the server!
   welcome_help: Hi {author}! If you'd like to access the rest of the channels and chat with other members, please read the {rules_channel} and follow the directions there. If you're having trouble with reactions, make sure they're enabled in **user settings > text and images > show emoji reactions on messages**
   darkness: I see {unverified} lost soul lurking near, and {too_old} from before time.
   darkness_plural: I see {unverified} lost souls lurking near, and {too_old} from before time.
