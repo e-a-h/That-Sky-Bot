@@ -24,29 +24,33 @@ class Welcomer(BaseCog):
             self.welcome_talkers[guild.id] = dict()
             if str(guild.id) not in self.join_cooldown:
                 self.join_cooldown[str(guild.id)] = dict()
+        self.bot.loop.create_task(self.check_cooldown())
 
     async def check_cooldown(self):
-        now = datetime.now().timestamp()
-        cooldown_done = dict()
-        for guild in self.bot.guilds:
-            if not self.join_cooldown or not self.join_cooldown[str(guild.id)]:
-                continue
-            mute_role = guild.get_role(Configuration.get_var("muted_role"))
-            for user_id, join_time in self.join_cooldown[str(guild.id)].items():
-                member = guild.get_member(int(user_id))
-                user_age = now - member.created_at.timestamp()
-                elapsed = int(now - join_time)
-                cooldown_time = 60  # 10 minutes
-                # print(f"time remaining for {member.id}: {cooldown_time-elapsed}")
-                if user_age < 60*60*24:  # 1 day
-                    cooldown_time = 120  # 20 minutes for new users
-                if elapsed > cooldown_time:
-                    await member.remove_roles(mute_role)
-                    cooldown_done[guild.id] = member.id
-        if cooldown_done:
-            for guild_id, member_id in cooldown_done.items():
-                del self.join_cooldown[str(guild_id)][str(member_id)]
-            Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
+        while True:
+            # Run periodically to check for members to unmute
+            await asyncio.sleep(10)
+            now = datetime.now().timestamp()
+            cooldown_done = dict()
+            for guild in self.bot.guilds:
+                if not self.join_cooldown or not self.join_cooldown[str(guild.id)]:
+                    continue
+                mute_role = guild.get_role(Configuration.get_var("muted_role"))
+                for user_id, join_time in self.join_cooldown[str(guild.id)].items():
+                    member = guild.get_member(int(user_id))
+                    user_age = now - member.created_at.timestamp()
+                    elapsed = int(now - join_time)
+                    cooldown_time = 600  # 10 minutes
+                    # print(f"time remaining for {member.id}: {cooldown_time-elapsed}")
+                    if user_age < 60*60*24:  # 1 day
+                        cooldown_time = 1200  # 20 minutes for new users
+                    if elapsed > cooldown_time:
+                        await member.remove_roles(mute_role)
+                        cooldown_done[guild.id] = member.id
+            if cooldown_done:
+                for guild_id, member_id in cooldown_done.items():
+                    del self.join_cooldown[str(guild_id)][str(member_id)]
+                Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
 
     async def cog_check(self, ctx):
         if not hasattr(ctx.author, 'guild'):
@@ -292,13 +296,21 @@ class Welcomer(BaseCog):
         if member.guild.id != guild.id:
             return
 
-        mute_role = guild.get_role(Configuration.get_var("muted_role"))
-        if mute_role:
-            # Auto-mute new members, pending cooldown
-            await member.add_roles(mute_role)
-        self.join_cooldown[str(guild.id)][str(member.id)] = datetime.now().timestamp()
-        Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
+        # send the welcome message
         await self.send_welcome(member)
+
+        # give other bots a chance to perform other actions first (like mute)
+        await asyncio.sleep(5)
+        mute_role = guild.get_role(Configuration.get_var("muted_role"))
+
+        # only add mute if it hasn't already been added. This allows other mod-bots (gearbot) to mute re-joined members
+        # and not interfere by allowing skybot to automatically un-muting later.
+        if mute_role not in member.roles:
+            self.join_cooldown[str(guild.id)][str(member.id)] = datetime.now().timestamp()
+            Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
+            if mute_role:
+                # Auto-mute new members, pending cooldown
+                await member.add_roles(mute_role)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):
@@ -317,7 +329,6 @@ class Welcomer(BaseCog):
     @commands.guild_only()
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        await self.check_cooldown()
         if message.author.bot or message.author.guild_permissions.mute_members:
             return
 
