@@ -37,16 +37,21 @@ class Welcomer(BaseCog):
                     continue
                 mute_role = guild.get_role(Configuration.get_var("muted_role"))
                 for user_id, join_time in self.join_cooldown[str(guild.id)].items():
-                    member = guild.get_member(int(user_id))
-                    user_age = now - member.created_at.timestamp()
-                    elapsed = int(now - join_time)
-                    cooldown_time = 600  # 10 minutes
-                    # print(f"time remaining for {member.id}: {cooldown_time-elapsed}")
-                    if user_age < 60*60*24:  # 1 day
-                        cooldown_time = 1200  # 20 minutes for new users
-                    if elapsed > cooldown_time:
-                        await member.remove_roles(mute_role)
-                        cooldown_done[guild.id] = member.id
+                    try:
+                        member = guild.get_member(int(user_id))
+                        user_age = now - member.created_at.timestamp()
+                        elapsed = int(now - join_time)
+                        cooldown_time = 600  # 10 minutes
+                        # print(f"time remaining for {member.id}: {cooldown_time-elapsed}")
+                        if user_age < 60*60*24:  # 1 day
+                            cooldown_time = 1200  # 20 minutes for new users
+                        if elapsed > cooldown_time:
+                            await member.remove_roles(mute_role)
+                            cooldown_done[guild.id] = member.id
+                    except Exception as e:
+                        print(f"ignoring {user_id}")
+                        cooldown_done[guild.id] = user_id
+                        pass
             if cooldown_done:
                 for guild_id, member_id in cooldown_done.items():
                     del self.join_cooldown[str(guild_id)][str(member_id)]
@@ -292,6 +297,9 @@ class Welcomer(BaseCog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
+        # TODO: check for rules reaction here for the case of returning member?
+        #  remove it, *or* automatically reinstate member role
+
         guild = self.bot.get_guild(Configuration.get_var("guild_id"))
         if member.guild.id != guild.id:
             return
