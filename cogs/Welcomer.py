@@ -33,6 +33,7 @@ class Welcomer(BaseCog):
             now = datetime.now().timestamp()
             cooldown_done = dict()
             for guild in self.bot.guilds:
+                cooldown_done[guild.id] = set()
                 if not self.join_cooldown or not self.join_cooldown[str(guild.id)]:
                     continue
                 mute_role = guild.get_role(Configuration.get_var("muted_role"))
@@ -47,14 +48,14 @@ class Welcomer(BaseCog):
                             cooldown_time = 1200  # 20 minutes for new users
                         if elapsed > cooldown_time:
                             await member.remove_roles(mute_role)
-                            cooldown_done[guild.id] = member.id
+                            cooldown_done[guild.id].add(user_id)
                     except Exception as e:
-                        print(f"ignoring {user_id}")
-                        cooldown_done[guild.id] = user_id
-                        pass
+                        cooldown_done[guild.id].add(user_id)
+                        continue
             if cooldown_done:
-                for guild_id, member_id in cooldown_done.items():
-                    del self.join_cooldown[str(guild_id)][str(member_id)]
+                for guild_id, member_set in cooldown_done.items():
+                    for member_id in member_set:
+                        del self.join_cooldown[str(guild_id)][str(member_id)]
                 Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
 
     async def cog_check(self, ctx):
