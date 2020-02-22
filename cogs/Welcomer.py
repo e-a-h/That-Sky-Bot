@@ -18,25 +18,36 @@ class Welcomer(BaseCog):
         bot.loop.create_task(self.startup_cleanup())
 
     async def startup_cleanup(self):
+        self.join_cooldown = Configuration.get_persistent_var("join_cooldown", dict())
         for guild in self.bot.guilds:
             my_friends = set()
             self.welcome_talkers[guild.id] = dict()
-            self.join_cooldown[guild.id] = dict()
+            if str(guild.id) not in self.join_cooldown:
+                self.join_cooldown[str(guild.id)] = dict()
 
-    async def check_cooldown(self, user):
-        now = datetime.now()
-        user_age = now - user.created_at
-        await asyncio.sleep(600)
+    async def check_cooldown(self):
+        now = datetime.now().timestamp()
+        cooldown_done = dict()
         for guild in self.bot.guilds:
+            if not self.join_cooldown or not self.join_cooldown[str(guild.id)]:
+                continue
             mute_role = guild.get_role(Configuration.get_var("muted_role"))
-            for user.id, join_time in self.join_cooldown[guild.id].items():
-                elapsed = now - join_time
-                cooldown_time = 600  # 10 minutes
-                if user_age.seconds < 60*60*24:  # 1 day
-                    cooldown_time = 1200  # 20 minutes for new users
+            for user_id, join_time in self.join_cooldown[str(guild.id)].items():
+                member = guild.get_member(int(user_id))
+                user_age = now - member.created_at.timestamp()
+                elapsed = int(now - join_time)
+                cooldown_time = 60  # 10 minutes
+                # print(f"time remaining for {member.id}: {cooldown_time-elapsed}")
+                if user_age < 60*60*24:  # 1 day
+                    cooldown_time = 120  # 20 minutes for new users
                 if elapsed > cooldown_time:
-                    user.remove_roles(mute_role)
-                    
+                    await member.remove_roles(mute_role)
+                    cooldown_done[guild.id] = member.id
+        if cooldown_done:
+            for guild_id, member_id in cooldown_done.items():
+                del self.join_cooldown[str(guild_id)][str(member_id)]
+            Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
+
     async def cog_check(self, ctx):
         if not hasattr(ctx.author, 'guild'):
             return False
@@ -50,7 +61,7 @@ class Welcomer(BaseCog):
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
         del self.welcome_talkers[guild.id]
-        del self.join_cooldown[guild.id]
+        del self.join_cooldown[str(guild.id)]
 
     def fetch_recent(self, time_delta: int = 1):
         """
@@ -282,9 +293,11 @@ class Welcomer(BaseCog):
             return
 
         mute_role = guild.get_role(Configuration.get_var("muted_role"))
-        # Auto-mute new members, pending cooldown
-        await member.add_roles(mute_role)
-        self.join_cooldown[guild.id][member.id] = datetime.now()
+        if mute_role:
+            # Auto-mute new members, pending cooldown
+            await member.add_roles(mute_role)
+        self.join_cooldown[str(guild.id)][str(member.id)] = datetime.now().timestamp()
+        Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
         await self.send_welcome(member)
 
     @commands.Cog.listener()
@@ -304,6 +317,7 @@ class Welcomer(BaseCog):
     @commands.guild_only()
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        await self.check_cooldown()
         if message.author.bot or message.author.guild_permissions.mute_members:
             return
 

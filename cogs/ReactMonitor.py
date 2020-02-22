@@ -152,11 +152,12 @@ class ReactMonitor(BaseCog):
         rules_channel = self.bot.get_config_channel(guild.id, Utils.rules_channel)
 
         if channel != rules_channel and muted_role in member.roles:
-            await message.clear_reaction(emoji_used)
+            await message.remove_reaction(emoji_used, member)
             if log_channel:
                 await log_channel.send(f"Muted member {member.nick or member.name}#{member.discriminator} "
                                        f"({member.id}) tried to react with {emoji_used} in #{channel.name}.\n"
                                        f"{message.jump_url}")
+            return
 
         if emoji_used in self.ban_lists[event.guild_id]:
             await message.clear_reaction(emoji_used)
