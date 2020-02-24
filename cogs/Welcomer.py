@@ -1,4 +1,5 @@
 import asyncio
+import re
 from datetime import date, datetime
 
 import discord
@@ -15,12 +16,17 @@ class Welcomer(BaseCog):
         super().__init__(bot)
         self.welcome_talkers = dict()
         self.join_cooldown = dict()
+        self.mute_new_members = True
+        self.mute_minutes_old_account = 10
+        self.mute_minutes_new_account = 20
         bot.loop.create_task(self.startup_cleanup())
 
     async def startup_cleanup(self):
-        self.join_cooldown = Configuration.get_persistent_var("join_cooldown", dict())
         for guild in self.bot.guilds:
-            my_friends = set()
+            self.mute_new_members = Configuration.get_persistent_var(f"{guild.id}_mute_new_members", True)
+            self.join_cooldown = Configuration.get_persistent_var("join_cooldown", dict())
+            self.mute_minutes_old_account = Configuration.get_persistent_var(f"{guild.id}_mute_minutes_old_account", 10)
+            self.mute_minutes_new_account = Configuration.get_persistent_var(f"{guild.id}_mute_minutes_new_account", 20)
             self.welcome_talkers[guild.id] = dict()
             if str(guild.id) not in self.join_cooldown:
                 self.join_cooldown[str(guild.id)] = dict()
@@ -42,14 +48,16 @@ class Welcomer(BaseCog):
                         member = guild.get_member(int(user_id))
                         user_age = now - member.created_at.timestamp()
                         elapsed = int(now - join_time)
-                        cooldown_time = 600  # 10 minutes
+                        cooldown_time = 60 * self.mute_minutes_old_account  # 10 minutes
                         # print(f"time remaining for {member.id}: {cooldown_time-elapsed}")
                         if user_age < 60*60*24:  # 1 day
-                            cooldown_time = 1200  # 20 minutes for new users
+                            cooldown_time = 60 * self.mute_minutes_new_account  # 20 minutes for new users
                         if elapsed > cooldown_time:
-                            await member.remove_roles(mute_role)
+                            if mute_role in member.roles:
+                                await member.remove_roles(mute_role)
                             cooldown_done[guild.id].add(user_id)
                     except Exception as e:
+                        # error retrieving member. they probably left while muted.
                         cooldown_done[guild.id].add(user_id)
                         continue
             if cooldown_done:
@@ -170,6 +178,10 @@ class Welcomer(BaseCog):
                                       user=member.mention,
                                       rules_channel=rules_channel.mention,
                                       accept_emoji=Emoji.get_chat_emoji('CANDLE'))
+                if self.mute_new_members:
+                    # add mute notification if mute for new members is on
+                    mute_txt = Lang.get_string("welcome/welcome_mute_msg")
+                    txt = f"{txt}\n{mute_txt}"
                 await welcome_channel.send(txt)
                 return True
         except Exception as ex:
@@ -182,6 +194,27 @@ class Welcomer(BaseCog):
     @commands.guild_only()
     async def welcome(self, ctx):
         await ctx.send(Lang.get_string('welcome/help'))
+
+    @welcome.command(aliases=['configmute', 'muteconfig', 'configure_mute', 'mute_configure', 'mute'])
+    @commands.guild_only()
+    async def mute_config(self, ctx, active: bool = None, mute_minutes_old: int = 10, mute_minutes_new: int = 20):
+        if active is not None:
+            self.mute_new_members = active
+            self.mute_minutes_old_account = mute_minutes_old
+            self.mute_minutes_new_account = mute_minutes_new
+            Configuration.set_persistent_var(f"{ctx.guild.id}_mute_new_members", active)
+            Configuration.set_persistent_var(f"{ctx.guild.id}_mute_minutes_old_account", mute_minutes_old)
+            Configuration.set_persistent_var(f"{ctx.guild.id}_mute_minutes_new_account", mute_minutes_new)
+
+        status = discord.Embed(
+            timestamp=ctx.message.created_at,
+            color=0x663399,
+            title=Lang.get_string("welcome/mute_settings_title", server_name=ctx.guild.name))
+
+        status.add_field(name="Mute new members", value=f"**{'ON' if self.mute_new_members else 'OFF'}**", inline=False)
+        status.add_field(name="Mute duration", value=f"{self.mute_minutes_old_account} minutes", inline=False)
+        status.add_field(name="New account mute duration\n(< 1 day old) ", value=f"{self.mute_minutes_new_account} minutes", inline=False)
+        await ctx.send(embed=status)
 
     @welcome.command(aliases=["count", "cr"])
     @commands.guild_only()
@@ -222,8 +255,6 @@ class Welcomer(BaseCog):
         guild = self.bot.get_guild(Configuration.get_var("guild_id"))
         try:
             nonmember_role = guild.get_role(Configuration.get_var("nonmember_role"))
-            txt = Lang.get_string("welcome/welcome_msg")
-
             welcome_channel = self.bot.get_config_channel(guild.id, Utils.welcome_channel)
             rules_channel = self.bot.get_config_channel(guild.id, Utils.rules_channel)
 
@@ -301,25 +332,65 @@ class Welcomer(BaseCog):
         # TODO: check for rules reaction here for the case of returning member?
         #  remove it, *or* automatically reinstate member role
 
+        # Only send welcomes for configured guild i.e. sky official
+        # TODO: retool to allow any guild to welcome members?
         guild = self.bot.get_guild(Configuration.get_var("guild_id"))
         if member.guild.id != guild.id:
             return
 
+        # add the nonmember role
+        nonmember_role = guild.get_role(Configuration.get_var("nonmember_role"))
+        await member.add_roles(nonmember_role)
+
         # send the welcome message
         await self.send_welcome(member)
+        self.bot.loop.create_task(self.mute_new_member(member))
+
+    async def mute_new_member(self, member):
+        # is this feature turned on?
+        if not self.mute_new_members:
+            return
 
         # give other bots a chance to perform other actions first (like mute)
-        await asyncio.sleep(5)
-        mute_role = guild.get_role(Configuration.get_var("muted_role"))
+        await asyncio.sleep(3)
+
+        mute_role = member.guild.get_role(Configuration.get_var("muted_role"))
 
         # only add mute if it hasn't already been added. This allows other mod-bots (gearbot) to mute re-joined members
         # and not interfere by allowing skybot to automatically un-muting later.
         if mute_role not in member.roles:
-            self.join_cooldown[str(guild.id)][str(member.id)] = datetime.now().timestamp()
+            self.join_cooldown[str(member.guild.id)][str(member.id)] = datetime.now().timestamp()
             Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
             if mute_role:
                 # Auto-mute new members, pending cooldown
                 await member.add_roles(mute_role)
+
+    @commands.command()
+    async def check_member_name(self, ctx, name: str):
+        matches = []
+        for member in self.bot.get_all_members():
+            if member.guild.id != ctx.guild.id:
+                continue
+            display_name = member.display_name
+            discrim = member.discriminator
+            id = member.id
+            if re.fullmatch(re.escape(name), re.escape(display_name), re.IGNORECASE) is not None:
+                matches.append(member)
+        if matches:
+            embed = discord.Embed(
+                timestamp=ctx.message.created_at,
+                color=0x663399,
+                title=f"Display-names that match \"{name}\" in *{ctx.guild.name}* server")
+            for member in matches:
+                embed.add_field(name=member.display_name, value=f"{member.name}#{member.discriminator} ({member.id})", inline=False)
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send(f"I found no names matching \"{name}\" in this guild.")
+
+        # TODO: check existing member display-names for exact duplicates
+        #  if match, log in log channel
+        #  if configured, DM member informing them about impersonating, ask them to change, refer them to mods
+        pass
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):
