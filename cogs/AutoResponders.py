@@ -1,4 +1,5 @@
 import asyncio
+import collections
 import json
 import random
 import re
@@ -333,7 +334,21 @@ class AutoResponders(BaseCog):
             title=Lang.get_string("autoresponder/raw", server_name=ctx.guild.name))
 
         embed.add_field(name="Raw trigger", value=trigger, inline=False)
-        embed.add_field(name="Raw response", value=row.response, inline=False)
+
+        response_parts = collections.deque(row.response)
+        value = ""
+        i=1
+        header = ""
+        while response_parts:
+            header = "Raw response" if i == 1 else f"Raw response (part {i})"
+            value = value + response_parts.popleft()
+            if len(value) > 1024:
+                embed.add_field(name=header, value=value, inline=False)
+                value = ""
+                i = i+i
+        if value:
+            embed.add_field(name=header, value=value, inline=False)
+
 
         await ctx.send(embed=embed)
 
