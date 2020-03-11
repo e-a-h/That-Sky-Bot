@@ -191,6 +191,7 @@ autoresponder:
   mod_action_warning: Moderator action flag will be ignored if response channel is not set. Use `!autoresponder setchannel`
   you_chose: You chose **{value}**
   list: Auto-responder list for {server_name}.
+  raw: Auto-responder raw trigger/response in {server_name}.
   none_set: No auto-responders have been created yet.
   no_commands: No auto-responders have been created yet.
   trigger_too_long: Auto-responder triggers can only be up to 100 chars long

@@ -326,7 +326,16 @@ class AutoResponders(BaseCog):
         if trigger is None or row is None:
             await nope(ctx)
             return
-        await ctx.send(f"__Raw trigger:__\n```{trigger}```\n__Raw response:__\n```{row.response}```")
+
+        embed = discord.Embed(
+            timestamp=ctx.message.created_at,
+            color=0x663399,
+            title=Lang.get_string("autoresponder/raw", server_name=ctx.guild.name))
+
+        embed.add_field(name="Raw trigger", value=trigger, inline=False)
+        embed.add_field(name="Raw response", value=row.response, inline=False)
+
+        await ctx.send(embed=embed)
 
     @autor.command(aliases=["edit", "set"])
     @commands.guild_only()
