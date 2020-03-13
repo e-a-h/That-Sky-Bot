@@ -161,6 +161,8 @@ eden:
 nope: Something isn't right...
 welcome:
   welcome_msg: Welcome, {user}! Please read through all the items posted in our {rules_channel} channel. When you're done, click the {accept_emoji} emote at the end of the rules to join the community and gain access to the other channels.
+  welcome_mute_msg: |
+    **New members will need to wait a few minutes before chat is allowed;** until then, look around in the channels and get to know the server!
   welcome_help: Hi {author}! If you'd like to access the rest of the channels and chat with other members, please read the {rules_channel} and follow the directions there. If you're having trouble with reactions, make sure they're enabled in **user settings > text and images > show emoji reactions on messages**
   darkness: I see {unverified} lost soul lurking near, and {too_old} from before time.
   darkness_plural: I see {unverified} lost souls lurking near, and {too_old} from before time.
@@ -168,11 +170,14 @@ welcome:
     {count} of my children have fallen into darkness.
   darkened_plural: |
     {count} of my children have fallen into darkness.
+  mute_settings_title: New member mute settings for {server_name}
   help: |
     `welcome` help:
       `!welcome` Show this message
 
     Sub-commands:
+      `!welcome [mute_config|configmute|muteconfig|configure_mute|mute_configure|mute] [on|off|1|0|yes|no] [minutes] [minutes]`
+      ```With no arguments, check the new member mute configuration. With arguments, turn muting on/off, and set duration (in minutes) for regular accounts, and for accounts created within the last 1 day.```
       `!welcome [count|cr|count_recent] [hours=1]`
       ```Count the members who have joined recently (within specified number of hours) but don't have member role.```
       `!welcome [darken|darkness|give_shadows|give_shadow] [hours=1] [add_role=0]`
@@ -186,6 +191,7 @@ autoresponder:
   mod_action_warning: Moderator action flag will be ignored if response channel is not set. Use `!autoresponder setchannel`
   you_chose: You chose **{value}**
   list: Auto-responder list for {server_name}.
+  raw: Auto-responder raw trigger/response in {server_name}.
   none_set: No auto-responders have been created yet.
   no_commands: No auto-responders have been created yet.
   trigger_too_long: Auto-responder triggers can only be up to 100 chars long
@@ -228,15 +234,16 @@ autoresponder:
       `!ar reload` Reload all responses for the current guild from database
 
     Tokens:
-      All auto-responders can include these tokens
-      `{author}` mentions the user who triggered
-      `{channel}` mentions the channel in which response was triggered
-      `{link}` links to the message that triggered response
+      All auto-responders can include these tokens. Enclose tokens in curly braces.
+      `author` mentions the user who triggered
+      `channel` mentions the channel in which response was triggered
+      `link` links to the message that triggered response
   on_or_off: |
     `{subject}` on or off?
   expect_integer: I was hoping for an integer between {min} and {max}
 krill:
   list_channels: Krill channels for {server_name}.
+  list_oreo_filter: Oreo filters for {server_name}.
   no_channels: No channels set for krill command. `!krill` may be used in any channel.
   channel_added: Channel {channel} is now approved for krilling.
   channel_removed: Channel {channel} has been fumigated. No more krill allowed.

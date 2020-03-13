@@ -22,6 +22,24 @@ class Krill(BaseCog):
         self.channels = dict()
         self.monsters = dict()
         self.loaded = False
+        self.oreo_filter = Configuration.get_persistent_var('oreo_filter', dict(
+            o=["o", "0", "Ø", "Ǒ", "ǒ", "Ǫ", "ǫ", "Ǭ", "ǭ", "Ǿ", "ǿ", "Ō", "ō", "Ŏ",
+               "ŏ", "Ő", "ő", "ò", "ó", "ô", "õ", "ö", "Ò", "Ó", "Ô", "Õ", "Ö", "ỗ",
+               "ở", "O", "ø", "⌀", "Ơ", "ơ", "ᵒ", "𝕠", "🅞", "⓪", "ⓞ", "Ⓞ", "ớ",
+               "ồ", "🇴", "ợ", "口", "ỡ", "ờ", "ộ", "ố", "ổ", "ọ", "ỏ", "ロ", "ㅇ",
+               "°", "⭕", "о", "О", "Ο", "𝐨", "𝐎", ],
+            r=["r", "Ȑ", "Ʀ", "ȑ", "Ȓ", "ȓ", "ʀ", "ʁ", "Ŕ", "ŕ", "Ŗ", "ŗ", "Ř", "ř",
+               "ℛ", "ℜ", "ℝ", "℞", "℟", "ʳ", "ᖇ", "ɹ", "𝕣", "🅡", "ⓡ", "Ⓡ", "🇷",
+               "厂", "尺", "𝐫", ],
+            e=["e", "ế", "3", "Ē", "ē", "Ĕ", "ĕ", "Ė", "ė", "ë", "Ę", "ę", "Ě", "ě",
+               "Ȩ", "ȩ", "ɘ", "ə", "ɚ", "ɛ", "⋲", "⋳", "⋴", "⋵", "⋶", "⋷", "⋸",
+               "⋹", "⋺", "⋻", "⋼", "⋽", "⋾", "⋿", "ᵉ", "E", "ǝ", "€", "𝕖", "🅔",
+               "ⓔ", "Ⓔ", "ể", "é", "🇪", "ề", "已", "ệ", "ê", "ễ", "ẹ", "ẽ", "è",
+               "ẻ", "巨", "ㅌ", "е", "ε", "𝐞", ],
+            sp=[r"\s", r"\x00", r"\u200b", r"\u200c", r"\u200d", r"\.", r"\[", r"\]",
+                r"(", r")", r"{", r"}", r"\\", r"\-", r"_", r"="],
+            n='{0,10}'
+        ))
         bot.loop.create_task(self.startup_cleanup())
 
     async def startup_cleanup(self):
@@ -74,6 +92,9 @@ class Krill(BaseCog):
         pass
 
     def can_mod_krill(ctx):
+        return ctx.author.guild_permissions.mute_members
+
+    def can_admin_krill(ctx):
         return ctx.author.guild_permissions.manage_channels
 
     def can_krill(ctx):
@@ -82,6 +103,52 @@ class Krill(BaseCog):
         channel_match = ctx.channel.id in ctx.cog.channels[ctx.guild.id]
         bypass = ctx.author.guild_permissions.mute_members
         return bypass or no_channels or channel_match
+
+    @commands.group(name="oreo", invoke_without_command=True)
+    @commands.guild_only()
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def oreo(self, ctx: commands.Context):
+        embed = discord.Embed(
+            timestamp=ctx.message.created_at,
+            color=0x663399,
+            title=Lang.get_string("krill/list_oreo_filter", server_name=ctx.guild.name))
+        embed.add_field(name='Letter "o"', value=" ".join(self.oreo_filter['o']))
+        embed.add_field(name='Letter "r"', value=" ".join(self.oreo_filter['r']))
+        embed.add_field(name='Letter "e"', value=" ".join(self.oreo_filter['e']))
+        embed.add_field(name='Inter-letter space', value=self.oreo_filter['sp'])
+        embed.add_field(name='Character count', value=self.oreo_filter['n'])
+        await ctx.send(embed=embed)
+
+    @oreo.command()
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def letter(self, ctx: commands.Context, letter, value):
+        if letter not in "ore":
+            await ctx.send("You can only use letters o, r, and e")
+            return
+
+        if value in self.oreo_filter[letter]:
+            await ctx.send(f"That '{letter}' is already on the list")
+            return
+
+        self.oreo_filter[letter].append(value)
+        Configuration.set_persistent_var("oreo_filter", self.oreo_filter)
+        await ctx.send(f"I added \"{value}\" to the letter \"{letter}\" list!")
+
+    @oreo.command(aliases=["reset"])
+    @commands.check(can_admin_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def reset_cooldown(self, ctx: commands.Context):
+        self.monsters = dict()
+        await ctx.send("Oreo cooldown reset")
+
+    @oreo.command(aliases=["add", "monster"])
+    @commands.check(can_admin_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def add_monster(self, ctx: commands.Context, id: int):
+        self.monsters[id] = datetime.now().timestamp()
+        await ctx.send(f"<@{id}> is a monster")
 
     @command()
     @commands.check(can_krill)
@@ -96,13 +163,14 @@ class Krill(BaseCog):
                 remain = (self.monsters[ctx.author.id] + penalty) - now
                 await ctx.send(f"{ctx.author.mention} is a horrible person and can spend the next {Utils.to_pretty_time(remain)} thinking about what they've done")
                 return
-
-        o = r'[o0ØǑǒǪǫǬǭǾǿŌōŎŏŐőòóôõöÒÓÔÕÖỗởOø⌀Ơơᵒ𝕠🅞⓪ⓞⓄớồ🇴ợ口ỡờộốổọỏロㅇ°⭕оО]'
-        r = r'[rȐƦȑȒȓʀʁŔŕŖŗŘřℛℜℝ℞℟ʳᖇɹ𝕣🅡ⓡⓇ🇷厂尺]'
-        e = r'[eế3ĒēĔĕĖėëĘęĚěȨȩɘəɚɛ⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿ᵉEǝ€𝕖🅔ⓔⒺểé🇪ề已ệêễẹẽèẻ巨ㅌе]'
-        sp = r'[\s\x00\u200b\u200c\u200d\.\[\](){}\\-_=]'
-        n = '{0,10}'
+        o = f"[{''.join(self.oreo_filter['o'])}]"
+        r = f"[{''.join(self.oreo_filter['r'])}]"
+        e = f"[{''.join(self.oreo_filter['e'])}]"
+        sp = f"[{''.join(self.oreo_filter['sp'])}]"
+        n = self.oreo_filter['n']
         oreo_pattern = re.compile(f"{o}+{sp}{n}{r}+{sp}{n}{e}+{sp}{n}{o}+", re.IGNORECASE)
+        print("oreo_pattern")
+        print(f"{o}+{sp}{n}{r}+{sp}{n}{e}+{sp}{n}{o}+")
         monster = False
         if oreo_pattern.search(arg):
             self.bot.get_command("krill").reset_cooldown(ctx)
@@ -240,7 +308,7 @@ class Krill(BaseCog):
 
     @commands.group(name="krillchannel", aliases=['krillchan'], invoke_without_command=True)
     @commands.guild_only()
-    @commands.check(can_mod_krill)
+    @commands.check(can_admin_krill)
     @commands.bot_has_permissions(embed_links=True)
     async def krill_channel(self, ctx: commands.Context):
         """Show a list of allowed channels"""
@@ -260,7 +328,7 @@ class Krill(BaseCog):
             await ctx.send(Lang.get_string("krill/no_channels"))
 
     @krill_channel.command(aliases=["new"])
-    @commands.check(can_mod_krill)
+    @commands.check(can_admin_krill)
     @commands.guild_only()
     async def add(self, ctx: commands.Context, channel_id: str):
         """command_add_help"""
@@ -281,7 +349,7 @@ class Krill(BaseCog):
             await ctx.send(Lang.get_string('krill/channel_found', channel=channel_name))
 
     @krill_channel.command(aliases=["del", "delete"])
-    @commands.check(can_mod_krill)
+    @commands.check(can_admin_krill)
     @commands.guild_only()
     async def remove(self, ctx:commands.Context, channel_id):
         """command_remove_help"""

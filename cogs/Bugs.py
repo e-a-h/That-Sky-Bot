@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 from concurrent.futures import CancelledError
 from datetime import datetime
@@ -81,30 +82,41 @@ class Bugs(BaseCog):
     @commands.guild_only()
     @commands.is_owner()
     async def bug_maintenance(self, ctx, active: bool):
-        member_role = ctx.guild.get_role(Configuration.get_var("member_role"))
-
         if active:
             if len(self.in_progress) > 0:
                 await ctx.send(f"There are {len(self.in_progress)} report(s) in progress. Not activating maintenance mode.")
                 return
-            await ctx.send("setting bug maintenance mode **on**")
+            await ctx.send("setting bug maintenance mode **on**: Reporting channels **closed**.")
         else:
-            await ctx.send("setting bug maintenance mode **off**")
+            await ctx.send("setting bug maintenance mode **off**: Reporting channels **open**.")
         pass
 
         # show/hide maintenance channel
         maint_message_channel = self.bot.get_channel(Configuration.get_var("bug_maintenance_channel"))
 
-        overwrite = maint_message_channel.overwrites[member_role]
-        overwrite.read_messages = active
-        await maint_message_channel.set_permissions(member_role, overwrite=overwrite)
+        member_role = ctx.guild.get_role(Configuration.get_var("member_role"))
+        beta_role = ctx.guild.get_role(Configuration.get_var("beta_role"))
+
+        member_overwrite = maint_message_channel.overwrites[member_role]
+        member_overwrite.read_messages = active
+        await maint_message_channel.set_permissions(member_role, overwrite=member_overwrite)
+
+        beta_overwrite = maint_message_channel.overwrites[beta_role]
+        beta_overwrite.read_messages = active
+        await maint_message_channel.set_permissions(beta_role, overwrite=beta_overwrite)
 
         for name, cid in Configuration.get_var("channels").items():
             # show/hide reporting channels
             channel = self.bot.get_channel(cid)
-            overwrite = channel.overwrites[member_role]
-            overwrite.read_messages = None if active else True
-            await channel.set_permissions(member_role, overwrite=overwrite)
+
+            member_overwrite = channel.overwrites[member_role]
+            member_overwrite.read_messages = None if active else True
+            await channel.set_permissions(member_role, overwrite=member_overwrite)
+
+            if re.search(r'beta', name):
+                beta_overwrite = channel.overwrites[beta_role]
+                beta_overwrite.read_messages = None if active else True
+                await channel.set_permissions(beta_role, overwrite=beta_overwrite)
 
     @commands.group(name='bug', invoke_without_command=True)
     async def bug(self, ctx: Context):

@@ -54,3 +54,8 @@ def get_persistent_var(key, default=None):
 def set_persistent_var(key, value):
     PERSISTENT[key] = value
     Utils.save_to_disk("persistent", PERSISTENT)
+
+
+def del_persistent_var(key):
+    del PERSISTENT[key]
+    Utils.save_to_disk("persistent", PERSISTENT)

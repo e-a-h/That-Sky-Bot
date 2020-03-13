@@ -142,15 +142,26 @@ class ReactMonitor(BaseCog):
         guild = self.bot.get_guild(event.guild_id)
         channel = self.bot.get_channel(event.channel_id)
         message = await channel.fetch_message(event.message_id)
+        muted_role = guild.get_role(muted_roles[guild.id])
 
         # Add message id/reaction/timestamp to dict for tracking fast removal of reactions
         now = datetime.now().timestamp()
         self.recent_reactions[guild.id][str(now)] = {"message_id": message.id, "user_id": event.user_id}
 
         log_channel = self.bot.get_config_channel(message.guild.id, Utils.log_channel)
+        rules_channel = self.bot.get_config_channel(guild.id, Utils.rules_channel)
+
+        # TODO: evaluate removing reactions from muted members. They already can't add *new* reacts so is this needed?
+        # if channel != rules_channel and muted_role in member.roles:
+        #     await message.remove_reaction(emoji_used, member)
+        #     if log_channel:
+        #         await log_channel.send(f"Muted member {member.nick or member.name}#{member.discriminator} "
+        #                                f"({member.id}) tried to react with {emoji_used} in #{channel.name}.\n"
+        #                                f"{message.jump_url}")
+        #     return
+
         if emoji_used in self.ban_lists[event.guild_id]:
             await message.clear_reaction(emoji_used)
-            muted_role = guild.get_role(muted_roles[guild.id])
             await member.add_roles(muted_role)
             # ping log channel with detail
             if log_channel:
