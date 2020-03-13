@@ -1,4 +1,5 @@
 import asyncio
+import collections
 import json
 import random
 import re
@@ -199,7 +200,11 @@ class AutoResponders(BaseCog):
         embed.add_field(name='Message Author', value=message.author.mention, inline=True)
         embed.add_field(name='Channel', value=message.channel.mention, inline=True)
         embed.add_field(name='Jump link', value=f"[Go to message]({message.jump_url})", inline=True)
-        embed.add_field(name='Offending Mesasge', value=f"```{message.content}```", inline=False)
+        contents = Utils.paginate(message.content, max_chars=1024)
+        i = 0
+        for chunk in contents:
+            i = i + 1
+            embed.add_field(name=f"Original message{ ', part '+str(i) if len(contents) > 1 else ''}", value=f"```{chunk}```", inline=False)
         embed.add_field(name='Moderator Actions', value=f"""
             Pass: {Emoji.get_emoji("YES")}
             Intervene: {Emoji.get_emoji("CANDLE")}
@@ -322,7 +327,30 @@ class AutoResponders(BaseCog):
         if trigger is None or row is None:
             await nope(ctx)
             return
-        await ctx.send(f"__Raw trigger:__\n```{trigger}```\n__Raw response:__\n```{row.response}```")
+
+        embed = discord.Embed(
+            timestamp=ctx.message.created_at,
+            color=0x663399,
+            title=Lang.get_string("autoresponder/raw", server_name=ctx.guild.name))
+
+        embed.add_field(name="Raw trigger", value=trigger, inline=False)
+
+        response_parts = collections.deque(row.response)
+        value = ""
+        i=1
+        header = ""
+        while response_parts:
+            header = "Raw response" if i == 1 else f"Raw response (part {i})"
+            value = value + response_parts.popleft()
+            if len(value) > 1024:
+                embed.add_field(name=header, value=value, inline=False)
+                value = ""
+                i = i+i
+        if value:
+            embed.add_field(name=header, value=value, inline=False)
+
+
+        await ctx.send(embed=embed)
 
     @autor.command(aliases=["edit", "set"])
     @commands.guild_only()
