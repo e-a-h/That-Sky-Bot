@@ -243,7 +243,7 @@ class Bugs(BaseCog):
                 if "latest" in v:
                     return Lang.get_string("bugs/latest_not_allowed")
                 # TODO: double check if we actually want to enforce this
-                if len(Utils.NUMBER_MATCHER.findall(v)) is 0:
+                if len(Utils.NUMBER_MATCHER.findall(v)) == 0:
                     return Lang.get_string("bugs/no_numbers")
                 if len(v) > 20:
                     return Lang.get_string("bugs/love_letter")
@@ -271,8 +271,8 @@ class Bugs(BaseCog):
                 c = Configuration.get_var("channels")[channel_name]
                 message = await self.bot.get_channel(c).send(
                     content=Lang.get_string("bugs/report_header", id=br.id, user=user.mention), embed=report)
-                if len(attachment_links) is not 0:
-                    key = "attachment_info" if len(attachment_links) is 1 else "attachment_info_plural"
+                if len(attachment_links) != 0:
+                    key = "attachment_info" if len(attachment_links) == 1 else "attachment_info_plural"
                     attachment = await self.bot.get_channel(c).send(
                         Lang.get_string(f"bugs/{key}", id=br.id, links="\n".join(attachment_links)))
                     br.attachment_message_id = attachment.id

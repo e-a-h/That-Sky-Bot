@@ -508,7 +508,7 @@ class AutoResponders(BaseCog):
             return
 
         channel = self.bot.get_channel(int(channel_id))
-        if channel_id is "0":
+        if channel_id == "0":
             await ctx.send(Lang.get_string("autoresponder/channel_unset",
                                            mode=mode,
                                            trigger=get_trigger_description(trigger)))

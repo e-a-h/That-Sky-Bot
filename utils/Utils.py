@@ -310,7 +310,7 @@ def to_pretty_time(seconds):
             seconds -= amount * v
             if partcount == 1:
                 duration += ", "
-            duration += " " + f"{amount} {k}{'' if amount is 1 else 's'}"
+            duration += " " + f"{amount} {k}{'' if amount == 1 else 's'}"
         if seconds == 0:
             break
     return duration.strip()
