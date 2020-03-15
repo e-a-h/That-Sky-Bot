@@ -244,6 +244,7 @@ autoresponder:
 krill:
   list_channels: Krill channels for {server_name}.
   list_oreo_filter: Oreo filters for {server_name}.
+  list_oreo_monsters: The most horrible people in the _"{server_name}"_ server.
   no_channels: No channels set for krill command. `!krill` may be used in any channel.
   channel_added: Channel {channel} is now approved for krilling.
   channel_removed: Channel {channel} has been fumigated. No more krill allowed.

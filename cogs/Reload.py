@@ -4,7 +4,7 @@ import os
 from discord.ext import commands
 
 from cogs.BaseCog import BaseCog
-from utils import Logging, Emoji, Reloader, Utils, Configuration
+from utils import Logging, Emoji, Reloader, Utils, Configuration, Lang
 
 
 class Reload(BaseCog):
@@ -25,6 +25,11 @@ class Reload(BaseCog):
             await Logging.bot_log(f'**{cog}** has been reloaded by {ctx.author.name}.')
         else:
             await ctx.send(f"{Emoji.get_chat_emoji('NO')} I can't find that cog.")
+
+    @commands.command(hidden=True)
+    async def reload_lang(self, ctx):
+        Lang.load()
+        await ctx.send("Language file reloaded")
 
     @commands.command(hidden=True)
     async def load(self, ctx, cog: str):

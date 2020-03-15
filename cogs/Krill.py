@@ -133,10 +133,37 @@ class Krill(BaseCog):
     @oreo.command()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
+    async def sniff(self, ctx: commands.Context, value):
+        checked = ""
+        found = False
+        for letter in value:
+            if letter not in checked:
+                checked = checked + letter
+            else:
+                continue
+            if letter not in self.oreo_filter['o'] and \
+               letter not in self.oreo_filter['r'] and \
+               letter not in self.oreo_filter['e'] and \
+               letter not in self.oreo_filter['oh'] and \
+               letter not in self.oreo_filter['re'] and \
+               letter not in self.oreo_filter['sp']:
+                found = True
+                await ctx.send(f"the character \"{letter}\" is not in my filters")
+        if not found:
+            await ctx.send(f"All the letters in \"{value}\" are already covered.")
+
+    @oreo.command()
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
     async def letter(self, ctx: commands.Context, letter, value):
-        if letter not in ['o', 'r', 'e', 'oh', 're', 'sp']:
-            await ctx.send("You can only use letters `o`, `r`, `e`, `oh`(jp), `re`(jp), `sp` for space")
+        if letter not in ['o', 'r', 'e', 'oh', 're', 'お', 'れ', 'sp']:
+            await ctx.send("You can only use letters `o`, `r`, `e`, `お` or `oh`, `れ` or `re`, `sp` for space")
             return
+
+        if letter == 'お':
+            letter = 'oh'
+        if letter == 'れ':
+            letter = 're'
 
         x = "space" if letter == "sp" else f"letter \"{letter}\""
         if value in self.oreo_filter[letter]:
@@ -154,6 +181,21 @@ class Krill(BaseCog):
         self.monsters = dict()
         await ctx.send("Oreo cooldown reset")
 
+    @oreo.command(aliases=["list", "monsters"])
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def list_monsters(self, ctx: commands.Context):
+        if not self.monsters:
+            await ctx.send("There are no monsters in sight!")
+            return
+        embed = discord.Embed(
+            timestamp=ctx.message.created_at,
+            color=0x663399,
+            title=Lang.get_string("krill/list_oreo_monsters", server_name=ctx.guild.name))
+        for monster in self.monsters.keys():
+            embed.add_field(name="Bad Person", value=ctx.guild.get_member(monster).display_name, inline=False)
+        await ctx.send(embed=embed)
+
     @oreo.command(aliases=["add", "monster"])
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
@@ -162,6 +204,16 @@ class Krill(BaseCog):
         await ctx.message.delete()
         if ctx.guild.get_member(id):
             await ctx.send(f"<@{id}> is a monster")
+        else:
+            await ctx.send(f"beep boop, no {id} here")
+
+    @oreo.command(aliases=["remove"])
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def remove_monster(self, ctx: commands.Context, id: int):
+        if ctx.guild.get_member(id) and id in self.monsters.keys():
+            del self.monsters[id]
+            await ctx.send(f"<@{id}> isn't a monster anymore")
         else:
             await ctx.send(f"beep boop, no {id} here")
 
@@ -261,6 +313,8 @@ class Krill(BaseCog):
         # KrillRiderBodya1     664230982378979347>
         # KrillRiderBodya      664251608212832256>
 
+        # p.s. this will not work w/ a test bot because these emojis are on the official server
+        # instead, the krill will look like "NoneNoneNone"
         chance = 0.25
         roll = random()
         if roll < chance:

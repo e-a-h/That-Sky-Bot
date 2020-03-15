@@ -337,18 +337,17 @@ class AutoResponders(BaseCog):
 
         response_parts = collections.deque(row.response)
         value = ""
-        i=1
+        i = 1
         header = ""
         while response_parts:
             header = "Raw response" if i == 1 else f"Raw response (part {i})"
             value = value + response_parts.popleft()
-            if len(value) > 1024:
+            if len(value) > 1000:
                 embed.add_field(name=header, value=value, inline=False)
                 value = ""
                 i = i+i
         if value:
             embed.add_field(name=header, value=value, inline=False)
-
 
         await ctx.send(embed=embed)
 
