@@ -145,11 +145,15 @@ class Krill(BaseCog):
         await ctx.send("Oreo cooldown reset")
 
     @oreo.command(aliases=["add", "monster"])
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     async def add_monster(self, ctx: commands.Context, id: int):
         self.monsters[id] = datetime.now().timestamp()
-        await ctx.send(f"<@{id}> is a monster")
+        await ctx.message.delete()
+        if ctx.guild.get_member(id):
+            await ctx.send(f"<@{id}> is a monster")
+        else:
+            await ctx.send(f"beep boop, no {id} here")
 
     @command()
     @commands.check(can_krill)
