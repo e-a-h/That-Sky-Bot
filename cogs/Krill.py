@@ -36,10 +36,18 @@ class Krill(BaseCog):
                "⋹", "⋺", "⋻", "⋼", "⋽", "⋾", "⋿", "ᵉ", "E", "ǝ", "€", "𝕖", "🅔",
                "ⓔ", "Ⓔ", "ể", "é", "🇪", "ề", "已", "ệ", "ê", "ễ", "ẹ", "ẽ", "è",
                "ẻ", "巨", "ㅌ", "е", "ε", "𝐞", ],
+            oh=["お"],
+            re=["れ"],
             sp=[r"\s", r"\x00", r"\u200b", r"\u200c", r"\u200d", r"\.", r"\[", r"\]",
                 r"(", r")", r"{", r"}", r"\\", r"\-", r"_", r"="],
             n='{0,10}'
         ))
+
+        # TODO: this is an upgrade from old list style. remove this block after it goes into live bot.
+        if 'oh' not in self.oreo_filter:
+            self.oreo_filter['oh'] = ["お"]
+            self.oreo_filter['re'] = ["れ"]
+
         bot.loop.create_task(self.startup_cleanup())
 
     async def startup_cleanup(self):
@@ -116,6 +124,8 @@ class Krill(BaseCog):
         embed.add_field(name='Letter "o"', value=" ".join(self.oreo_filter['o']))
         embed.add_field(name='Letter "r"', value=" ".join(self.oreo_filter['r']))
         embed.add_field(name='Letter "e"', value=" ".join(self.oreo_filter['e']))
+        embed.add_field(name='Letter "お"', value=" ".join(self.oreo_filter['oh']))
+        embed.add_field(name='Letter "れ"', value=" ".join(self.oreo_filter['re']))
         embed.add_field(name='Inter-letter space', value=self.oreo_filter['sp'])
         embed.add_field(name='Character count', value=self.oreo_filter['n'])
         await ctx.send(embed=embed)
@@ -124,8 +134,8 @@ class Krill(BaseCog):
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     async def letter(self, ctx: commands.Context, letter, value):
-        if letter not in ['o', 'r', 'e', 'sp']:
-            await ctx.send("You can only use letters o, r, e, and sp for space")
+        if letter not in ['o', 'r', 'e', 'oh', 're', 'sp']:
+            await ctx.send("You can only use letters `o`, `r`, `e`, `oh`(jp), `re`(jp), `sp` for space")
             return
 
         x = "space" if letter == "sp" else f"letter \"{letter}\""
@@ -171,13 +181,15 @@ class Krill(BaseCog):
         o = f"[{''.join(self.oreo_filter['o'])}]"
         r = f"[{''.join(self.oreo_filter['r'])}]"
         e = f"[{''.join(self.oreo_filter['e'])}]"
+        oo = f"[{''.join(self.oreo_filter['oh'])}]"
+        rr = f"[{''.join(self.oreo_filter['re'])}]"
         sp = f"[{''.join(self.oreo_filter['sp'])}]"
         n = self.oreo_filter['n']
-        oreo_pattern = re.compile(f"{o}+{sp}{n}{r}+{sp}{n}{e}+{sp}{n}{o}+", re.IGNORECASE)
-        print("oreo_pattern")
-        print(f"{o}+{sp}{n}{r}+{sp}{n}{e}+{sp}{n}{o}+")
+        oreo_pattern = re.compile(f"{o}+{sp}{n}({r}+{sp}{n}{e}+|{e}+{sp}{n}{r}+){sp}{n}{o}+", re.IGNORECASE)
+        oreo_jp_pattern = re.compile(f"{oo}+{sp}{n}{rr}+{sp}{n}{oo}+", re.IGNORECASE)
+
         monster = False
-        if oreo_pattern.search(arg):
+        if oreo_pattern.search(arg) or oreo_jp_pattern.search(arg):
             self.bot.get_command("krill").reset_cooldown(ctx)
             await ctx.send(f'not Oreo! {ctx.author.mention}, you monster!!')
             monster = True
