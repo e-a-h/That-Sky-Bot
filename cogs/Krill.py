@@ -124,17 +124,18 @@ class Krill(BaseCog):
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     async def letter(self, ctx: commands.Context, letter, value):
-        if letter not in "ore":
-            await ctx.send("You can only use letters o, r, and e")
+        if letter not in ['o', 'r', 'e', 'sp']:
+            await ctx.send("You can only use letters o, r, e, and sp for space")
             return
 
+        x = "space" if letter == "sp" else f"letter \"{letter}\""
         if value in self.oreo_filter[letter]:
-            await ctx.send(f"That '{letter}' is already on the list")
+            await ctx.send(f"That {x} is already on the list")
             return
 
         self.oreo_filter[letter].append(value)
         Configuration.set_persistent_var("oreo_filter", self.oreo_filter)
-        await ctx.send(f"I added \"{value}\" to the letter \"{letter}\" list!")
+        await ctx.send(f"I added \"{value}\" to the {x} list!")
 
     @oreo.command(aliases=["reset"])
     @commands.check(can_admin_krill)
