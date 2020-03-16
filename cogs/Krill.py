@@ -39,7 +39,7 @@ class Krill(BaseCog):
             oh=["お"],
             re=["れ"],
             sp=[r"\s", r"\x00", r"\u200b", r"\u200c", r"\u200d", r"\.", r"\[", r"\]",
-                r"(", r")", r"{", r"}", r"\\", r"\-", r"_", r"="],
+                r"\(", r"\)", r"\{", r"\}", r"\\", r"\-", r"_", r"="],
             n='{0,10}'
         ))
 
@@ -133,20 +133,17 @@ class Krill(BaseCog):
     @oreo.command()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
-    async def sniff(self, ctx: commands.Context, value):
+    async def sniff(self, ctx: commands.Context,  *, value=''):
         checked = ""
         found = False
+        pattern = self.get_oreo_patterns()['chars']
+
         for letter in value:
             if letter not in checked:
                 checked = checked + letter
             else:
                 continue
-            if letter not in self.oreo_filter['o'] and \
-               letter not in self.oreo_filter['r'] and \
-               letter not in self.oreo_filter['e'] and \
-               letter not in self.oreo_filter['oh'] and \
-               letter not in self.oreo_filter['re'] and \
-               letter not in self.oreo_filter['sp']:
+            if not pattern.search(letter):
                 found = True
                 await ctx.send(f"the character \"{letter}\" is not in my filters")
         if not found:
@@ -217,6 +214,20 @@ class Krill(BaseCog):
         else:
             await ctx.send(f"beep boop, no {id} here")
 
+    def get_oreo_patterns(self):
+        o = f"[{''.join(self.oreo_filter['o'])}]"
+        r = f"[{''.join(self.oreo_filter['r'])}]"
+        e = f"[{''.join(self.oreo_filter['e'])}]"
+        oo = f"[{''.join(self.oreo_filter['oh'])}]"
+        rr = f"[{''.join(self.oreo_filter['re'])}]"
+        sp = f"[{''.join(self.oreo_filter['sp'])}]"
+        n = self.oreo_filter['n']
+        oreo_pattern = re.compile(f"{o}+{sp}{n}({r}+{sp}{n}{e}+|{e}+{sp}{n}{r}+){sp}{n}{o}+", re.IGNORECASE)
+        oreo_jp_pattern = re.compile(f"{oo}+{sp}{n}{rr}+{sp}{n}{oo}+", re.IGNORECASE)
+        oreo_chars = re.compile(f"{o}|{r}|{e}|{sp}|{oo}|{rr}", re.IGNORECASE)
+
+        return dict(en=oreo_pattern, jp=oreo_jp_pattern, chars=oreo_chars)
+
     @command()
     @commands.check(can_krill)
     @commands.cooldown(1, 600, BucketType.member)
@@ -230,15 +241,10 @@ class Krill(BaseCog):
                 remain = (self.monsters[ctx.author.id] + penalty) - now
                 await ctx.send(f"{ctx.author.mention} is a horrible person and can spend the next {Utils.to_pretty_time(remain)} thinking about what they've done")
                 return
-        o = f"[{''.join(self.oreo_filter['o'])}]"
-        r = f"[{''.join(self.oreo_filter['r'])}]"
-        e = f"[{''.join(self.oreo_filter['e'])}]"
-        oo = f"[{''.join(self.oreo_filter['oh'])}]"
-        rr = f"[{''.join(self.oreo_filter['re'])}]"
-        sp = f"[{''.join(self.oreo_filter['sp'])}]"
-        n = self.oreo_filter['n']
-        oreo_pattern = re.compile(f"{o}+{sp}{n}({r}+{sp}{n}{e}+|{e}+{sp}{n}{r}+){sp}{n}{o}+", re.IGNORECASE)
-        oreo_jp_pattern = re.compile(f"{oo}+{sp}{n}{rr}+{sp}{n}{oo}+", re.IGNORECASE)
+
+        patterns = self.get_oreo_patterns()
+        oreo_pattern = patterns['en']
+        oreo_jp_pattern = patterns['jp']
 
         monster = False
         if oreo_pattern.search(arg) or oreo_jp_pattern.search(arg):
