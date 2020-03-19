@@ -392,6 +392,24 @@ class Welcomer(BaseCog):
         #  if configured, DM member informing them about impersonating, ask them to change, refer them to mods
         pass
 
+    @commands.command(aliases=['set_rules_message', 'setrulesid'])
+    @commands.guild_only()
+    async def set_rules_react_message_id(self, ctx, message_id: int):
+        rules_channel = self.bot.get_config_channel(ctx.guild.id, Utils.rules_channel)
+        try:
+            rules = await rules_channel.fetch_message(message_id)
+            Configuration.MASTER_CONFIG['rules_react_message_id'] = message_id
+            Configuration.save()
+            roles = Configuration.get_var("roles")
+            member_role_id = Configuration.get_var("member_role")
+            for emoji, role_id in roles.items():
+                if role_id == member_role_id:
+                    await rules.clear_reactions()
+                    await rules.add_reaction(emoji)
+            await ctx.send(f"Rules message set to {message_id} in channel {rules_channel.mention}")
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
+            await ctx.send(f"Could not find message id {message_id} in channel {rules_channel.mention}")
+
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):
         react_user_id = event.user_id
