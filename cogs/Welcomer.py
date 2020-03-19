@@ -401,11 +401,9 @@ class Welcomer(BaseCog):
             Configuration.MASTER_CONFIG['rules_react_message_id'] = message_id
             Configuration.save()
             roles = Configuration.get_var("roles")
-            member_role_id = Configuration.get_var("member_role")
+            await rules.clear_reactions()
             for emoji, role_id in roles.items():
-                if role_id == member_role_id:
-                    await rules.clear_reactions()
-                    await rules.add_reaction(emoji)
+                await rules.add_reaction(emoji)
             await ctx.send(f"Rules message set to {message_id} in channel {rules_channel.mention}")
         except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
             await ctx.send(f"Could not find message id {message_id} in channel {rules_channel.mention}")
