@@ -32,6 +32,11 @@ class Reload(BaseCog):
         await ctx.send("Language file reloaded")
 
     @commands.command(hidden=True)
+    async def reload_config(self, ctx):
+        Configuration.load()
+        await ctx.send("Config file reloaded")
+
+    @commands.command(hidden=True)
     async def load(self, ctx, cog: str):
         if os.path.isfile(f"cogs/{cog}.py"):
             self.bot.load_extension(f"cogs.{cog}")

@@ -53,7 +53,7 @@ class KrillChannel(Model):
 class ConfigChannel(Model):
     id = AutoField()
     configname = CharField(max_length=100, collation="utf8mb4_general_ci")
-    channelid = BigIntegerField()
+    channelid = BigIntegerField(default=0)
     serverid = BigIntegerField()
 
     class Meta:

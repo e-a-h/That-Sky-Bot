@@ -21,6 +21,7 @@ class Krill(BaseCog):
         self.krilled = dict()
         self.channels = dict()
         self.monsters = dict()
+        self.ignored = set()
         self.loaded = False
         self.oreo_filter = Configuration.get_persistent_var('oreo_filter', dict(
             o=["o", "0", "Ø", "Ǒ", "ǒ", "Ǫ", "ǫ", "Ǭ", "ǭ", "Ǿ", "ǿ", "Ō", "ō", "Ŏ",
@@ -149,18 +150,24 @@ class Krill(BaseCog):
         if not found:
             await ctx.send(f"All the letters in \"{value}\" are already covered.")
 
-    @oreo.command()
-    @commands.check(can_mod_krill)
-    @commands.bot_has_permissions(embed_links=True)
-    async def letter(self, ctx: commands.Context, letter, value):
+    @staticmethod
+    async def validate_oreo_letter(ctx, letter):
         if letter not in ['o', 'r', 'e', 'oh', 're', 'お', 'れ', 'sp']:
             await ctx.send("You can only use letters `o`, `r`, `e`, `お` or `oh`, `れ` or `re`, `sp` for space")
-            return
-
+            return False
         if letter == 'お':
             letter = 'oh'
         if letter == 'れ':
             letter = 're'
+        return letter
+
+    @oreo.command(aliases=["add", "letter"])
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def add_letter(self, ctx: commands.Context, letter, value):
+        letter = await self.validate_oreo_letter(ctx, letter)
+        if not letter:
+            return
 
         x = "space" if letter == "sp" else f"letter \"{letter}\""
         if value in self.oreo_filter[letter]:
@@ -170,6 +177,23 @@ class Krill(BaseCog):
         self.oreo_filter[letter].append(value)
         Configuration.set_persistent_var("oreo_filter", self.oreo_filter)
         await ctx.send(f"I added \"{value}\" to the {x} list!")
+
+    @oreo.command(aliases=["remove"])
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def remove_letter(self, ctx: commands.Context, letter, value):
+        letter = await self.validate_oreo_letter(ctx, letter)
+        if not letter:
+            return
+
+        x = "space" if letter == "sp" else f"letter \"{letter}\""
+        if value not in self.oreo_filter[letter]:
+            await ctx.send(f"That {x} is not on the list")
+            return
+
+        self.oreo_filter[letter].remove(value)
+        Configuration.set_persistent_var("oreo_filter", self.oreo_filter)
+        await ctx.send(f"I removed \"{value}\" from the {x} list!")
 
     @oreo.command(aliases=["reset"])
     @commands.check(can_admin_krill)
@@ -193,37 +217,71 @@ class Krill(BaseCog):
             embed.add_field(name="Bad Person", value=ctx.guild.get_member(monster).display_name, inline=False)
         await ctx.send(embed=embed)
 
-    @oreo.command(aliases=["add", "monster"])
+    @oreo.command(aliases=["monster"])
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
-    async def add_monster(self, ctx: commands.Context, id: int):
-        self.monsters[id] = datetime.now().timestamp()
+    async def add_monster(self, ctx: commands.Context, user_id: int):
         await ctx.message.delete()
-        if ctx.guild.get_member(id):
-            await ctx.send(f"<@{id}> is a monster")
+        if ctx.guild.get_member(user_id):
+            self.monsters[user_id] = datetime.now().timestamp()
+            await ctx.send(f"<@{user_id}> is a monster")
         else:
-            await ctx.send(f"beep boop, no {id} here")
+            await ctx.send(f"beep boop, no {user_id} here")
 
-    @oreo.command(aliases=["remove"])
+    @oreo.command()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
-    async def remove_monster(self, ctx: commands.Context, id: int):
-        if ctx.guild.get_member(id) and id in self.monsters.keys():
-            del self.monsters[id]
-            await ctx.send(f"<@{id}> isn't a monster anymore")
+    async def remove_monster(self, ctx: commands.Context, user_id: int):
+        if ctx.guild.get_member(user_id) and user_id in self.monsters.keys():
+            del self.monsters[user_id]
+            await ctx.send(f"<@{user_id}> isn't a monster anymore")
         else:
-            await ctx.send(f"beep boop, no {id} here")
+            await ctx.send(f"beep boop, no {user_id} here")
+
+    @oreo.command()
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def ignore(self, ctx: commands.Context, user_id: int):
+        if ctx.guild.get_member(user_id):
+            self.ignored.add(user_id)
+            await ctx.send(f"<@{user_id}> is ignored")
+        else:
+            await ctx.send(f"beep boop, no {user_id} here")
+
+    @oreo.command()
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def unignore(self, ctx: commands.Context, user_id: int):
+        if ctx.guild.get_member(user_id) and user_id in self.ignored:
+            self.ignored.remove(user_id)
+            await ctx.send(f"<@{user_id}> isn't a ignored anymore")
+        else:
+            await ctx.send(f"beep boop, no {user_id} here")
 
     def get_oreo_patterns(self):
-        o = f"[{''.join(self.oreo_filter['o'])}]"
-        r = f"[{''.join(self.oreo_filter['r'])}]"
-        e = f"[{''.join(self.oreo_filter['e'])}]"
-        oo = f"[{''.join(self.oreo_filter['oh'])}]"
-        rr = f"[{''.join(self.oreo_filter['re'])}]"
+        # o-ø º.o r...r e é 0 º oおれ
+        # ((o|0|ø|º)[ .-]*)+((r|®)[ .-]*)+((e|é)[ .-]*)+((o|0|º)[ .-]*)+
+        o = f"({'|'.join(self.oreo_filter['o'])})"
+        r = f"({'|'.join(self.oreo_filter['r'])})"
+        e = f"({'|'.join(self.oreo_filter['e'])})"
+        oo = f"({'|'.join(self.oreo_filter['oh'])})"
+        rr = f"({'|'.join(self.oreo_filter['re'])})"
         sp = f"[{''.join(self.oreo_filter['sp'])}]"
         n = self.oreo_filter['n']
-        oreo_pattern = re.compile(f"{o}+{sp}{n}({r}+{sp}{n}{e}+|{e}+{sp}{n}{r}+){sp}{n}{o}+", re.IGNORECASE)
-        oreo_jp_pattern = re.compile(f"{oo}+{sp}{n}{rr}+{sp}{n}{oo}+", re.IGNORECASE)
+        oreo_pattern = re.compile(f"({o}{sp}{n})+"
+                                  f"("
+                                  f"({r}{sp}{n})+"
+                                  f"({e}{sp}{n})+"
+                                  f"|"
+                                  f"({e}{sp}{n})+"
+                                  f"({r}{sp}{n})+)"
+                                  f"({o}{sp}{n})+",
+                                  re.IGNORECASE)
+
+        # ((お|oh)[ .-]*)+((れ|re)[ .-]*)+((お|oh)[ .-]*)+
+        oreo_jp_pattern = re.compile(f"({oo}{sp}{n})+({rr}{sp}{n})+({oo}{sp}{n})+", re.IGNORECASE)
+
+        # (o|0|º)|(r|®)|(e|é)|(o|0|º|ø)|[ .-]|(お)|(れ)
         oreo_chars = re.compile(f"{o}|{r}|{e}|{sp}|{oo}|{rr}", re.IGNORECASE)
 
         return dict(en=oreo_pattern, jp=oreo_jp_pattern, chars=oreo_chars)
@@ -233,6 +291,9 @@ class Krill(BaseCog):
     @commands.cooldown(1, 600, BucketType.member)
     @commands.guild_only()
     async def krill(self, ctx, *, arg=''):
+        if ctx.message.author.id in self.ignored:
+            return
+
         if ctx.message.author.id in self.monsters.keys():
             now = datetime.now().timestamp()
             hour = 60 * 60
@@ -245,16 +306,16 @@ class Krill(BaseCog):
         patterns = self.get_oreo_patterns()
         oreo_pattern = patterns['en']
         oreo_jp_pattern = patterns['jp']
+        dog_pattern = re.compile(r"\bdog\b|\bcookie\b", re.IGNORECASE)
 
         monster = False
-        if oreo_pattern.search(arg) or oreo_jp_pattern.search(arg):
+        name_is_oreo = oreo_pattern.search(ctx.author.display_name) or oreo_jp_pattern.search(ctx.author.display_name)
+        if oreo_pattern.search(arg) or oreo_jp_pattern.search(arg) or name_is_oreo or dog_pattern.search(arg):
             self.bot.get_command("krill").reset_cooldown(ctx)
-            await ctx.send(f'not Oreo! {ctx.author.mention}, you monster!!')
+            victim_name = "bad person" if name_is_oreo else ctx.author.mention
+            await ctx.send(f'not Oreo! {victim_name}, you monster!!')
             monster = True
             self.monsters[ctx.author.id] = datetime.now().timestamp()
-
-        if monster:
-            victim_name = ctx.author.mention
         else:
             victim = arg
             try:

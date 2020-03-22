@@ -52,7 +52,8 @@ class ChannelConfig(BaseCog):
             title=Lang.get_string("channel_config/info", server_name=ctx.guild.name))
         embed.add_field(name='Commands', value=Lang.get_string("channel_config/commands"), inline=False)
         embed.add_field(name='Configurable Channels',
-                        value=f"[{Utils.welcome_channel}|{Utils.rules_channel}|{Utils.log_channel}]",
+                        value=f"[{Utils.welcome_channel}|{Utils.rules_channel}|"
+                              f"{Utils.log_channel}|{Utils.ro_art_channel}|{Utils.entry_channel}]",
                         inline=False)
 
         for row in ConfigChannel.select().where(ConfigChannel.serverid == ctx.guild.id):
@@ -69,10 +70,10 @@ class ChannelConfig(BaseCog):
     @channel_config.command()
     @commands.guild_only()
     async def set(self, ctx, channel_name: str = "", channel_id: int = 0):
-        if not validate_channel_name(channel_name) or channel_id == 0:
+        if not validate_channel_name(channel_name):
             await ctx.send(f"""
 `channel set` requires both config channel name and channel_id.
-`[{Utils.ro_art_channel}|{Utils.welcome_channel}|{Utils.rules_channel}|{Utils.log_channel}]`
+`[{Utils.ro_art_channel}|{Utils.welcome_channel}|{Utils.rules_channel}|{Utils.log_channel}|{Utils.entry_channel}]`
 """)
             return
         channel_added = await self.set_channel(ctx, channel_name, channel_id)
@@ -83,21 +84,15 @@ class ChannelConfig(BaseCog):
             await ctx.send(f"{Emoji.get_chat_emoji('BUG')} Failed")
 
     async def set_channel(self, ctx: commands.Context, channel_name: str, channel_id: int = 0):
-        try:
-            # Validate channel
-            if ctx.guild.get_channel(channel_id) is None:
-                return False
-
-            row: ConfigChannel = ConfigChannel.get_or_none(serverid=ctx.guild.id, configname=channel_name)
-            if row is None:
-                ConfigChannel.create(serverid=ctx.guild.id, channelid=str(channel_id), configname=channel_name)
-            else:
-                row.channelid = channel_id
-                row.save()
-            self.bot.config_channels[ctx.guild.id][channel_name] = channel_id
-            return True
-        except Exception as ex:
+        # Validate channel
+        if channel_id != 0 and ctx.guild.get_channel(channel_id) is None:
             return False
+
+        row: ConfigChannel = ConfigChannel.get_or_create(serverid=ctx.guild.id, configname=channel_name)[0]
+        row.channelid = channel_id
+        row.save()
+        self.bot.config_channels[ctx.guild.id][channel_name] = channel_id
+        return True
 
 
 def setup(bot):

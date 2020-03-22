@@ -42,6 +42,7 @@ class Skybot(Bot):
         if Utils.validate_channel_name(channel_name):
             try:
                 this_channel_id = self.config_channels[guild_id][channel_name]
+                # TODO: catch keyerror and log in guild that channel is not configured
                 return self.get_channel(this_channel_id)
             except Exception as ex:
                 pass

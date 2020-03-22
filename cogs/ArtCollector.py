@@ -1,7 +1,7 @@
 import re
 
 import discord
-from discord import NotFound
+from discord import NotFound, HTTPException
 from discord.ext import commands
 
 from utils import Lang, Utils, Emoji
@@ -249,7 +249,7 @@ class ArtCollector(BaseCog):
                 await message.delete()
                 return
 
-        except (NotFound, KeyError, AttributeError) as e:
+        except (NotFound, HTTPException, KeyError, AttributeError) as e:
             # couldn't find channel, message, member, or action
             return
         except Exception as e:

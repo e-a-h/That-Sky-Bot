@@ -30,10 +30,11 @@ welcome_channel = "welcome_channel"
 rules_channel = "rules_channel"
 log_channel = "log_channel"
 ro_art_channel = "ro_art_channel"
+entry_channel = "entry_channel"
 
 
 def validate_channel_name(channel_name):
-    return channel_name in (welcome_channel, rules_channel, log_channel, ro_art_channel)
+    return channel_name in (welcome_channel, rules_channel, log_channel, ro_art_channel, entry_channel)
 
 
 def get_chanconf_description(bot, guild_id):
@@ -211,6 +212,10 @@ async def username(uid, fetch=True, clean=True):
         return clean_user(user)
     else:
         return f"{user.name}#{user.discriminator}"
+
+
+def get_member_log_name(member):
+    return f"{member.mention} {str(member)} ({member.id})"
 
 
 async def clean(text, guild=None, markdown=True, links=True, emoji=True):

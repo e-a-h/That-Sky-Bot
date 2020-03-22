@@ -4,7 +4,7 @@ import time
 from concurrent.futures import CancelledError
 from datetime import datetime
 
-from discord import Forbidden, Embed, NotFound, PermissionOverwrite
+from discord import Forbidden, Embed, NotFound, HTTPException, PermissionOverwrite
 from discord.ext import commands
 from discord.ext.commands import Context, command
 
@@ -53,9 +53,11 @@ class Bugs(BaseCog):
             channel = self.bot.get_channel(cid)
             shutdown_id = Configuration.get_persistent_var(f"{name}_shutdown")
             if shutdown_id is not None:
-                message = await channel.fetch_message(shutdown_id)
-                if message is not None:
+                try:
+                    message = await channel.fetch_message(shutdown_id)
                     await message.delete()
+                except (NotFound, HTTPException) as e:
+                    pass
                 Configuration.set_persistent_var(f"{name}_shutdown", None)
             await self.send_bug_info(name)
 
@@ -65,7 +67,7 @@ class Bugs(BaseCog):
         if bug_info_id is not None:
             try:
                 message = await channel.fetch_message(bug_info_id)
-            except NotFound:
+            except (NotFound, HTTPException):
                 pass
             else:
                 await message.delete()
@@ -477,8 +479,14 @@ class Bugs(BaseCog):
         if event.message_id in self.bug_messages and event.user_id != self.bot.user.id:
             user = self.bot.get_user(event.user_id)
             channel = self.bot.get_channel(event.channel_id)
-            message = await channel.fetch_message(event.message_id)
-            await message.remove_reaction(event.emoji, user)
+            try:
+                message = await channel.fetch_message(event.message_id)
+                await message.remove_reaction(event.emoji, user)
+            except (NotFound, HTTPException) as e:
+                await Utils.handle_exception(f"Failed to get message {channel.id}/{event.message_id}", self, e)
+                # TODO: Does anyone need to know about this?
+                #  Consider letter user know why report didn't start?
+                return
             await self.report_bug(user, channel)
 
 
