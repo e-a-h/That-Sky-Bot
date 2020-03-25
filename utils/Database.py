@@ -7,7 +7,26 @@ connection = MySQLDatabase(Configuration.get_var("DATABASE_NAME"),
                            user=Configuration.get_var("DATABASE_USER"),
                            password=Configuration.get_var("DATABASE_PASS"),
                            host=Configuration.get_var("DATABASE_HOST"),
-                           port=Configuration.get_var("DATABASE_PORT"), use_unicode=True, charset="utf8mb4")
+                           port=Configuration.get_var("DATABASE_PORT"),
+                           use_unicode=True,
+                           charset="utf8mb4")
+
+
+class Guild(Model):
+    id = PrimaryKeyField()
+    serverid = BigIntegerField()
+    memberrole = BigIntegerField()
+    nonmemberrole = BigIntegerField()
+    mutedrole = BigIntegerField()
+    welcomechannelid = BigIntegerField()
+    ruleschannelid = BigIntegerField()
+    logchannelid = BigIntegerField()
+    entrychannelid = BigIntegerField()
+    rulesreactmessageid = BigIntegerField()
+    defaultlocale = CharField(max_length=10)
+
+    class Meta:
+        database = connection
 
 
 class BugReport(Model):
@@ -41,6 +60,15 @@ class Attachments(Model):
         database = connection
 
 
+class Repros(Model):
+    id = AutoField()
+    user = BigIntegerField()
+    report = ForeignKeyField(BugReport, backref="repros")
+
+    class Meta:
+        database = connection
+
+
 class KrillChannel(Model):
     id = AutoField()
     channelid = BigIntegerField()
@@ -55,15 +83,6 @@ class ConfigChannel(Model):
     configname = CharField(max_length=100, collation="utf8mb4_general_ci")
     channelid = BigIntegerField(default=0)
     serverid = BigIntegerField()
-
-    class Meta:
-        database = connection
-
-
-class Repros(Model):
-    id = AutoField()
-    user = BigIntegerField()
-    report = ForeignKeyField(BugReport, backref="repros")
 
     class Meta:
         database = connection
@@ -96,6 +115,7 @@ class AutoResponder(Model):
 class CountWord(Model):
     id = PrimaryKeyField()
     serverid = BigIntegerField()
+    # guild = ForeignKeyField(Guild, backref='watchwords')
     word = CharField(max_length=300, collation="utf8mb4_general_ci")
 
     class Meta:
@@ -105,6 +125,7 @@ class CountWord(Model):
 class ReactWatch(Model):
     id = PrimaryKeyField()
     serverid = BigIntegerField()
+    # guild = ForeignKeyField(Guild, backref='watchemoji')
     logtochannel = BigIntegerField(default=0)
     watchlist = CharField(max_length=2000, collation="utf8mb4_general_ci", default="")
     banlist = CharField(max_length=2000, collation="utf8mb4_general_ci", default="")
@@ -118,9 +139,38 @@ class ReactWatch(Model):
 class ArtChannel(Model):
     id = PrimaryKeyField()
     serverid = BigIntegerField()
+    # guild = ForeignKeyField(Guild, backref='artchannels')
     listenchannelid = BigIntegerField(default=0)
     collectionchannelid = BigIntegerField(default=0)
     tag = CharField(max_length=30, collation="utf8mb4_general_ci")
+
+    class Meta:
+        database = connection
+
+
+class Localization(Model):
+    id = PrimaryKeyField()
+    guild = ForeignKeyField(Guild, backref='channel_locales')
+    channelid = BigIntegerField(default=0)
+    locale = CharField(max_length=10)
+
+    class Meta:
+        database = connection
+
+
+class AdminRole(Model):
+    id = PrimaryKeyField()
+    guild = ForeignKeyField(Guild, backref='admin_roles')
+    roleid = BigIntegerField()
+
+    class Meta:
+        database = connection
+
+
+class ModRole(Model):
+    id = PrimaryKeyField()
+    guild = ForeignKeyField(Guild, backref='mod_roles')
+    roleid = BigIntegerField()
 
     class Meta:
         database = connection
@@ -130,6 +180,7 @@ def init():
     global connection
     connection.connect()
     connection.create_tables([
+        Guild,
         ArtChannel,
         Attachments,
         AutoResponder,
@@ -139,6 +190,9 @@ def init():
         CustomCommand,
         KrillChannel,
         Repros,
-        ReactWatch
+        ReactWatch,
+        Localization,
+        AdminRole,
+        ModRole
     ])
     connection.close()
