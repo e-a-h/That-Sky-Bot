@@ -1,10 +1,9 @@
 import asyncio
-import time
+import io
 
 import discord
 from discord import Embed
 from discord.ext import commands
-from discord.ext.commands import command, Context
 
 from cogs.BaseCog import BaseCog
 from utils import Lang, Questions, Utils
@@ -179,10 +178,15 @@ class DropBox(BaseCog):
             embed.set_author(name=f"{ctx.author} ({ctx.author.id})", icon_url=ctx.author.avatar_url_as(size=32))
             embed.add_field(name="Author link", value=ctx.author.mention)
             try:
-                await message.delete()
                 # send embed and message to dropbox channel
                 drop_channel = self.bot.get_channel(self.dropboxes[message.channel.guild.id][message.channel.id])
+
+                for attachment in message.attachments:
+                    buffer = io.BytesIO()
+                    await attachment.save(buffer)
+                    await drop_channel.send(file=discord.File(buffer, attachment.filename))
                 await drop_channel.send(embed=embed, content=message.content)
+
                 # TODO: try/ignore: add reaction for "claim" "flag" "followup" "delete"
                 # TODO: if delivery confirmation
                 await ctx.send(f"Your message was delivered, {ctx.author.mention}!")
@@ -190,6 +194,8 @@ class DropBox(BaseCog):
                 # TODO: if delivery confirmation
                 await ctx.send(f"Your message was **not** delivered, {ctx.author.mention}. Please try again, or contact a moderator")
                 await Utils.handle_exception("dropbox delivery failure", self.bot, e)
+
+            await message.delete()
 
 
 def setup(bot):
