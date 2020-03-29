@@ -115,8 +115,9 @@ if __name__ == '__main__':
     Logging.info("Launching thatskybot!")
 
     dsn = Configuration.get_var('SENTRY_DSN', '')
+    dsn_env = Configuration.get_var('SENTRY_ENV', 'Dev')
     if dsn != '':
-        sentry_sdk.init(dsn, before_send=before_send)
+        sentry_sdk.init(dsn, before_send=before_send, environment=dsn_env)
 
     Database.init()
 

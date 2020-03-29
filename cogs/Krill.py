@@ -170,6 +170,8 @@ class Krill(BaseCog):
             return
 
         x = "space" if letter == "sp" else f"letter \"{letter}\""
+        if letter != "sp":
+            value = re.escape(value)
         if value in self.oreo_filter[letter]:
             await ctx.send(f"That {x} is already on the list")
             return

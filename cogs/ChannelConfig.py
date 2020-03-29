@@ -5,7 +5,6 @@ import discord
 from discord.ext import commands
 
 from cogs.BaseCog import BaseCog
-from sky import Skybot
 from utils import Configuration, Logging, Emoji, Lang
 from utils.Database import ConfigChannel
 from utils.Utils import validate_channel_name
