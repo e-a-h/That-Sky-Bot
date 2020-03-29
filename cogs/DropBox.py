@@ -54,7 +54,7 @@ class DropBox(BaseCog):
             source_channel = self.bot.get_channel(source)
             target_channel = self.bot.get_channel(target)
             embed.add_field(name=f"From",
-                            value=Utils.get_channel_description(self.bot, target_channel.id),
+                            value=Utils.get_channel_description(self.bot, source_channel.id),
                             inline=True)
             embed.add_field(name=f"To",
                             value=Utils.get_channel_description(self.bot, target_channel.id),
