@@ -38,10 +38,7 @@ class PromMonitoring(BaseCog):
         (m.own_message_raw_count if message.author.id == self.bot.user.id else m.bot_message_raw_count if message.author.bot else m.user_message_raw_count).inc()
 
     async def create_site(self):
-        port = Configuration.get_var('METRICS_PORT')
-        if not port:
-            print('Metrics server port not set. Metrics server NOT starting')
-            return
+        port = Configuration.get_var('METRICS_PORT', 8080)
 
         await asyncio.sleep(10)
         print("starting metrics server")

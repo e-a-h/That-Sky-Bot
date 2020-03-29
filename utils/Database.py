@@ -126,6 +126,16 @@ class ArtChannel(Model):
         database = connection
 
 
+class DropboxChannel(Model):
+    id = PrimaryKeyField()
+    serverid = BigIntegerField()
+    sourcechannelid = BigIntegerField()
+    targetchannelid = BigIntegerField(default=0)
+
+    class Meta:
+        database = connection
+
+
 def init():
     global connection
     connection.connect()
@@ -137,6 +147,7 @@ def init():
         ConfigChannel,
         CountWord,
         CustomCommand,
+        DropboxChannel,
         KrillChannel,
         Repros,
         ReactWatch
