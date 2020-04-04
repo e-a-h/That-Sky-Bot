@@ -20,6 +20,8 @@ class PrometheusMon:
         self.bot_guilds = prom.Gauge("bot_guilds", "How many guilds the bot is in")
         self.bot_guilds.set_function(lambda: len(bot.guilds))
 
+        self.bot_welcome_mute = prom.Gauge("bot_welcome_mute", "How new members are temp-muted", ["guild_id"])
+
         self.bot_users = prom.Gauge("bot_users", "How many users the bot can see")
         self.bot_users.set_function(lambda: sum(len(g.members) for g in bot.guilds))
 
@@ -96,6 +98,7 @@ class PrometheusMon:
         bot.metrics_reg.register(self.user_message_raw_count)
         bot.metrics_reg.register(self.bot_message_raw_count)
         bot.metrics_reg.register(self.own_message_raw_count)
+        bot.metrics_reg.register(self.bot_welcome_mute)
         bot.metrics_reg.register(self.bot_guilds)
         bot.metrics_reg.register(self.bot_users)
         bot.metrics_reg.register(self.bot_users_unique)

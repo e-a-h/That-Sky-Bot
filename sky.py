@@ -7,6 +7,7 @@ from discord.ext.commands import Bot
 from aiohttp import ClientOSError, ServerDisconnectedError
 from discord import ConnectionClosed, Embed, Colour
 from prometheus_client import CollectorRegistry
+from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 
 from utils import Logging, Configuration, Utils, Emoji, Database
 
@@ -117,7 +118,7 @@ if __name__ == '__main__':
     dsn = Configuration.get_var('SENTRY_DSN', '')
     dsn_env = Configuration.get_var('SENTRY_ENV', 'Dev')
     if dsn != '':
-        sentry_sdk.init(dsn, before_send=before_send, environment=dsn_env)
+        sentry_sdk.init(dsn, before_send=before_send, environment=dsn_env, integrations=[AioHttpIntegration()])
 
     Database.init()
 
