@@ -598,7 +598,6 @@ class AutoResponders(BaseCog):
         except ValueError:
             await nope(ctx)
 
-    @commands.guild_only()
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Set up message listener and respond to specific text with various canned responses"""

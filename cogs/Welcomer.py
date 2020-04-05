@@ -494,7 +494,6 @@ class Welcomer(BaseCog):
         if react_user_id != self.bot.user.id and event.message_id == rules_message_id:
             await self.handle_reaction_change("remove", str(event.emoji), react_user_id)
 
-    @commands.guild_only()
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or not hasattr(message.author, "guild") or message.author.guild_permissions.mute_members:

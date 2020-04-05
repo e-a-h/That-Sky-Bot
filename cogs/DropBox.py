@@ -41,8 +41,8 @@ class DropBox(BaseCog):
         for row in DropboxChannel.select().where(DropboxChannel.serverid == guild.id):
             row.delete_instance()
 
-    @commands.guild_only()
     @commands.group(name="dropbox", invoke_without_command=True)
+    @commands.guild_only()
     async def dropbox(self, ctx):
         # list dropbox channels
         embed = Embed(
@@ -65,8 +65,8 @@ class DropBox(BaseCog):
             embed.add_field(name="Not Set", value="Add dropboxes using `dropbox add` command")
         await ctx.send(embed=embed)
 
-    @commands.guild_only()
     @dropbox.command()
+    @commands.guild_only()
     async def add(self, ctx, sourceid: int, targetid: int):
         # validate channel ids
         source_channel = self.bot.get_channel(sourceid)
@@ -133,8 +133,8 @@ class DropBox(BaseCog):
         # message success to user
         await ctx.send(msg)
 
-    @commands.guild_only()
     @dropbox.command()
+    @commands.guild_only()
     async def remove(self, ctx, sourceid: int):
         source_description = Utils.get_channel_description(self.bot, sourceid)
         if sourceid not in self.dropboxes[ctx.guild.id]:
@@ -152,7 +152,9 @@ class DropBox(BaseCog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.message):
-        if message.channel.id not in self.dropboxes[message.channel.guild.id] or \
+        not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
+        if not_in_guild or \
+                message.channel.id not in self.dropboxes[message.channel.guild.id] or \
                 not hasattr(message.author, "guild") or \
                 message.author.guild_permissions.ban_members or \
                 message.author.bot:

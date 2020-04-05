@@ -15,13 +15,14 @@ from utils.PrometheusMon import PrometheusMon
 
 class Skybot(Bot):
     loaded = False
-    shutting_down = False
     metrics_reg = CollectorRegistry()
 
     def __init__(self, *args, loop=None, **kwargs):
         super().__init__(*args, loop=loop, **kwargs)
+        self.shutting_down = False
         self.metrics = PrometheusMon(self)
         self.config_channels = dict()
+        self.db_keepalive = None
 
     async def on_ready(self):
         if not self.loaded:
@@ -34,7 +35,7 @@ class Skybot(Bot):
                 except Exception as e:
                     await Utils.handle_exception(f"Failed to load cog {cog}", self, e)
             Logging.info("Cogs loaded")
-            self.loop.create_task(self.keepDBalive())
+            self.db_keepalive = self.loop.create_task(self.keepDBalive())
             self.loaded = True
 
         await Logging.bot_log("Sky bot soaring through the skies!")
@@ -50,13 +51,17 @@ class Skybot(Bot):
         return None
 
     async def close(self):
+        Logging.info("Shutting down?")
         if not self.shutting_down:
+            Logging.info("Shutting down...")
             self.shutting_down = True
             await Logging.bot_log(f"Skybot shutting down!")
+            self.db_keepalive.cancel()
             temp = []
             for cog in self.cogs:
                 temp.append(cog)
             for cog in temp:
+                Logging.info(f"unloading cog {cog}")
                 c = self.get_cog(cog)
                 if hasattr(c, "shutdown"):
                     await c.shutdown()

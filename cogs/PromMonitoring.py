@@ -15,11 +15,14 @@ class PromMonitoring(BaseCog):
         super().__init__(bot)
         self.running = True
         self.metric_server = None
-        self.bot.loop.create_task(self.create_site())
+        self.start_metrics = self.bot.loop.create_task(self.create_site())
 
     def cog_unload(self):
         self.running = False
-        self.bot.loop.create_task(self.metric_server.stop())
+        if self.metric_server:
+            self.bot.loop.create_task(self.metric_server.stop())
+        else:
+            self.start_metrics.cancel()
 
     @commands.Cog.listener()
     async def on_command_completion(self, ctx):

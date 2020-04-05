@@ -5,7 +5,7 @@ from concurrent.futures import CancelledError
 from datetime import datetime
 
 from discord import Forbidden, Embed, NotFound, HTTPException, PermissionOverwrite
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ext.commands import Context, command
 
 import prometheus_client as prom
@@ -24,8 +24,13 @@ class Bugs(BaseCog):
         self.in_progress = dict()
         self.sweeps = dict()
         self.blocking = set()
+        self.maintenance_message = None
+        self.maint_check_count = 0
         m = self.bot.metrics
         m.reports_in_progress.set_function(lambda: len(self.in_progress))
+
+    def cog_unload(self):
+        self.verify_empty_bug_queue.cancel()
 
     async def sweep_trash(self, user):
         await asyncio.sleep(Configuration.get_var("bug_trash_sweep_minutes")*60)
@@ -80,45 +85,73 @@ class Bugs(BaseCog):
         self.bug_messages.add(message.id)
         Configuration.set_persistent_var(f"{key}_message", message.id)
 
-    @commands.command(aliases=["bugmaint"])
+    @tasks.loop(seconds=30.0)
+    async def verify_empty_bug_queue(self, ctx):
+        if len(self.in_progress) > 0:
+
+            if self.maint_check_count == 10:
+                await ctx.send(f"Sorry {ctx.author.mention} but I give up. Maybe the bug queue is busted, as usual.")
+                self.verify_empty_bug_queue.cancel()
+                return
+
+            msg = f"There are {len(self.in_progress)} report(s) still in progress."
+            if self.maintenance_message is None:
+                self.maintenance_message = await ctx.send(msg)
+            else:
+                self.maint_check_count = self.maint_check_count + 1
+                await self.maintenance_message.edit(content=msg + (" ." * self.maint_check_count))
+            return
+        elif self.maint_check_count > 0:
+            await self.maintenance_message.delete()
+            await ctx.send(f"Bug reports are all done, {ctx.author.mention}!!")
+        else:
+            await ctx.send(f"There are no bug reports in progress.")
+
+        self.maintenance_message = None
+        self.verify_empty_bug_queue.cancel()
+
+    @commands.command(aliases=["bugmaint", "maintenance", "maintenance_mode", "maint"])
     @commands.guild_only()
     @commands.is_owner()
     async def bug_maintenance(self, ctx, active: bool):
-        if active:
-            if len(self.in_progress) > 0:
-                await ctx.send(f"There are {len(self.in_progress)} report(s) in progress. Not activating maintenance mode.")
-                return
-            await ctx.send("setting bug maintenance mode **on**: Reporting channels **closed**.")
+        try:
+            # show/hide maintenance channel
+            maint_message_channel = self.bot.get_channel(Configuration.get_var("bug_maintenance_channel"))
+
+            member_role = ctx.guild.get_role(Configuration.get_var("member_role"))
+            beta_role = ctx.guild.get_role(Configuration.get_var("beta_role"))
+
+            member_overwrite = maint_message_channel.overwrites[member_role]
+            member_overwrite.read_messages = active
+            await maint_message_channel.set_permissions(member_role, overwrite=member_overwrite)
+
+            beta_overwrite = maint_message_channel.overwrites[beta_role]
+            beta_overwrite.read_messages = active
+            await maint_message_channel.set_permissions(beta_role, overwrite=beta_overwrite)
+
+            for name, cid in Configuration.get_var("channels").items():
+                # show/hide reporting channels
+                channel = self.bot.get_channel(cid)
+
+                member_overwrite = channel.overwrites[member_role]
+                member_overwrite.read_messages = None if active else True
+                await channel.set_permissions(member_role, overwrite=member_overwrite)
+
+                if re.search(r'beta', name):
+                    beta_overwrite = channel.overwrites[beta_role]
+                    beta_overwrite.read_messages = None if active else True
+                    await channel.set_permissions(beta_role, overwrite=beta_overwrite)
+        except Exception as e:
+            await ctx.send("Failed to set reporting channel permissions. Check channel permissions because "
+                           "I might have broken something...")
+            await Utils.handle_exception("failed to set bug report channel permissions", self.bot, e)
         else:
-            await ctx.send("setting bug maintenance mode **off**: Reporting channels **open**.")
-        pass
-
-        # show/hide maintenance channel
-        maint_message_channel = self.bot.get_channel(Configuration.get_var("bug_maintenance_channel"))
-
-        member_role = ctx.guild.get_role(Configuration.get_var("member_role"))
-        beta_role = ctx.guild.get_role(Configuration.get_var("beta_role"))
-
-        member_overwrite = maint_message_channel.overwrites[member_role]
-        member_overwrite.read_messages = active
-        await maint_message_channel.set_permissions(member_role, overwrite=member_overwrite)
-
-        beta_overwrite = maint_message_channel.overwrites[beta_role]
-        beta_overwrite.read_messages = active
-        await maint_message_channel.set_permissions(beta_role, overwrite=beta_overwrite)
-
-        for name, cid in Configuration.get_var("channels").items():
-            # show/hide reporting channels
-            channel = self.bot.get_channel(cid)
-
-            member_overwrite = channel.overwrites[member_role]
-            member_overwrite.read_messages = None if active else True
-            await channel.set_permissions(member_role, overwrite=member_overwrite)
-
-            if re.search(r'beta', name):
-                beta_overwrite = channel.overwrites[beta_role]
-                beta_overwrite.read_messages = None if active else True
-                await channel.set_permissions(beta_role, overwrite=beta_overwrite)
+            if active:
+                self.maint_check_count = 0
+                self.verify_empty_bug_queue.start(ctx)
+                await ctx.send("bot maintenance mode **on**: Reporting channels **closed**.")
+            else:
+                await ctx.send("bot maintenance mode **off**: Reporting channels **open**.")
 
     @commands.group(name='bug', invoke_without_command=True)
     async def bug(self, ctx: Context):
@@ -127,8 +160,8 @@ class Bugs(BaseCog):
             await ctx.message.delete()
         await self.report_bug(ctx.author, ctx.channel)
 
-    @commands.guild_only()
     @bug.command(aliases=["resetactive", "reset_in_progress", "resetinprogress", "reset", "clean"])
+    @commands.guild_only()
     async def reset_active(self, ctx):
         is_owner = await ctx.bot.is_owner(ctx.author)
         if is_owner:
