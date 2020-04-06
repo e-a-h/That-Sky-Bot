@@ -4,6 +4,7 @@ from utils.Database import ReactWatch
 
 import copy
 import discord
+from discord import NotFound, HTTPException
 from discord.ext import commands
 
 from cogs.BaseCog import BaseCog
@@ -141,7 +142,13 @@ class ReactMonitor(BaseCog):
         member = event.member
         guild = self.bot.get_guild(event.guild_id)
         channel = self.bot.get_channel(event.channel_id)
-        message = await channel.fetch_message(event.message_id)
+        try:
+            message = await channel.fetch_message(event.message_id)
+        except (NotFound, HTTPException) as e:
+            # Can't track reactions on a message I can't find
+            # Happens for deleted messages. Safe to ignore.
+            # await Utils.handle_exception(f"Failed to get message {channel.id}/{event.message_id}", self, e)
+            return
         muted_role = guild.get_role(muted_roles[guild.id])
 
         # Add message id/reaction/timestamp to dict for tracking fast removal of reactions
@@ -149,9 +156,9 @@ class ReactMonitor(BaseCog):
         self.recent_reactions[guild.id][str(now)] = {"message_id": message.id, "user_id": event.user_id}
 
         log_channel = self.bot.get_config_channel(message.guild.id, Utils.log_channel)
-        rules_channel = self.bot.get_config_channel(guild.id, Utils.rules_channel)
 
         # TODO: evaluate removing reactions from muted members. They already can't add *new* reacts so is this needed?
+        # rules_channel = self.bot.get_config_channel(guild.id, Utils.rules_channel)
         # if channel != rules_channel and muted_role in member.roles:
         #     await message.remove_reaction(emoji_used, member)
         #     if log_channel:
@@ -165,13 +172,14 @@ class ReactMonitor(BaseCog):
             await member.add_roles(muted_role)
             # ping log channel with detail
             if log_channel:
-                await log_channel.send(f"I muted {member.mention} for using blacklisted emoji "
-                                       f"{emoji_used} in #{channel.name}.\n"
+                await log_channel.send(f"I muted {Utils.get_member_log_name(member)} for using blacklisted emoji "
+                                       f"[{emoji_used}] in #{channel.name}.\n"
                                        f"{message.jump_url}")
         if emoji_used in self.watch_lists[event.guild_id]:
             # ping log channel with detail
             if log_channel:
-                await log_channel.send(f"{member.mention} used watched emoji {emoji_used} in #{channel.name}.\n"
+                await log_channel.send(f"{Utils.get_member_log_name(member)} used watched emoji "
+                                       f"[{emoji_used}] in #{channel.name}.\n"
                                        f"{message.jump_url}")
 
     @commands.Cog.listener()
@@ -203,18 +211,22 @@ class ReactMonitor(BaseCog):
             is_message = info['message_id'] == event.message_id
             is_user = info['user_id'] == event.user_id
             if is_message and is_user:
-                # This user is removing a reaction they adding within the warning time window
+                # This user is removing a reaction they added within the warning time window
                 guild = self.bot.get_guild(event.guild_id)
                 member = guild.get_member(event.user_id)
                 emoji_used = str(event.emoji)
                 channel = self.bot.get_channel(event.channel_id)
-                message = await channel.fetch_message(event.message_id)
                 log_channel = self.bot.get_config_channel(guild.id, Utils.log_channel)
                 # ping log channel with detail
                 if log_channel:
-                    await log_channel.send(f"{member.mention} quick-removed reaction {emoji_used} from a message "
-                                           f"in {channel.mention}\n"
-                                           f"{message.jump_url}")
+                    content = f"{Utils.get_member_log_name(member)} " \
+                              f"quick-removed [{emoji_used}] react from a message in {channel.mention}"
+                    try:
+                        message = await channel.fetch_message(event.message_id)
+                        content = f"{content}\n{message.jump_url}"
+                    except (NotFound, HTTPException) as e:
+                        pass
+                    await log_channel.send(content)
 
 
 def setup(bot):

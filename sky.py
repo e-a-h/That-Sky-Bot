@@ -9,6 +9,7 @@ from discord.ext.commands import Bot
 from aiohttp import ClientOSError, ServerDisconnectedError
 from discord import ConnectionClosed, Embed, Colour
 from prometheus_client import CollectorRegistry
+from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 
 from utils import Logging, Configuration, Utils, Emoji, Database
 
@@ -17,13 +18,14 @@ from utils.PrometheusMon import PrometheusMon
 
 class Skybot(Bot):
     loaded = False
-    shutting_down = False
     metrics_reg = CollectorRegistry()
 
     def __init__(self, *args, loop=None, **kwargs):
         super().__init__(*args, loop=loop, **kwargs)
+        self.shutting_down = False
         self.metrics = PrometheusMon(self)
         self.config_channels = dict()
+        self.db_keepalive = None
         sys.path.append(
             os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          "sky-python-music-sheet-maker",
@@ -40,7 +42,7 @@ class Skybot(Bot):
                 except Exception as e:
                     await Utils.handle_exception(f"Failed to load cog {cog}", self, e)
             Logging.info("Cogs loaded")
-            self.loop.create_task(self.keepDBalive())
+            self.db_keepalive = self.loop.create_task(self.keepDBalive())
             self.loaded = True
 
         await Logging.bot_log("Sky bot soaring through the skies!")
@@ -49,19 +51,24 @@ class Skybot(Bot):
         if Utils.validate_channel_name(channel_name):
             try:
                 this_channel_id = self.config_channels[guild_id][channel_name]
+                # TODO: catch keyerror and log in guild that channel is not configured
                 return self.get_channel(this_channel_id)
             except Exception as ex:
                 pass
         return None
 
     async def close(self):
+        Logging.info("Shutting down?")
         if not self.shutting_down:
+            Logging.info("Shutting down...")
             self.shutting_down = True
             await Logging.bot_log(f"Skybot shutting down!")
+            self.db_keepalive.cancel()
             temp = []
             for cog in self.cogs:
                 temp.append(cog)
             for cog in temp:
+                Logging.info(f"unloading cog {cog}")
                 c = self.get_cog(cog)
                 if hasattr(c, "shutdown"):
                     await c.shutdown()
@@ -121,8 +128,9 @@ if __name__ == '__main__':
     Logging.info("Launching thatskybot!")
 
     dsn = Configuration.get_var('SENTRY_DSN', '')
+    dsn_env = Configuration.get_var('SENTRY_ENV', 'Dev')
     if dsn != '':
-        sentry_sdk.init(dsn, before_send=before_send)
+        sentry_sdk.init(dsn, before_send=before_send, environment=dsn_env, integrations=[AioHttpIntegration()])
 
     Database.init()
 
