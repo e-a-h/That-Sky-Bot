@@ -1,5 +1,7 @@
 import asyncio
+import os
 import signal
+import sys
 
 import sentry_sdk
 from discord.ext import commands
@@ -13,6 +15,7 @@ from utils import Logging, Configuration, Utils, Emoji, Database
 
 from utils.PrometheusMon import PrometheusMon
 
+
 class Skybot(Bot):
     loaded = False
     metrics_reg = CollectorRegistry()
@@ -23,6 +26,10 @@ class Skybot(Bot):
         self.metrics = PrometheusMon(self)
         self.config_channels = dict()
         self.db_keepalive = None
+        sys.path.append(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "sky-python-music-sheet-maker",
+                         "python"))
 
     async def on_ready(self):
         if not self.loaded:
@@ -136,7 +143,7 @@ if __name__ == '__main__':
 
     try:
         for signame in ('SIGINT', 'SIGTERM'):
-           loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(skybot.close()))
+            loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(skybot.close()))
     except NotImplementedError:
         pass
 
