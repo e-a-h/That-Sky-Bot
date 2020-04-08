@@ -8,25 +8,96 @@ from discord.ext import commands
 
 from cogs.BaseCog import BaseCog
 
+from utils import Lang, Emoji, Questions, Utils, Configuration
+
+
 try:
-    from modes import InputModes, RenderModes, CSSModes
-    from parsers import SongParser
-    from songs import Song
+    #from modes import InputMode, RenderMode, CSSMode
+    
+    #from songparser import SongParser
+    #from song import Song
+    from communicator import Communicator, QueriesExecutionAbort
+    from music_sheet_maker import MusicSheetMaker
 except ImportError as e:
+    print('*** IMPORT ERROR of one or several Music-Maker modules')
     print(e)
 
-from utils import Lang, Emoji, Questions, Utils, Configuration
+
+class MusicCogPlayer():
+    
+    def __init__(self, cog):
+        self.cog = cog
+        self.name = 'music-cog' #Must be defined before instanciating communicator
+        self.communicator = Communicator(owner=self)
+        
+    def get_name(self):
+        return self.name
+
+    def receive(self, *args, **kwargs):
+        self.communicator.receive(*args, **kwargs)
+    
+    def max_length(self, length):
+        def real_check(text):
+            if len(text) > length:
+                return Lang.get_string("music/text_too_long", max=length)
+            return True
+
+        return real_check    
+
+    async def async_execute_queries(self, channel, ctx, queries=None):
+        
+        if queries is None:
+            self.communicator.memory.clean()
+            queries = self.communicator.recall_unsatisfied(filters=('to_me'))
+        else:
+            if not isinstance(queries, (list, set)):
+                queries = [queries]
+        
+        for q in queries:
+            reply_valid = False
+            while not reply_valid:
+                question = self.communicator.query_to_discord(q)
+                reply_valid = True #to be sure to break the loop
+                if q.get_expect_reply():                  
+                    #print('%%%DEBUG. PLAYER, YOU ARE BEING PROMPTED%%%') #FIXME: for debugging only                    
+                    answer = await Questions.ask_text(self.cog.bot, channel, ctx.author,
+                                            question,
+                                            validator=self.max_length(2000))                   
+                    #TODO: handle abort signals
+                    q.reply_to(answer)
+                    reply_valid = q.get_reply_validity()
+                else:                  
+                    #print('%%%DEBUG. PLAYER, YOU ARE BEING TOLD%%%') #FIXME: for debugging only
+                    await channel.send(question)
+                    q.reply_to('ok')
+                    reply_valid = q.get_reply_validity()
+        
+        return 
+
+
+    async def send_song_to_channel(self, channel, ctx, song_bundle, song_title='Untitled'):
+        
+        # A song bundle is a list of tuples
+        # Each tuple is made of a list of buffers and a list of corresponding modes
+        # Each buffer is an IOString or IOBytes object
+        
+        for (buffers, render_modes) in song_bundle:
+            
+            my_files = [File(buffer, filename='%s_%d%s'%(song_title,i,render_mode.extension)) for (i, buffer), render_mode in zip(enumerate(buffers), render_modes)] 
+            
+            #TODO: handle more than 10 files
+            await channel.send(content="Here are your song files(s)", files=my_files)
 
 
 class Music(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        self.music_messages = set()
         self.in_progress = dict()
         self.sweeps = dict()
         m = self.bot.metrics
         m.reports_in_progress.set_function(lambda: len(self.in_progress))
+        
 
     async def delete_progress(self, uid):
         if uid in self.in_progress:
@@ -42,7 +113,8 @@ class Music(BaseCog):
                 await user.send(Lang.get_string("bugs/sweep_trash"))
 
             await self.delete_progress(user.id)
-
+            
+    
     @commands.command(aliases=['ts', 'song'])
     async def transcribe_song(self, ctx):
 
@@ -50,30 +122,11 @@ class Music(BaseCog):
         active_question = None
         restarting = False
 
-        # Parameters that can be changed by advanced users
-        QUAVER_DELIMITER = '-'  # Dash-separated list of chords
-        ICON_DELIMITER = ' '  # Chords separation
-        PAUSE = '.'
-        COMMENT_DELIMITER = '#'  # Lyrics delimiter, can be used for comments
-        REPEAT_INDICATOR = '*'
-        SONG_DIR_IN = 'test_songs'
-        MUSIC_SUBMODULE_PATH = 'sky-python-music-sheet-maker'
-        SONG_DIR_OUT = 'songs_out'
-        CSS_PATH = 'css/main.css'
-        CSS_MODE = CSSModes.EMBED
-        ENABLED_MODES = [RenderModes.SKYASCII, RenderModes.PNG]
-
-        mycwd = os.getcwd()
-
-        if not os.path.isdir(os.path.join(MUSIC_SUBMODULE_PATH, SONG_DIR_OUT)):
-            os.mkdir(os.path.join(MUSIC_SUBMODULE_PATH, SONG_DIR_OUT))
-
-        SONG_DIR_OUT = os.path.join(MUSIC_SUBMODULE_PATH, SONG_DIR_OUT)
-
         # delete the author's message
 
         # start a dm
         try:
+            
             channel = await ctx.author.create_dm()
             asking = True
 
@@ -85,144 +138,64 @@ class Music(BaseCog):
                 m.reports_exit_question.observe(active_question)
                 await self.delete_progress(ctx.author.id)
 
-            def max_length(length):
-                def real_check(text):
-                    if len(text) > length:
-                        return Lang.get_string("music/text_too_long", max=length)
-                    return True
 
-                return real_check
+            player = MusicCogPlayer(self)
+            maker = MusicSheetMaker()
+            
+            # 1. Set Song Parser
+            maker.set_song_parser()
+    
+            # 2. Display instructions
+            i_instr, _ = maker.ask_instructions(recipient=player, execute=False)
+            await player.async_execute_queries(channel, ctx, i_instr)
+            #result = i_instr.get_reply().get_result()
+                    
+            # 3. Ask for notes
+            #TODO: allow the player to enter the notes using several messages??? or maybe not
+            q_notes, _ = maker.ask_notes(recipient=player, prerequisites=[i_instr], execute=False)       
+            await player.async_execute_queries(channel, ctx, q_notes)
+            notes = q_notes.get_reply().get_result()
+            
+            # 4. Ask for input mode (or display the one found)
+            q_mode, input_mode = maker.ask_input_mode(recipient=player, notes=notes, prerequisites=[q_notes], execute=False)
+            await player.async_execute_queries(channel, ctx, q_mode)
+            if input_mode is None:
+                input_mode = q_mode.get_reply().get_result()
+            
+            # 5. Set input_mode
+            maker.set_parser_input_mode(recipient=player, input_mode=input_mode)
+            
+            # 6. Ask for song keye (or display the only one possible)
+            (q_key, song_key) = maker.ask_song_key(recipient=player, notes=notes, input_mode=input_mode, prerequisites=[q_notes, q_mode], execute=False)
+            await player.async_execute_queries(channel, ctx, q_key)
+            if song_key is None:
+                song_key = maker.retrieve_song_key(recipient=player, notes=notes, input_mode=input_mode)
+                #song_key = q_mode.get_reply().get_result()
+            
+             # 7. Asks for octave shift
+            q_shift, _ = maker.ask_octave_shift(recipient=player, execute=False)
+            await player.async_execute_queries(channel, ctx, q_shift)
+            octave_shift = q_shift.get_reply().get_result()
+ 
+            # 8. Parse song
+            maker.parse_song(recipient=player, notes=notes, song_key=song_key, octave_shift=octave_shift)
+ 
+            # 9. Displays error ratio
+            i_error, _ = maker.display_error_ratio(recipient=player, prerequisites=[q_notes, q_mode, q_shift], execute=False)
+            await player.async_execute_queries(channel, ctx, i_error)
+            #error_message = i_error.get_reply().get_result()
+            
+            # 10. Asks for song metadata
+            qs_meta, _ = maker.ask_song_metadata(recipient=player, execute=False)
+            await player.async_execute_queries(channel, ctx, qs_meta)
+            (title, artist, transcript) = [q.get_reply().get_result() for q in qs_meta]
+            maker.get_song().set_meta(title=title, artist=artist, transcript=transcript, song_key=song_key)
 
-            #
-            song = await Questions.ask_text(self.bot, channel, ctx.author,
-                                            Lang.get_string("music/start_prompt_01",
-                                                            PAUSE=PAUSE,
-                                                            QUAVER_DELIMITER=QUAVER_DELIMITER,
-                                                            REPEAT_INDICATOR=REPEAT_INDICATOR,
-                                                            COMMENT_DELIMITER=COMMENT_DELIMITER,
-                                                            max=100),
-                                            validator=max_length(2000))
-            myparser = SongParser()
-
-            song_lines = song.split('\n')
-            print(song_lines)
-
-            possible_modes = myparser.get_possible_modes(song_lines)
-
-            if len(possible_modes) > 1:
-                await channel.send('\nSeveral possible notations detected.\n Please choose your note format:\n')
-
-                mydict = {}
-                i = 0
-                for mode in possible_modes:
-                    i += 1
-                    await channel.send(str(i) + ') ' + mode.value[2])
-                    if mode == InputModes.SKYKEYBOARD:
-                        await channel.send('   ' + myparser.get_keyboard_layout().replace(' ', '\n   ') + ':')
-                    mydict[i] = mode
-                try:
-                    notation = await Questions.ask_text(self.bot, channel, ctx.author,
-                                                        "Mode (1-" + str(i) + "): ",
-                                                        validator=max_length(50))
-                    song_notation = mydict[int(notation.strip())]
-                except (ValueError, KeyError):
-                    song_notation = InputModes.SKY
-
-            elif len(possible_modes) == 0:
-                await channel.send('\nCould not detect your note format. Maybe your song contains typo errors?\nPlease choose your note format:\n')
-                mydict = {}
-                i = 0
-                for mode in possible_modes:
-                    i += 1
-                    await channel.send(str(i) + ') ' + mode.value[2])
-                    if mode == InputModes.SKYKEYBOARD:
-                        await channel.send('   ' + myparser.get_keyboard_layout().replace(' ', '\n   ') + ':')
-                    mydict[i] = mode
-                try:
-                    notation = await Questions.ask_text(self.bot, channel, ctx.author,
-                                                        "Mode (1-" + str(i) + "): ",
-                                                        validator=max_length(50))
-                    song_notation = mydict[int(notation.strip())]
-                except (ValueError, KeyError):
-                    song_notation = InputModes.SKY
-            else:
-                await channel.send(
-                    '\nWe detected that you use the following notation: ' + possible_modes[0].value[1] + '.')
-                song_notation = possible_modes[0]
-
-            myparser.set_input_mode(song_notation)
-
-            if song_notation == InputModes.JIANPU and PAUSE != '0':
-                await channel.send('\nWarning: pause in Jianpu has been reset to ''0''.')
-                PAUSE = '0'
-
-            myparser.set_delimiters(ICON_DELIMITER, PAUSE, QUAVER_DELIMITER, COMMENT_DELIMITER, REPEAT_INDICATOR)
-
-            possible_keys = []
-            song_key = None
-            if song_notation in [InputModes.ENGLISH, InputModes.DOREMI, InputModes.JIANPU]:
-                possible_keys = myparser.find_key(song_lines)
-                if len(possible_keys) == 0:
-                    await channel.send("\nYour song cannot be transposed exactly in Sky.")
-                    # trans = input('Enter a key or a number to transpose your song within the chromatic scale:')
-                    await channel.send("\nDefault key will be set to C.")
-                    song_key = 'C'
-                elif len(possible_keys) == 1:
-                    song_key = str(possible_keys[0])
-                    await channel.send("\nYour song can be transposed in Sky with the following key: " + song_key)
-                else:
-
-                    await channel.send(
-                        "\nYour song can be transposed in Sky with the following keys: " + ', '.join(possible_keys))
-
-                    while song_key not in possible_keys:
-                        song_key = await Questions.ask_text(self.bot, channel, ctx.author,
-                                                            Lang.get_string("music/choose_key"),
-                                                            validator=max_length(3))
-            else:
-                song_key = 'C'
-
-            song_title = await Questions.ask_text(self.bot, channel, ctx.author,
-                                                  Lang.get_string("music/song_title", max=200),
-                                                  validator=max_length(200))
-
-            if song_title == '':
-                song_title = str(ctx.author) + 'untitled'  # TODO: generate random title to avoid clashes
-
-            # Parses song line by line
-            english_song_key = myparser.english_note_name(song_key)
-            note_shift = 0
-            mysong = Song(english_song_key)  # The song key must be in English format
-            for song_line in song_lines:
-                instrument_line = myparser.parse_line(song_line, song_key,
-                                                      note_shift)  # The song key must be in the original format
-                mysong.add_line(instrument_line)
-
-            mysong.set_title(song_title)
-
-            if RenderModes.PNG in ENABLED_MODES:
-                png_path0 = os.path.join(SONG_DIR_OUT, song_title + '.png')
-                file_count, png_path = mysong.write_png(png_path0)
-
-                # upload attachments
-
-                if png_path != '':
-                    my_files = []
-
-                    for file_idx in range(file_count + 1):
-
-                        if file_idx == 0:
-                            file_idx = ''
-                        my_files.append(File(os.path.join(SONG_DIR_OUT, song_title + str(file_idx) + '.png')))
-
-                await channel.send(files=my_files)
-
-            if RenderModes.SKYASCII in ENABLED_MODES and song_notation not in [InputModes.SKY, InputModes.SKYKEYBOARD]:
-                await channel.send('```\n' + mysong.write_ascii(RenderModes.SKYASCII) + '\n```')
-            # await ctx.send(mysong.write_ascii(RenderModes.SKYASCII))
-
-            await ctx.send("Song complete.")
-
+            # 11. Renders Song
+            song_bundle = maker.render_song(recipient=player)
+            await player.send_song_to_channel(channel, ctx, song_bundle, title)
+            
+            
         except Forbidden as ex:
             m.bot_cannot_dm_member.inc()
             await ctx.send(
@@ -247,6 +220,7 @@ class Music(BaseCog):
             raise ex
         else:
             self.bot.loop.create_task(self.delete_progress(ctx.author.id))
+
 
         return
 
