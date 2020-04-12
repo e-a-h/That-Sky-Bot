@@ -1,7 +1,7 @@
 import asyncio
 import os
-import re
 from concurrent.futures import CancelledError
+import sys
 
 from discord import Forbidden, File
 from discord.ext import commands
@@ -10,9 +10,11 @@ from cogs.BaseCog import BaseCog
 
 from utils import Lang, Emoji, Questions, Utils, Configuration
 
-os.chdir("sky-python-music-sheet-maker")
 
 try:
+    music_maker_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),'sky-python-music-sheet-maker/python/'))
+    if music_maker_path not in sys.path:
+        sys.path.append(music_maker_path) 
     # from modes import InputMode, RenderMode, CSSMode
 
     # from songparser import SongParser
@@ -44,7 +46,7 @@ class MusicCogPlayer:
     def max_length(self, length):
         def real_check(text):
             if len(text) > length:
-                return Lang.get_string("music/text_too_long", max=length)
+                return Lang.get_string("music/text_too_long", max=length) #TODO: check that this string exists
             return True
 
         return real_check
@@ -64,7 +66,6 @@ class MusicCogPlayer:
                 question = self.communicator.query_to_discord(q)
                 reply_valid = True  # to be sure to break the loop
                 if q.get_expect_reply():
-                    # print('%%%DEBUG. PLAYER, YOU ARE BEING PROMPTED%%%') #FIXME: for debugging only
                     answer = await Questions.ask_text(self.cog.bot, channel, ctx.author,
                                                       question,
                                                       validator=self.max_length(2000))
@@ -72,7 +73,6 @@ class MusicCogPlayer:
                     q.reply_to(answer)
                     reply_valid = q.get_reply_validity()
                 else:
-                    # print('%%%DEBUG. PLAYER, YOU ARE BEING TOLD%%%') #FIXME: for debugging only
                     await channel.send(question)
                     q.reply_to('ok')
                     reply_valid = q.get_reply_validity()
@@ -84,13 +84,16 @@ class MusicCogPlayer:
         # A song bundle is a list of tuples
         # Each tuple is made of a list of buffers and a list of corresponding modes
         # Each buffer is an IOString or IOBytes object
+        message = "Here are your song files(s)"
 
         for (buffers, render_modes) in song_bundle:
             my_files = [File(buffer, filename='%s_%d%s' % (song_title, i, render_mode.extension)) for
                         (i, buffer), render_mode in zip(enumerate(buffers), render_modes)]
-
+            if len(my_files) > 10:
+                my_files = my_files[:9]
+                message += ". Sorry, I wasn't allowed to send you more than 10 files."
             # TODO: handle more than 10 files
-            await channel.send(content="Here are your song files(s)", files=my_files)
+            await channel.send(content=message, files=my_files)
 
 
 class Music(BaseCog):
@@ -117,6 +120,23 @@ class Music(BaseCog):
 
             await self.delete_progress(user.id)
 
+    '''
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, event):
+        react_user_id = event.user_id
+        channel = self.bot.get_channel(event.channel_id)
+        message = await channel.fetch_message(event.message_id)
+        user_is_bot = event.user_id == self.bot.user.id
+        #rules_message_id = Configuration.get_var('rules_react_message_id')
+        if not user_is_bot:
+            await self.handle_reaction_change("add", str(event.emoji), react_user_id)
+            print(channel)
+            print(react_user_id)
+            print(message)
+    '''
+       
+ #await self.report_bug(user, channel)
+ 
     @commands.command(aliases=['ts', 'song'])
     async def transcribe_song(self, ctx):
 
@@ -142,6 +162,14 @@ class Music(BaseCog):
 
             player = MusicCogPlayer(cog=self, locale='en_US')
             maker = MusicSheetMaker(locale='en_US')
+
+            #DEBUG
+            await Questions.ask(self.bot, channel, ctx.author, Lang.get_string("bugs/question_ready"),
+                    [
+                        Questions.Option("YES", "Press this reaction to answer YES and begin a Song"),
+                        Questions.Option("NO", "Press this reaction to answer NO and abort", handler=abort),
+                    ], show_embed=True)
+
 
             # 1. Set Song Parser
             maker.set_song_parser()
