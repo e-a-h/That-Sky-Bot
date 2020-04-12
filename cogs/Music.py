@@ -29,10 +29,14 @@ class MusicCogPlayer:
     def __init__(self, cog, locale='en_US'):
         self.cog = cog
         self.name = 'music-cog'  # Must be defined before instanciating communicator
-        self.communicator = Communicator(owner=self, locale='en_US')
+        self.locale = locale
+        self.communicator = Communicator(owner=self, locale=locale)
 
     def get_name(self):
         return self.name
+
+    def get_locale(self):        
+        return self.locale
 
     def receive(self, *args, **kwargs):
         self.communicator.receive(*args, **kwargs)
