@@ -66,6 +66,7 @@ class MusicCogPlayer:
                 question = self.communicator.query_to_discord(q)
                 reply_valid = True  # to be sure to break the loop
                 if q.get_expect_reply():
+                    await channel.trigger_typing()
                     answer = await Questions.ask_text(self.cog.bot, channel, ctx.author,
                                                       question,
                                                       validator=self.max_length(2000))
@@ -74,6 +75,7 @@ class MusicCogPlayer:
                     reply_valid = q.get_reply_validity()
                 else:
                     await channel.send(question)
+                    #TODO: add a wait? add something to seperate from next message anyway
                     q.reply_to('ok')
                     reply_valid = q.get_reply_validity()
 
@@ -84,6 +86,7 @@ class MusicCogPlayer:
         # A song bundle is a list of tuples
         # Each tuple is made of a list of buffers and a list of corresponding modes
         # Each buffer is an IOString or IOBytes object
+        await channel.trigger_typing()
         message = "Here are your song files(s)"
 
         for (buffers, render_modes) in song_bundle:
@@ -92,7 +95,6 @@ class MusicCogPlayer:
             if len(my_files) > 10:
                 my_files = my_files[:9]
                 message += ". Sorry, I wasn't allowed to send you more than 10 files."
-            # TODO: handle more than 10 files
             await channel.send(content=message, files=my_files)
 
 
@@ -105,6 +107,8 @@ class Music(BaseCog):
         m = self.bot.metrics
         m.reports_in_progress.set_function(lambda: len(self.in_progress))
 
+    #TODO: create methods to update the bot metrics and in_progress, etc
+
     async def delete_progress(self, uid):
         if uid in self.in_progress:
             self.in_progress[uid].cancel()
@@ -116,28 +120,26 @@ class Music(BaseCog):
         await asyncio.sleep(Configuration.get_var("bug_trash_sweep_minutes") * 60)
         if user.id in self.in_progress:
             if not self.in_progress[user.id].done() or not self.in_progress[user.id].cancelled():
-                await user.send(Lang.get_string("bugs/sweep_trash"))
+                await user.send(Lang.get_string("bugs/sweep_trash"))  #TODO music/sweep_trash
 
             await self.delete_progress(user.id)
 
-    '''
+    
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):
-        react_user_id = event.user_id
+        #react_user_id = event.user_id
         channel = self.bot.get_channel(event.channel_id)
-        message = await channel.fetch_message(event.message_id)
+       # message = await channel.fetch_message(event.message_id)
         user_is_bot = event.user_id == self.bot.user.id
         #rules_message_id = Configuration.get_var('rules_react_message_id')
         if not user_is_bot:
-            await self.handle_reaction_change("add", str(event.emoji), react_user_id)
-            print(channel)
-            print(react_user_id)
-            print(message)
-    '''
+            #await self.handle_reaction_change("add", str(event.emoji), react_user_id)
+            await channel.send("Sorry to see you go. Goodbye!")  #TODO music/goodbye
+            #TODO: stop the transcribe song process. how? change self.property?
        
  #await self.report_bug(user, channel)
  
-    @commands.command(aliases=['ts', 'song'])
+    @commands.command(aliases=['song'])
     async def transcribe_song(self, ctx):
 
         m = self.bot.metrics
@@ -154,7 +156,7 @@ class Music(BaseCog):
 
             async def abort():
                 nonlocal asking
-                await ctx.author.send(Lang.get_string("bugs/abort_report"))
+                await ctx.author.send(Lang.get_string("bugs/abort_report"))  #TODO music/abort
                 asking = False
                 m.reports_abort_count.inc()
                 m.reports_exit_question.observe(active_question)
@@ -162,14 +164,6 @@ class Music(BaseCog):
 
             player = MusicCogPlayer(cog=self, locale='en_US')
             maker = MusicSheetMaker(locale='en_US')
-
-            #DEBUG
-            await Questions.ask(self.bot, channel, ctx.author, Lang.get_string("bugs/question_ready"),
-                    [
-                        Questions.Option("YES", "Press this reaction to answer YES and begin a Song"),
-                        Questions.Option("NO", "Press this reaction to answer NO and abort", handler=abort),
-                    ], show_embed=True)
-
 
             # 1. Set Song Parser
             maker.set_song_parser()
@@ -236,7 +230,7 @@ class Music(BaseCog):
 
         except asyncio.TimeoutError as ex:
             m.report_incomplete_count.inc()
-            await channel.send(Lang.get_string("bugs/report_timeout"))
+            await channel.send(Lang.get_string("bugs/report_timeout")) #  TODO "music/time_out"
             if active_question is not None:
                 m.reports_exit_question.observe(active_question)
             self.bot.loop.create_task(self.delete_progress(ctx.author.id))
@@ -248,8 +242,7 @@ class Music(BaseCog):
                 raise ex
         except Exception as ex:
             self.bot.loop.create_task(self.delete_progress(ctx.author.id))
-            await Utils.handle_exception("bug reporting", self.bot, ex)
-            raise ex
+            await Utils.handle_exception("bug reporting", self.bot, ex)  #TODO change string
         else:
             self.bot.loop.create_task(self.delete_progress(ctx.author.id))
 
