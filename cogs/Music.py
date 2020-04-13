@@ -2,9 +2,12 @@ import asyncio
 import os
 from concurrent.futures import CancelledError
 import sys
+import time
+#from datetime import datetime
 
 from discord import Forbidden, File
-from discord.ext import commands
+from discord.ext import commands, tasks
+from discord.ext.commands import Context, command
 
 from cogs.BaseCog import BaseCog
 
@@ -51,8 +54,10 @@ class MusicCogPlayer:
 
         return real_check
 
-    async def async_execute_queries(self, channel, ctx, queries=None):
-
+    async def async_execute_queries(self, channel, user, queries=None):
+        
+        question_timeout = 5*60
+        
         if queries is None:
             self.communicator.memory.clean()
             queries = self.communicator.recall_unsatisfied(filters=('to_me'))
@@ -63,25 +68,61 @@ class MusicCogPlayer:
         for q in queries:
             reply_valid = False
             while not reply_valid:
-                question = self.communicator.query_to_discord(q)
+                
+                query_dict = self.communicator.query_to_discord(q)
+                
+                if 'options' in query_dict:
+                    
+                    async def answer_number(i: int):
+                        nonlocal answer_number
+                        answer_number = i
+
+                    
+                    if len(query_dict['options']) > 0 and len(query_dict['options']) <= 10:
+                        
+                        reaction_choices = True
+                        question_text = query_dict['question'] 
+                        options = [Questions.Option("NUMBER_%d"%i, option['text'], handler=answer_number, args=(i,)) for i, option in enumerate(query_dict['options'])]
+                        first_number = query_dict['options'][0]['number']
+                        #options_text = '\n'.join([str(option['number']) + ') ' + option['text'] for option in query_dict['options']])
+                        
+                    else: 
+                        
+                        reaction_choices = False
+                        question_text = query_dict['result']
+                        
+                else:
+                    reaction_choices = False
+                    question_text = query_dict['result']                 
+               
                 reply_valid = True  # to be sure to break the loop
                 if q.get_expect_reply():
                     await channel.trigger_typing()
-                    answer = await Questions.ask_text(self.cog.bot, channel, ctx.author,
-                                                      question,
+                    
+                    if reaction_choices:
+
+                        await Questions.ask(bot=self.cog.bot, channel=channel, author=user, text=question_text,
+                                    options=options, show_embed=True, delete_after=True)
+                        answer = answer_number + first_number
+                    else:
+                        answer = await Questions.ask_text(self.cog.bot, channel, user,
+                                                      question_text, timeout=question_timeout,
                                                       validator=self.max_length(2000))
+                    if answer is not None:
+                        q.reply_to(answer)
+                        reply_valid = q.get_reply_validity()              
                     # TODO: handle abort signals
-                    q.reply_to(answer)
-                    reply_valid = q.get_reply_validity()
+
                 else:
-                    await channel.send(question)
+                    message = await channel.send(question_text)
                     #TODO: add a wait? add something to seperate from next message anyway
-                    q.reply_to('ok')
-                    reply_valid = q.get_reply_validity()
+                    if message is not None:
+                        q.reply_to('ok')
+                        reply_valid = q.get_reply_validity()
 
-        return
+        return True
 
-    async def send_song_to_channel(self, channel, ctx, song_bundle, song_title='Untitled'):
+    async def send_song_to_channel(self, channel, user, song_bundle, song_title='Untitled'):
 
         # A song bundle is a list of tuples
         # Each tuple is made of a list of buffers and a list of corresponding modes
@@ -102,29 +143,174 @@ class Music(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        self.in_progress = dict()
-        self.sweeps = dict()
-        m = self.bot.metrics
-        m.reports_in_progress.set_function(lambda: len(self.in_progress))
+        self.in_progress = dict() # {user_id: asyncio_task}
 
     #TODO: create methods to update the bot metrics and in_progress, etc
 
-    async def delete_progress(self, uid):
+    async def delete_progress(self, user):
+        uid = user.id
         if uid in self.in_progress:
             self.in_progress[uid].cancel()
             del self.in_progress[uid]
-        if uid in self.sweeps:
-            self.sweeps[uid].cancel()
-
-    async def sweep_trash(self, user):
-        await asyncio.sleep(Configuration.get_var("bug_trash_sweep_minutes") * 60)
+ 
+    '''
+    async def delete_progress_delayed(self, user):
+        delete_timeout = 10*60
+        await asyncio.sleep(delete_timeout)
         if user.id in self.in_progress:
             if not self.in_progress[user.id].done() or not self.in_progress[user.id].cancelled():
-                await user.send(Lang.get_string("bugs/sweep_trash"))  #TODO music/sweep_trash
+                await user.send(Lang.get_string("music/song_trash"))
 
             await self.delete_progress(user.id)
 
+    '''
+    #@commands.group(name='song', invoke_without_command=True)
     
+
+    @commands.command(aliases=['song'])
+    async def transcribe_song(self, ctx: Context):
+        
+        if ctx.guild is not None:
+            await ctx.message.delete()    # remove command to not flood chat (unless we are in a DM already)     
+        
+        user = ctx.author
+        
+        if user.id in self.in_progress:
+         
+            starting_over = False
+            
+            async def start_over():
+                nonlocal starting_over
+                starting_over = True
+
+            # ask if user wants to start over
+            await Questions.ask(bot=self.bot, channel=ctx.channel, author=user, text=Lang.get_string("music/start_over", user=user.mention),
+                                options=[
+                                        Questions.Option("YES", Lang.get_string("music/start_over_yes"), handler=start_over),
+                                        Questions.Option("NO", Lang.get_string("music/start_over_no"))
+                                        ],
+                                 show_embed=True, delete_after=True)
+
+        
+            if not starting_over:
+                return # in-progress report should not be reset. bail out
+            
+            await self.delete_progress(user)
+        
+        # Start a song creation
+        task = self.bot.loop.create_task(self.actual_transcribe_song(user))
+        self.in_progress[user.id] = task
+        try:
+            await task
+        except CancelledError as ex:
+            pass            
+            
+ 
+    #@commands.command(aliases=['song'])
+    async def actual_transcribe_song(self, user):
+
+        active_question = None
+        
+        try:
+            # starts a dm
+            channel = await user.create_dm()
+            asking = True
+
+            if not asking:
+                return
+            else:
+
+                active_question = 0
+                
+                player = MusicCogPlayer(cog=self, locale='en_US')
+                maker = MusicSheetMaker(locale='en_US')
+    
+                # 1. Set Song Parser
+                maker.set_song_parser()                
+
+                # 2. Display instructions
+                i_instr, _ = maker.ask_instructions(recipient=player, execute=False)
+                answered = await player.async_execute_queries(channel, user, i_instr)
+                # result = i_instr.get_reply().get_result()
+                active_question += 1
+    
+                # 3. Ask for notes
+                # TODO: allow the player to enter the notes using several messages??? or maybe not
+                q_notes, _ = maker.ask_notes(recipient=player, prerequisites=[i_instr], execute=False)
+                answered = await player.async_execute_queries(channel, user, q_notes)
+                notes = q_notes.get_reply().get_result()
+                active_question += 1
+                
+                # 4. Ask for input mode (or display the one found)
+                q_mode, input_mode = maker.ask_input_mode(recipient=player, notes=notes, prerequisites=[q_notes],
+                                                          execute=False)
+                answered = await player.async_execute_queries(channel, user, q_mode)
+                if input_mode is None:
+                    input_mode = q_mode.get_reply().get_result()
+                active_question += 1
+                
+                # 5. Set input_mode
+                maker.set_parser_input_mode(recipient=player, input_mode=input_mode)
+                active_question += 1
+                
+                # 6. Ask for song keye (or display the only one possible)
+                (q_key, song_key) = maker.ask_song_key(recipient=player, notes=notes, input_mode=input_mode,
+                                                       prerequisites=[q_notes, q_mode], execute=False)
+                answered = await player.async_execute_queries(channel, user, q_key)
+                if song_key is None:
+                    song_key = maker.retrieve_song_key(recipient=player, notes=notes, input_mode=input_mode)
+                    # song_key = q_mode.get_reply().get_result()
+                active_question += 1
+                    
+                # 7. Asks for octave shift
+                q_shift, _ = maker.ask_octave_shift(recipient=player, execute=False)
+                answered =  await player.async_execute_queries(channel, user, q_shift)
+                octave_shift = q_shift.get_reply().get_result()
+                active_question += 1
+    
+                # 8. Parse song
+                maker.parse_song(recipient=player, notes=notes, song_key=song_key, octave_shift=octave_shift)
+                active_question += 1
+                
+                # 9. Displays error ratio
+                i_error, _ = maker.display_error_ratio(recipient=player, prerequisites=[q_notes, q_mode, q_shift],
+                                                       execute=False)
+                answered = await player.async_execute_queries(channel, user, i_error)
+                active_question += 1
+                
+                # 10. Asks for song metadata
+                qs_meta, _ = maker.ask_song_metadata(recipient=player, execute=False)
+                answered = await player.async_execute_queries(channel, user, qs_meta)
+                (title, artist, transcript) = [q.get_reply().get_result() for q in qs_meta]
+                maker.get_song().set_meta(title=title, artist=artist, transcript=transcript, song_key=song_key)
+                active_question += 1
+                
+                # 11. Renders Song
+                song_bundle = maker.render_song(recipient=player)
+                await player.send_song_to_channel(channel, user, song_bundle, title)
+                active_question += 1
+
+                self.bot.loop.create_task(self.delete_progress_delayed(user))
+
+        except Forbidden as ex:
+            await ctx.send(
+                Lang.get_string("music/dm_unable", user=user.mention),
+                delete_after=30)
+        except asyncio.TimeoutError as ex:
+            await channel.send(Lang.get_string("music/song_timeout"))
+            self.bot.loop.create_task(self.delete_progress(user))
+        except CancelledError as ex:
+            raise ex
+        except Exception as ex:
+            self.bot.loop.create_task(self.delete_progress(user))
+            await Utils.handle_exception("song creation", self.bot, ex)
+        else:
+            self.bot.loop.create_task(self.delete_progress(user))
+
+        return
+
+
+    '''
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):
         #react_user_id = event.user_id
@@ -136,117 +322,9 @@ class Music(BaseCog):
             #await self.handle_reaction_change("add", str(event.emoji), react_user_id)
             await channel.send("Sorry to see you go. Goodbye!")  #TODO music/goodbye
             #TODO: stop the transcribe song process. how? change self.property?
-       
- #await self.report_bug(user, channel)
- 
-    @commands.command(aliases=['song'])
-    async def transcribe_song(self, ctx):
-
-        m = self.bot.metrics
-        active_question = None
-        restarting = False
-
-        # delete the author's message
-
-        # start a dm
-        try:
-
-            channel = await ctx.author.create_dm()
-            asking = True
-
-            async def abort():
-                nonlocal asking
-                await ctx.author.send(Lang.get_string("bugs/abort_report"))  #TODO music/abort
-                asking = False
-                m.reports_abort_count.inc()
-                m.reports_exit_question.observe(active_question)
-                await self.delete_progress(ctx.author.id)
-
-            player = MusicCogPlayer(cog=self, locale='en_US')
-            maker = MusicSheetMaker(locale='en_US')
-
-            # 1. Set Song Parser
-            maker.set_song_parser()
-
-            # 2. Display instructions
-            i_instr, _ = maker.ask_instructions(recipient=player, execute=False)
-            await player.async_execute_queries(channel, ctx, i_instr)
-            # result = i_instr.get_reply().get_result()
-
-            # 3. Ask for notes
-            # TODO: allow the player to enter the notes using several messages??? or maybe not
-            q_notes, _ = maker.ask_notes(recipient=player, prerequisites=[i_instr], execute=False)
-            await player.async_execute_queries(channel, ctx, q_notes)
-            notes = q_notes.get_reply().get_result()
-
-            # 4. Ask for input mode (or display the one found)
-            q_mode, input_mode = maker.ask_input_mode(recipient=player, notes=notes, prerequisites=[q_notes],
-                                                      execute=False)
-            await player.async_execute_queries(channel, ctx, q_mode)
-            if input_mode is None:
-                input_mode = q_mode.get_reply().get_result()
-
-            # 5. Set input_mode
-            maker.set_parser_input_mode(recipient=player, input_mode=input_mode)
-
-            # 6. Ask for song keye (or display the only one possible)
-            (q_key, song_key) = maker.ask_song_key(recipient=player, notes=notes, input_mode=input_mode,
-                                                   prerequisites=[q_notes, q_mode], execute=False)
-            await player.async_execute_queries(channel, ctx, q_key)
-            if song_key is None:
-                song_key = maker.retrieve_song_key(recipient=player, notes=notes, input_mode=input_mode)
-                # song_key = q_mode.get_reply().get_result()
-
-            # 7. Asks for octave shift
-            q_shift, _ = maker.ask_octave_shift(recipient=player, execute=False)
-            await player.async_execute_queries(channel, ctx, q_shift)
-            octave_shift = q_shift.get_reply().get_result()
-
-            # 8. Parse song
-            maker.parse_song(recipient=player, notes=notes, song_key=song_key, octave_shift=octave_shift)
-
-            # 9. Displays error ratio
-            i_error, _ = maker.display_error_ratio(recipient=player, prerequisites=[q_notes, q_mode, q_shift],
-                                                   execute=False)
-            await player.async_execute_queries(channel, ctx, i_error)
-            # error_message = i_error.get_reply().get_result()
-
-            # 10. Asks for song metadata
-            qs_meta, _ = maker.ask_song_metadata(recipient=player, execute=False)
-            await player.async_execute_queries(channel, ctx, qs_meta)
-            (title, artist, transcript) = [q.get_reply().get_result() for q in qs_meta]
-            maker.get_song().set_meta(title=title, artist=artist, transcript=transcript, song_key=song_key)
-
-            # 11. Renders Song
-            song_bundle = maker.render_song(recipient=player)
-            await player.send_song_to_channel(channel, ctx, song_bundle, title)
+    '''
 
 
-        except Forbidden as ex:
-            m.bot_cannot_dm_member.inc()
-            await ctx.send(
-                Lang.get_string("music/dm_unable", user=ctx.author.mention),
-                delete_after=30)
-
-        except asyncio.TimeoutError as ex:
-            m.report_incomplete_count.inc()
-            await channel.send(Lang.get_string("bugs/report_timeout")) #  TODO "music/time_out"
-            if active_question is not None:
-                m.reports_exit_question.observe(active_question)
-            self.bot.loop.create_task(self.delete_progress(ctx.author.id))
-        except CancelledError as ex:
-            m.report_incomplete_count.inc()
-            if active_question is not None:
-                m.reports_exit_question.observe(active_question)
-            if not restarting:
-                raise ex
-        except Exception as ex:
-            self.bot.loop.create_task(self.delete_progress(ctx.author.id))
-            await Utils.handle_exception("bug reporting", self.bot, ex)  #TODO change string
-        else:
-            self.bot.loop.create_task(self.delete_progress(ctx.author.id))
-
-        return
 
 
 def setup(bot):
