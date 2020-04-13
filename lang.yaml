@@ -330,24 +330,11 @@ sweeps:
       `!sweeps end [clear|clean] jump_url` List entrants and remove all reactions
       `!sweeps end [reset|restart] jump_url` List entrants to-date and reset reactions to starting state
 music:
-  start_prompt_01: |
-    ```VISUAL MUSIC SHEETS FOR SKY: CHILDREN OF THE LIGHT (PROTOTYPE)```
-    Sky ABC1-5, Western notation, Jianpu notation and more are accepted, see <https://sky.bloomexperiment.com/t/summary-of-valid-note-names/403>
-
-    **These notation rules apply to all formats:**
-    Notes comprising a chord must be glued together (e.g. `A1B1C1`).
-    Use `{PAUSE}` for a silence (rest).
-    Use `{QUAVER_DELIMITER}` to link notes within an icon, for triplets, quavers... (e.g. `A1{QUAVER_DELIMITER}B1{QUAVER_DELIMITER}C1`).
-    Use `{COMMENT_DELIMITER}` before a comment.
-    Add `{REPEAT_INDICATOR}2` after a chord to indicate repetition.
-
-    `Sharps # and flats b (semitones) are supported in Western and Jianpu notations.`
-
-    **Type your song here:**
-
   dm_unable: '{user}, I was unable to DM you to transcribe a song. You can enable this in the privacy settings, found in the server dropdown menu.'
   text_too_long: Text response is too long, {max} characters is the max.
-  song_title: |
-    **Enter the song title.**
-  choose_key: |
-    **Choose a song key from the above options.**
+  abort_song: Ok, I won't ask you any more questions for now. Call me again to start a new song!
+  song_timeout: This song creation has been cancelled. Call me again to start a new song!
+  song_trash: Sorry to bother you, but you had an in-progress song that was idle for too long. I cancelled it. If you think you received this message in error, please report me to the proper authorites (a moderator in the Sky server)
+  start_over: "{user} You are already in the middle of creating a song. Do you want to cancel that song to start a new one?"
+  start_over_yes: Cancel my song and start a new one
+  start_over_no: Do not cancel my current song creation
