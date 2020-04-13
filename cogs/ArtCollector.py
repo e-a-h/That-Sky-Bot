@@ -1,7 +1,7 @@
 import re
 
 import discord
-from discord import NotFound
+from discord import NotFound, HTTPException
 from discord.ext import commands
 
 from utils import Lang, Utils, Emoji
@@ -167,7 +167,6 @@ class ArtCollector(BaseCog):
                                                     tag=tag)
             await ctx.send(f"{Emoji.get_chat_emoji('NO')} {channel_not_found_str}")
 
-    @commands.guild_only()
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """
@@ -205,10 +204,10 @@ class ArtCollector(BaseCog):
                 embed.add_field(name="Author", value=my_message.author.mention)
                 if my_tag is not self.no_tag:
                     embed.add_field(name="Tag", value=f"#{my_tag}")
-                embed.add_field(name="Jump Link", value=f"[Go to mmessage]({my_message.jump_url})")
+                embed.add_field(name="Jump Link", value=f"[Go to message]({my_message.jump_url})")
                 embed.add_field(name="URL", value=f"[Download]({attachment.url})")
                 if my_message.content and not content_shown:
-                    # Add mmessage content to the first of multiples, when many attachments to a single my_message.
+                    # Add message content to the first of multiples, when many attachments to a single my_message.
                     embed.add_field(name="Message Content", value=my_message.content, inline=False)
                     content_shown = True
                 embed.set_image(url=attachment.url)
@@ -249,7 +248,7 @@ class ArtCollector(BaseCog):
                 await message.delete()
                 return
 
-        except (NotFound, KeyError, AttributeError) as e:
+        except (NotFound, HTTPException, KeyError, AttributeError) as e:
             # couldn't find channel, message, member, or action
             return
         except Exception as e:

@@ -106,7 +106,7 @@ async def ask_text(
         else:
             content = Utils.escape_markdown(message_cleaned) if escape else message_cleaned
             if confirm:
-                backticks = "``" if len(message_cleaned.splitlines()) is 1 else "```"
+                backticks = "``" if len(message_cleaned.splitlines()) == 1 else "```"
                 message = Lang.get_string('questions/confirm_prompt', backticks=backticks, message=message_cleaned)
                 await ask(bot, channel, user, message, [
                     Option("YES", handler=confirmed),
@@ -168,7 +168,7 @@ async def ask_attachements(
                     message = await bot.wait_for('message', timeout=timeout, check=check)
                     links = Utils.URL_MATCHER.findall(message.content)
                     attachment_links = [str(a.url) for a in message.attachments]
-                    if len(links) is not 0 or len(message.attachments) is not 0:
+                    if len(links) != 0 or len(message.attachments) != 0:
                         if (len(links) + len(message.attachments)) > max_files:
                             await channel.send(Lang.get_string("questions/attachments_overflow", max=max_files))
                         else:

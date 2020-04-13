@@ -1,7 +1,7 @@
 import asyncio
 import re
 from datetime import datetime
-from random import randint
+from random import randint, random, choice
 
 import discord
 from discord import utils
@@ -21,6 +21,7 @@ class Krill(BaseCog):
         self.krilled = dict()
         self.channels = dict()
         self.monsters = dict()
+        self.ignored = set()
         self.loaded = False
         self.oreo_filter = Configuration.get_persistent_var('oreo_filter', dict(
             o=["o", "0", "Ø", "Ǒ", "ǒ", "Ǫ", "ǫ", "Ǭ", "ǭ", "Ǿ", "ǿ", "Ō", "ō", "Ŏ",
@@ -36,10 +37,18 @@ class Krill(BaseCog):
                "⋹", "⋺", "⋻", "⋼", "⋽", "⋾", "⋿", "ᵉ", "E", "ǝ", "€", "𝕖", "🅔",
                "ⓔ", "Ⓔ", "ể", "é", "🇪", "ề", "已", "ệ", "ê", "ễ", "ẹ", "ẽ", "è",
                "ẻ", "巨", "ㅌ", "е", "ε", "𝐞", ],
+            oh=["お"],
+            re=["れ"],
             sp=[r"\s", r"\x00", r"\u200b", r"\u200c", r"\u200d", r"\.", r"\[", r"\]",
-                r"(", r")", r"{", r"}", r"\\", r"\-", r"_", r"="],
+                r"\(", r"\)", r"\{", r"\}", r"\\", r"\-", r"_", r"="],
             n='{0,10}'
         ))
+
+        # TODO: this is an upgrade from old list style. remove this block after it goes into live bot.
+        if 'oh' not in self.oreo_filter:
+            self.oreo_filter['oh'] = ["お"]
+            self.oreo_filter['re'] = ["れ"]
+
         bot.loop.create_task(self.startup_cleanup())
 
     async def startup_cleanup(self):
@@ -116,6 +125,8 @@ class Krill(BaseCog):
         embed.add_field(name='Letter "o"', value=" ".join(self.oreo_filter['o']))
         embed.add_field(name='Letter "r"', value=" ".join(self.oreo_filter['r']))
         embed.add_field(name='Letter "e"', value=" ".join(self.oreo_filter['e']))
+        embed.add_field(name='Letter "お"', value=" ".join(self.oreo_filter['oh']))
+        embed.add_field(name='Letter "れ"', value=" ".join(self.oreo_filter['re']))
         embed.add_field(name='Inter-letter space', value=self.oreo_filter['sp'])
         embed.add_field(name='Character count', value=self.oreo_filter['n'])
         await ctx.send(embed=embed)
@@ -123,18 +134,68 @@ class Krill(BaseCog):
     @oreo.command()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
-    async def letter(self, ctx: commands.Context, letter, value):
-        if letter not in "ore":
-            await ctx.send("You can only use letters o, r, and e")
+    async def sniff(self, ctx: commands.Context,  *, value=''):
+        checked = ""
+        found = False
+        pattern = self.get_oreo_patterns()['chars']
+
+        for letter in value:
+            if letter not in checked:
+                checked = checked + letter
+            else:
+                continue
+            if not pattern.search(letter):
+                found = True
+                await ctx.send(f"the character \"{letter}\" is not in my filters")
+        if not found:
+            await ctx.send(f"All the letters in \"{value}\" are already covered.")
+
+    @staticmethod
+    async def validate_oreo_letter(ctx, letter):
+        if letter not in ['o', 'r', 'e', 'oh', 're', 'お', 'れ', 'sp']:
+            await ctx.send("You can only use letters `o`, `r`, `e`, `お` or `oh`, `れ` or `re`, `sp` for space")
+            return False
+        if letter == 'お':
+            letter = 'oh'
+        if letter == 'れ':
+            letter = 're'
+        return letter
+
+    @oreo.command(aliases=["add", "letter"])
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def add_letter(self, ctx: commands.Context, letter, value):
+        letter = await self.validate_oreo_letter(ctx, letter)
+        if not letter:
             return
 
+        x = "space" if letter == "sp" else f"letter \"{letter}\""
+        if letter != "sp":
+            value = re.escape(value)
         if value in self.oreo_filter[letter]:
-            await ctx.send(f"That '{letter}' is already on the list")
+            await ctx.send(f"That {x} is already on the list")
             return
 
         self.oreo_filter[letter].append(value)
         Configuration.set_persistent_var("oreo_filter", self.oreo_filter)
-        await ctx.send(f"I added \"{value}\" to the letter \"{letter}\" list!")
+        await ctx.send(f"I added \"{value}\" to the {x} list!")
+
+    @oreo.command(aliases=["remove"])
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def remove_letter(self, ctx: commands.Context, letter, value):
+        letter = await self.validate_oreo_letter(ctx, letter)
+        if not letter:
+            return
+
+        x = "space" if letter == "sp" else f"letter \"{letter}\""
+        if value not in self.oreo_filter[letter]:
+            await ctx.send(f"That {x} is not on the list")
+            return
+
+        self.oreo_filter[letter].remove(value)
+        Configuration.set_persistent_var("oreo_filter", self.oreo_filter)
+        await ctx.send(f"I removed \"{value}\" from the {x} list!")
 
     @oreo.command(aliases=["reset"])
     @commands.check(can_admin_krill)
@@ -143,18 +204,98 @@ class Krill(BaseCog):
         self.monsters = dict()
         await ctx.send("Oreo cooldown reset")
 
-    @oreo.command(aliases=["add", "monster"])
-    @commands.check(can_admin_krill)
+    @oreo.command(aliases=["list", "monsters"])
+    @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
-    async def add_monster(self, ctx: commands.Context, id: int):
-        self.monsters[id] = datetime.now().timestamp()
-        await ctx.send(f"<@{id}> is a monster")
+    async def list_monsters(self, ctx: commands.Context):
+        if not self.monsters:
+            await ctx.send("There are no monsters in sight!")
+            return
+        embed = discord.Embed(
+            timestamp=ctx.message.created_at,
+            color=0x663399,
+            title=Lang.get_string("krill/list_oreo_monsters", server_name=ctx.guild.name))
+        for monster in self.monsters.keys():
+            embed.add_field(name="Bad Person", value=ctx.guild.get_member(monster).display_name, inline=False)
+        await ctx.send(embed=embed)
+
+    @oreo.command(aliases=["monster"])
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def add_monster(self, ctx: commands.Context, user_id: int):
+        await ctx.message.delete()
+        if ctx.guild.get_member(user_id):
+            self.monsters[user_id] = datetime.now().timestamp()
+            await ctx.send(f"<@{user_id}> is a monster")
+        else:
+            await ctx.send(f"beep boop, no {user_id} here")
+
+    @oreo.command()
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def remove_monster(self, ctx: commands.Context, user_id: int):
+        if ctx.guild.get_member(user_id) and user_id in self.monsters.keys():
+            del self.monsters[user_id]
+            await ctx.send(f"<@{user_id}> isn't a monster anymore")
+        else:
+            await ctx.send(f"beep boop, no {user_id} here")
+
+    @oreo.command()
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def ignore(self, ctx: commands.Context, user_id: int):
+        if ctx.guild.get_member(user_id):
+            self.ignored.add(user_id)
+            await ctx.send(f"<@{user_id}> is ignored")
+        else:
+            await ctx.send(f"beep boop, no {user_id} here")
+
+    @oreo.command()
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def unignore(self, ctx: commands.Context, user_id: int):
+        if ctx.guild.get_member(user_id) and user_id in self.ignored:
+            self.ignored.remove(user_id)
+            await ctx.send(f"<@{user_id}> isn't a ignored anymore")
+        else:
+            await ctx.send(f"beep boop, no {user_id} here")
+
+    def get_oreo_patterns(self):
+        # o-ø º.o r...r e é 0 º oおれ
+        # ((o|0|ø|º)[ .-]*)+((r|®)[ .-]*)+((e|é)[ .-]*)+((o|0|º)[ .-]*)+
+        o = f"({'|'.join(self.oreo_filter['o'])})"
+        r = f"({'|'.join(self.oreo_filter['r'])})"
+        e = f"({'|'.join(self.oreo_filter['e'])})"
+        oo = f"({'|'.join(self.oreo_filter['oh'])})"
+        rr = f"({'|'.join(self.oreo_filter['re'])})"
+        sp = f"[{''.join(self.oreo_filter['sp'])}]"
+        n = self.oreo_filter['n']
+        oreo_pattern = re.compile(f"({o}{sp}{n})+"
+                                  f"("
+                                  f"({r}{sp}{n})+"
+                                  f"({e}{sp}{n})+"
+                                  f"|"
+                                  f"({e}{sp}{n})+"
+                                  f"({r}{sp}{n})+)"
+                                  f"({o}{sp}{n})+",
+                                  re.IGNORECASE)
+
+        # ((お|oh)[ .-]*)+((れ|re)[ .-]*)+((お|oh)[ .-]*)+
+        oreo_jp_pattern = re.compile(f"({oo}{sp}{n})+({rr}{sp}{n})+({oo}{sp}{n})+", re.IGNORECASE)
+
+        # (o|0|º)|(r|®)|(e|é)|(o|0|º|ø)|[ .-]|(お)|(れ)
+        oreo_chars = re.compile(f"{o}|{r}|{e}|{sp}|{oo}|{rr}", re.IGNORECASE)
+
+        return dict(en=oreo_pattern, jp=oreo_jp_pattern, chars=oreo_chars)
 
     @command()
     @commands.check(can_krill)
     @commands.cooldown(1, 600, BucketType.member)
     @commands.guild_only()
     async def krill(self, ctx, *, arg=''):
+        if ctx.message.author.id in self.ignored:
+            return
+
         if ctx.message.author.id in self.monsters.keys():
             now = datetime.now().timestamp()
             hour = 60 * 60
@@ -163,23 +304,20 @@ class Krill(BaseCog):
                 remain = (self.monsters[ctx.author.id] + penalty) - now
                 await ctx.send(f"{ctx.author.mention} is a horrible person and can spend the next {Utils.to_pretty_time(remain)} thinking about what they've done")
                 return
-        o = f"[{''.join(self.oreo_filter['o'])}]"
-        r = f"[{''.join(self.oreo_filter['r'])}]"
-        e = f"[{''.join(self.oreo_filter['e'])}]"
-        sp = f"[{''.join(self.oreo_filter['sp'])}]"
-        n = self.oreo_filter['n']
-        oreo_pattern = re.compile(f"{o}+{sp}{n}{r}+{sp}{n}{e}+{sp}{n}{o}+", re.IGNORECASE)
-        print("oreo_pattern")
-        print(f"{o}+{sp}{n}{r}+{sp}{n}{e}+{sp}{n}{o}+")
+
+        patterns = self.get_oreo_patterns()
+        oreo_pattern = patterns['en']
+        oreo_jp_pattern = patterns['jp']
+        dog_pattern = re.compile(r"\bdog\b|\bcookie\b", re.IGNORECASE)
+
         monster = False
-        if oreo_pattern.search(arg):
+        name_is_oreo = oreo_pattern.search(ctx.author.display_name) or oreo_jp_pattern.search(ctx.author.display_name)
+        if oreo_pattern.search(arg) or oreo_jp_pattern.search(arg) or name_is_oreo or dog_pattern.search(arg):
             self.bot.get_command("krill").reset_cooldown(ctx)
-            await ctx.send(f'not Oreo! {ctx.author.mention}, you monster!!')
+            victim_name = "bad person" if name_is_oreo else ctx.author.mention
+            await ctx.send(f'not Oreo! {victim_name}, you monster!!')
             monster = True
             self.monsters[ctx.author.id] = datetime.now().timestamp()
-
-        if monster:
-            victim_name = ctx.author.mention
         else:
             victim = arg
             try:
@@ -226,6 +364,47 @@ class Krill(BaseCog):
         star = utils.get(self.bot.emojis, id=624094243329146900)
         blank = utils.get(self.bot.emojis, id=647913138758483977)
         ded = u"\U0001F916" if victim_name == "thatskybot" else utils.get(self.bot.emojis, id=641445732246880282)
+
+        # alternate bodies
+        # KrillRiderHead       664191325104504880>
+        # KrillRideraTail      664191324869754881>
+        # KrillRiderBodyOreo   664262338874048512>
+        # KrillRiderBodya9     664239237696323596>
+        # KrillRiderBodya8     664237187184853012>
+        # KrillRiderBodya7     664191324911697960>
+        # KrillRiderBodya6     664242877492101159>
+        # KrillRiderBodya5     664235527607812107>
+        # KrillRiderBodya4     664234216145289216>
+        # KrillRiderBodya3     664246386727845939>
+        # KrillRiderBodya2     664230982169264135>
+        # KrillRiderBodya11    664259346234081283>
+        # KrillRiderBodya10    664256923784314898>
+        # KrillRiderBodya1     664230982378979347>
+        # KrillRiderBodya      664251608212832256>
+
+        # p.s. this will not work w/ a test bot because these emojis are on the official server
+        # instead, the krill will look like "NoneNoneNone"
+        chance = 0.25
+        roll = random()
+        if roll < chance:
+            body_id = choice([
+                664262338874048512,
+                664239237696323596,
+                664237187184853012,
+                664191324911697960,
+                664242877492101159,
+                664235527607812107,
+                664234216145289216,
+                664246386727845939,
+                664230982169264135,
+                664259346234081283,
+                664256923784314898,
+                664230982378979347,
+                664251608212832256
+            ])
+            head = utils.get(self.bot.emojis, id=664191325104504880)
+            tail = utils.get(self.bot.emojis, id=664191324869754881)
+            body = utils.get(self.bot.emojis, id=body_id)
 
         time_step = 1
         step = randint(1, 2)

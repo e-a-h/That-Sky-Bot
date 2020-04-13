@@ -9,7 +9,7 @@ from json import JSONDecodeError
 
 import discord
 from discord.ext import commands
-from discord.errors import NotFound
+from discord.errors import NotFound, HTTPException
 
 from cogs.BaseCog import BaseCog
 from utils import Lang, Utils, Questions, Emoji, Configuration, Logging
@@ -81,11 +81,14 @@ class AutoResponders(BaseCog):
 
                 # use JSON object for random response
                 try:
-                    # leading and trailing quotes are assumed
-                    response = json.loads(responder.response[1:-1])
+                    response = json.loads(responder.response)
                 except JSONDecodeError as e:
-                    # not json. do not raise exception, use string instead
-                    response = responder.response
+                    try:
+                        # leading and trailing quotes are checked
+                        response = json.loads(responder.response[1:-1])
+                    except JSONDecodeError as e:
+                        # not json. do not raise exception, use string instead
+                        response = responder.response
 
                 # use JSON object to require each of several triggers in any order
                 try:
@@ -337,18 +340,17 @@ class AutoResponders(BaseCog):
 
         response_parts = collections.deque(row.response)
         value = ""
-        i=1
+        i = 1
         header = ""
         while response_parts:
             header = "Raw response" if i == 1 else f"Raw response (part {i})"
             value = value + response_parts.popleft()
-            if len(value) > 1024:
+            if len(value) > 1000:
                 embed.add_field(name=header, value=value, inline=False)
                 value = ""
                 i = i+i
         if value:
             embed.add_field(name=header, value=value, inline=False)
-
 
         await ctx.send(embed=embed)
 
@@ -508,7 +510,7 @@ class AutoResponders(BaseCog):
             return
 
         channel = self.bot.get_channel(int(channel_id))
-        if channel_id is "0":
+        if channel_id == "0":
             await ctx.send(Lang.get_string("autoresponder/channel_unset",
                                            mode=mode,
                                            trigger=get_trigger_description(trigger)))
@@ -596,7 +598,6 @@ class AutoResponders(BaseCog):
         except ValueError:
             await nope(ctx)
 
-    @commands.guild_only()
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Set up message listener and respond to specific text with various canned responses"""
@@ -605,8 +606,9 @@ class AutoResponders(BaseCog):
         is_boss = await self.cog_check(message)
         command_context = message.content.startswith(prefix, 0) and is_boss
         not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
+        in_ignored_channel = False  # TODO: populate with entry_channel. Any others?
 
-        if message.author.bot or command_context or not_in_guild:
+        if message.author.bot or command_context or not_in_guild or in_ignored_channel:
             return
 
         is_mod = message.author.guild_permissions.mute_members
@@ -696,7 +698,7 @@ class AutoResponders(BaseCog):
             if user_is_bot or not has_permission:
                 return
             action: mod_action = self.mod_actions.pop(event.message_id)
-        except (NotFound, KeyError, AttributeError) as e:
+        except (NotFound, KeyError, AttributeError, HTTPException) as e:
             # couldn't find channel, message, member, or action
             return
         except Exception as e:
@@ -717,7 +719,7 @@ class AutoResponders(BaseCog):
         try:
             trigger_channel = self.bot.get_channel(action.channel_id)
             trigger_message = await trigger_channel.fetch_message(action.message_id)
-        except (NotFound, AttributeError) as e:
+        except (NotFound, HTTPException, AttributeError) as e:
             trigger_message = None
 
         m = self.bot.metrics
