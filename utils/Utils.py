@@ -30,10 +30,11 @@ welcome_channel = "welcome_channel"
 rules_channel = "rules_channel"
 log_channel = "log_channel"
 ro_art_channel = "ro_art_channel"
+entry_channel = "entry_channel"
 
 
 def validate_channel_name(channel_name):
-    return channel_name in (welcome_channel, rules_channel, log_channel, ro_art_channel)
+    return channel_name in (welcome_channel, rules_channel, log_channel, ro_art_channel, entry_channel)
 
 
 def get_chanconf_description(bot, guild_id):
@@ -44,6 +45,13 @@ def get_chanconf_description(bot, guild_id):
     except Exception as ex:
         pass
     return message
+
+
+def get_channel_description(bot, channel_id):
+    channel = bot.get_channel(channel_id)
+    if not channel:
+        return f"**[Invalid Channel ID {channel_id}]**"
+    return f"**{channel.name}** {channel.mention} ({channel.id})"
 
 
 def extract_info(o):
@@ -213,6 +221,10 @@ async def username(uid, fetch=True, clean=True):
         return f"{user.name}#{user.discriminator}"
 
 
+def get_member_log_name(member):
+    return f"{member.mention} {str(member)} ({member.id})"
+
+
 async def clean(text, guild=None, markdown=True, links=True, emoji=True):
     text = str(text)
     if guild is not None:
@@ -310,7 +322,7 @@ def to_pretty_time(seconds):
             seconds -= amount * v
             if partcount == 1:
                 duration += ", "
-            duration += " " + f"{amount} {k}{'' if amount is 1 else 's'}"
+            duration += " " + f"{amount} {k}{'' if amount == 1 else 's'}"
         if seconds == 0:
             break
     return duration.strip()

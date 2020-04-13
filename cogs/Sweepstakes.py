@@ -7,7 +7,7 @@ from discord.ext import commands
 from discord.ext.commands import Context
 
 from cogs.BaseCog import BaseCog
-from utils import Utils, Lang, Questions
+from utils import Utils, Lang, Questions, Logging
 from datetime import datetime
 from utils.Utils import save_to_disk
 
@@ -160,8 +160,10 @@ class Sweepstakes(BaseCog):
             await message.clear_reactions()
             await pending.delete()
         except Exception as e:
-            await Utils.handle_exception(f"Failed to clear reactions {message.channel.id}/{message.id}", self, e)
-            return
+            msg = f"Failed to clear reactions {message.channel.id}/{message.id}"
+            await ctx.send(msg)
+            await Utils.handle_exception(msg, self, e)
+            raise e
         await ctx.send(Lang.get_string('sweeps/drawing_closed'))
 
     @end_sweeps.command(aliases=["reset", "restart"])

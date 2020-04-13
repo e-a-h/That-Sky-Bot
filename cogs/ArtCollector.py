@@ -7,8 +7,7 @@ from asyncio import CancelledError
 from datetime import datetime
 
 import discord
-import requests
-from discord import NotFound, Forbidden, Embed
+from discord import NotFound, Forbidden, Embed, HTTPException
 from discord.ext import commands
 
 from utils import Lang, Utils, Emoji, Configuration, Questions
@@ -452,7 +451,6 @@ class ArtCollector(BaseCog):
                                                     tag=tag)
             await ctx.send(f"{Emoji.get_chat_emoji('NO')} {channel_not_found_str}")
 
-    @commands.guild_only()
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """
@@ -540,7 +538,7 @@ class ArtCollector(BaseCog):
                     await message.delete()
                     return
 
-        except (NotFound, KeyError, AttributeError) as e:
+        except (NotFound, HTTPException, KeyError, AttributeError) as e:
             # couldn't find channel, message, member, or action
             return
         except Exception as e:

@@ -3,6 +3,10 @@ import os
 import sys
 from logging.handlers import TimedRotatingFileHandler
 
+from discord.ext.commands import Context
+
+from utils import Utils
+
 BOT_LOG_CHANNEL = None
 
 LOGGER = logging.getLogger('thatskybot')
@@ -35,6 +39,12 @@ def init():
 async def bot_log(message=None, embed=None):
     if BOT_LOG_CHANNEL is not None:
         return await BOT_LOG_CHANNEL.send(content=message, embed=embed)
+
+
+async def guild_log(ctx: Context, message=None, embed=None):
+    channel = ctx.bot.get_config_channel(ctx.guild.id, Utils.log_channel)
+    if channel and (message or embed):
+        return await channel.send(content=message, embed=embed)
 
 
 def debug(message):

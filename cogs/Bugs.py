@@ -4,8 +4,8 @@ import time
 from concurrent.futures import CancelledError
 from datetime import datetime
 
-from discord import Forbidden, Embed, NotFound, PermissionOverwrite
-from discord.ext import commands
+from discord import Forbidden, Embed, NotFound, HTTPException, PermissionOverwrite
+from discord.ext import commands, tasks
 from discord.ext.commands import Context, command
 
 import prometheus_client as prom
@@ -24,8 +24,13 @@ class Bugs(BaseCog):
         self.in_progress = dict()
         self.sweeps = dict()
         self.blocking = set()
+        self.maintenance_message = None
+        self.maint_check_count = 0
         m = self.bot.metrics
         m.reports_in_progress.set_function(lambda: len(self.in_progress))
+
+    def cog_unload(self):
+        self.verify_empty_bug_queue.cancel()
 
     async def sweep_trash(self, user):
         await asyncio.sleep(Configuration.get_var("bug_trash_sweep_minutes")*60)
@@ -53,9 +58,11 @@ class Bugs(BaseCog):
             channel = self.bot.get_channel(cid)
             shutdown_id = Configuration.get_persistent_var(f"{name}_shutdown")
             if shutdown_id is not None:
-                message = await channel.fetch_message(shutdown_id)
-                if message is not None:
+                try:
+                    message = await channel.fetch_message(shutdown_id)
                     await message.delete()
+                except (NotFound, HTTPException) as e:
+                    pass
                 Configuration.set_persistent_var(f"{name}_shutdown", None)
             await self.send_bug_info(name)
 
@@ -65,7 +72,7 @@ class Bugs(BaseCog):
         if bug_info_id is not None:
             try:
                 message = await channel.fetch_message(bug_info_id)
-            except NotFound:
+            except (NotFound, HTTPException):
                 pass
             else:
                 await message.delete()
@@ -78,45 +85,73 @@ class Bugs(BaseCog):
         self.bug_messages.add(message.id)
         Configuration.set_persistent_var(f"{key}_message", message.id)
 
-    @commands.command(aliases=["bugmaint"])
+    @tasks.loop(seconds=30.0)
+    async def verify_empty_bug_queue(self, ctx):
+        if len(self.in_progress) > 0:
+
+            if self.maint_check_count == 10:
+                await ctx.send(f"Sorry {ctx.author.mention} but I give up. Maybe the bug queue is busted, as usual.")
+                self.verify_empty_bug_queue.cancel()
+                return
+
+            msg = f"There are {len(self.in_progress)} report(s) still in progress."
+            if self.maintenance_message is None:
+                self.maintenance_message = await ctx.send(msg)
+            else:
+                self.maint_check_count = self.maint_check_count + 1
+                await self.maintenance_message.edit(content=msg + (" ." * self.maint_check_count))
+            return
+        elif self.maint_check_count > 0:
+            await self.maintenance_message.delete()
+            await ctx.send(f"Bug reports are all done, {ctx.author.mention}!!")
+        else:
+            await ctx.send(f"There are no bug reports in progress.")
+
+        self.maintenance_message = None
+        self.verify_empty_bug_queue.cancel()
+
+    @commands.command(aliases=["bugmaint", "maintenance", "maintenance_mode", "maint"])
     @commands.guild_only()
     @commands.is_owner()
     async def bug_maintenance(self, ctx, active: bool):
-        if active:
-            if len(self.in_progress) > 0:
-                await ctx.send(f"There are {len(self.in_progress)} report(s) in progress. Not activating maintenance mode.")
-                return
-            await ctx.send("setting bug maintenance mode **on**: Reporting channels **closed**.")
+        try:
+            # show/hide maintenance channel
+            maint_message_channel = self.bot.get_channel(Configuration.get_var("bug_maintenance_channel"))
+
+            member_role = ctx.guild.get_role(Configuration.get_var("member_role"))
+            beta_role = ctx.guild.get_role(Configuration.get_var("beta_role"))
+
+            member_overwrite = maint_message_channel.overwrites[member_role]
+            member_overwrite.read_messages = active
+            await maint_message_channel.set_permissions(member_role, overwrite=member_overwrite)
+
+            beta_overwrite = maint_message_channel.overwrites[beta_role]
+            beta_overwrite.read_messages = active
+            await maint_message_channel.set_permissions(beta_role, overwrite=beta_overwrite)
+
+            for name, cid in Configuration.get_var("channels").items():
+                # show/hide reporting channels
+                channel = self.bot.get_channel(cid)
+
+                member_overwrite = channel.overwrites[member_role]
+                member_overwrite.read_messages = None if active else True
+                await channel.set_permissions(member_role, overwrite=member_overwrite)
+
+                if re.search(r'beta', name):
+                    beta_overwrite = channel.overwrites[beta_role]
+                    beta_overwrite.read_messages = None if active else True
+                    await channel.set_permissions(beta_role, overwrite=beta_overwrite)
+        except Exception as e:
+            await ctx.send("Failed to set reporting channel permissions. Check channel permissions because "
+                           "I might have broken something...")
+            await Utils.handle_exception("failed to set bug report channel permissions", self.bot, e)
         else:
-            await ctx.send("setting bug maintenance mode **off**: Reporting channels **open**.")
-        pass
-
-        # show/hide maintenance channel
-        maint_message_channel = self.bot.get_channel(Configuration.get_var("bug_maintenance_channel"))
-
-        member_role = ctx.guild.get_role(Configuration.get_var("member_role"))
-        beta_role = ctx.guild.get_role(Configuration.get_var("beta_role"))
-
-        member_overwrite = maint_message_channel.overwrites[member_role]
-        member_overwrite.read_messages = active
-        await maint_message_channel.set_permissions(member_role, overwrite=member_overwrite)
-
-        beta_overwrite = maint_message_channel.overwrites[beta_role]
-        beta_overwrite.read_messages = active
-        await maint_message_channel.set_permissions(beta_role, overwrite=beta_overwrite)
-
-        for name, cid in Configuration.get_var("channels").items():
-            # show/hide reporting channels
-            channel = self.bot.get_channel(cid)
-
-            member_overwrite = channel.overwrites[member_role]
-            member_overwrite.read_messages = None if active else True
-            await channel.set_permissions(member_role, overwrite=member_overwrite)
-
-            if re.search(r'beta', name):
-                beta_overwrite = channel.overwrites[beta_role]
-                beta_overwrite.read_messages = None if active else True
-                await channel.set_permissions(beta_role, overwrite=beta_overwrite)
+            if active:
+                self.maint_check_count = 0
+                self.verify_empty_bug_queue.start(ctx)
+                await ctx.send("bot maintenance mode **on**: Reporting channels **closed**.")
+            else:
+                await ctx.send("bot maintenance mode **off**: Reporting channels **open**.")
 
     @commands.group(name='bug', invoke_without_command=True)
     async def bug(self, ctx: Context):
@@ -125,8 +160,8 @@ class Bugs(BaseCog):
             await ctx.message.delete()
         await self.report_bug(ctx.author, ctx.channel)
 
-    @commands.guild_only()
     @bug.command(aliases=["resetactive", "reset_in_progress", "resetinprogress", "reset", "clean"])
+    @commands.guild_only()
     async def reset_active(self, ctx):
         is_owner = await ctx.bot.is_owner(ctx.author)
         if is_owner:
@@ -243,7 +278,7 @@ class Bugs(BaseCog):
                 if "latest" in v:
                     return Lang.get_string("bugs/latest_not_allowed")
                 # TODO: double check if we actually want to enforce this
-                if len(Utils.NUMBER_MATCHER.findall(v)) is 0:
+                if len(Utils.NUMBER_MATCHER.findall(v)) == 0:
                     return Lang.get_string("bugs/no_numbers")
                 if len(v) > 20:
                     return Lang.get_string("bugs/love_letter")
@@ -271,8 +306,8 @@ class Bugs(BaseCog):
                 c = Configuration.get_var("channels")[channel_name]
                 message = await self.bot.get_channel(c).send(
                     content=Lang.get_string("bugs/report_header", id=br.id, user=user.mention), embed=report)
-                if len(attachment_links) is not 0:
-                    key = "attachment_info" if len(attachment_links) is 1 else "attachment_info_plural"
+                if len(attachment_links) != 0:
+                    key = "attachment_info" if len(attachment_links) == 1 else "attachment_info_plural"
                     attachment = await self.bot.get_channel(c).send(
                         Lang.get_string(f"bugs/{key}", id=br.id, links="\n".join(attachment_links)))
                     br.attachment_message_id = attachment.id
@@ -477,8 +512,14 @@ class Bugs(BaseCog):
         if event.message_id in self.bug_messages and event.user_id != self.bot.user.id:
             user = self.bot.get_user(event.user_id)
             channel = self.bot.get_channel(event.channel_id)
-            message = await channel.fetch_message(event.message_id)
-            await message.remove_reaction(event.emoji, user)
+            try:
+                message = await channel.fetch_message(event.message_id)
+                await message.remove_reaction(event.emoji, user)
+            except (NotFound, HTTPException) as e:
+                await Utils.handle_exception(f"Failed to get message {channel.id}/{event.message_id}", self, e)
+                # TODO: Does anyone need to know about this?
+                #  Consider letter user know why report didn't start?
+                return
             await self.report_bug(user, channel)
 
 
