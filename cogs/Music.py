@@ -286,7 +286,8 @@ class Music(BaseCog):
                 active_question += 1
                 
                 # 11. Renders Song
-                song_bundle = maker.render_song(recipient=player)
+                song_bundle = await asyncio.get_event_loop().run_in_executor(None, maker.render_song, player)
+                
                 await player.send_song_to_channel(channel, user, song_bundle, title)
                 active_question += 1
 
