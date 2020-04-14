@@ -148,6 +148,16 @@ class ArtChannel(Model):
         database = connection
 
 
+class DropboxChannel(Model):
+    id = PrimaryKeyField()
+    serverid = BigIntegerField()
+    sourcechannelid = BigIntegerField()
+    targetchannelid = BigIntegerField(default=0)
+
+    class Meta:
+        database = connection
+
+
 class Localization(Model):
     id = PrimaryKeyField()
     guild = ForeignKeyField(Guild, backref='channel_locales')
@@ -188,6 +198,7 @@ def init():
         ConfigChannel,
         CountWord,
         CustomCommand,
+        DropboxChannel,
         KrillChannel,
         Repros,
         ReactWatch,

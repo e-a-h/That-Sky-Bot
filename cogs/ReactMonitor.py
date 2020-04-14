@@ -146,7 +146,8 @@ class ReactMonitor(BaseCog):
             message = await channel.fetch_message(event.message_id)
         except (NotFound, HTTPException) as e:
             # Can't track reactions on a message I can't find
-            await Utils.handle_exception(f"Failed to get message {channel.id}/{event.message_id}", self, e)
+            # Happens for deleted messages. Safe to ignore.
+            # await Utils.handle_exception(f"Failed to get message {channel.id}/{event.message_id}", self, e)
             return
         muted_role = guild.get_role(muted_roles[guild.id])
 

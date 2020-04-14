@@ -47,6 +47,13 @@ def get_chanconf_description(bot, guild_id):
     return message
 
 
+def get_channel_description(bot, channel_id):
+    channel = bot.get_channel(channel_id)
+    if not channel:
+        return f"**[Invalid Channel ID {channel_id}]**"
+    return f"**{channel.name}** {channel.mention} ({channel.id})"
+
+
 def extract_info(o):
     info = ""
     if hasattr(o, "__dict__"):

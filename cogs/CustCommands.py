@@ -94,7 +94,7 @@ class CustCommands(BaseCog):
         if len(trigger) > 20:
             await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_string('custom_commands/trigger_too_long')}")
         elif trigger in self.commands[ctx.guild.id]:
-            CustomCommand.get(serverid = ctx.guild.id, trigger=trigger).delete_instance()
+            CustomCommand.get(serverid=ctx.guild.id, trigger=trigger).delete_instance()
             del self.commands[ctx.guild.id][trigger]
             await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('custom_commands/command_removed', trigger=trigger)}")
         else:

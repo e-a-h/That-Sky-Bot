@@ -1,10 +1,11 @@
 import asyncio
+import copy
 import re
-from datetime import date, datetime
+import typing
+from datetime import datetime
 
 import discord
-import typing
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from cogs.BaseCog import BaseCog
 from utils import Configuration, Logging, Utils, Lang, Emoji
@@ -22,6 +23,9 @@ class Welcomer(BaseCog):
         self.discord_verification_flow = False
         bot.loop.create_task(self.startup_cleanup())
 
+    def cog_unload(self):
+        self.check_cooldown.cancel()
+
     async def startup_cleanup(self):
         for guild in self.bot.guilds:
             self.set_verification_mode(guild)
@@ -31,56 +35,62 @@ class Welcomer(BaseCog):
             self.welcome_talkers[guild.id] = dict()
             if str(guild.id) not in self.join_cooldown:
                 self.join_cooldown[str(guild.id)] = dict()
-        self.bot.loop.create_task(self.check_cooldown())
+        self.check_cooldown.start()
 
     def set_verification_mode(self, guild):
         # TODO: enforce channel permissions for entry_channel?
         # verification flow is on if entry channel is set
         self.discord_verification_flow = bool(self.bot.get_config_channel(guild.id, Utils.entry_channel))
+        # Do not mute new members if verification flow is on.
+        # Otherwise, mute new members UNLESS it's manually overridden
         self.mute_new_members = False if self.discord_verification_flow else \
             Configuration.get_persistent_var(f"{guild.id}_mute_new_members", True)
 
+    @tasks.loop(seconds=10.0)
     async def check_cooldown(self):
-        while True:
-            # Run periodically to check for members to unmute
-            await asyncio.sleep(10)
+        m = self.bot.metrics
+        mute_count = 0
 
-            now = datetime.now().timestamp()
-            cooldown_done = dict()
+        # check for members to unmute
+        now = datetime.now().timestamp()
 
-            for guild in self.bot.guilds:
-                # set verification periodically since channel setting can be changed in another cog
-                self.set_verification_mode(guild)
-                if self.discord_verification_flow and not self.join_cooldown[str(guild.id)]:
-                    # verification flow in effect, and nobody left to unmute.
+        for guild in self.bot.guilds:
+            # report number of mutes to metrics server
+            m.bot_welcome_mute.labels(guild_id=guild.id).set(len(self.join_cooldown[str(guild.id)]))
+
+            # set verification periodically since channel setting can be changed in another cog
+            self.set_verification_mode(guild)
+
+            if self.discord_verification_flow and not self.join_cooldown[str(guild.id)]:
+                # verification flow in effect, and nobody left to unmute.
+                continue
+
+            if not self.join_cooldown or not self.join_cooldown[str(guild.id)]:
+                continue
+
+            mute_role = guild.get_role(Configuration.get_var("muted_role"))
+            my_mutes = copy.deepcopy(self.join_cooldown)
+            for user_id, join_time in my_mutes[str(guild.id)].items():
+                try:
+                    member = guild.get_member(int(user_id))
+                    user_age = now - member.created_at.timestamp()
+                    elapsed = int(now - join_time)
+                    cooldown_time = 60 * self.mute_minutes_old_account  # 10 minutes
+                    if user_age < 60 * 60 * 24:  # 1 day
+                        cooldown_time = 60 * self.mute_minutes_new_account  # 20 minutes for new users
+                    # Logging.info(f"time remaining for {member.id}: {cooldown_time - elapsed}")
+                    if elapsed > cooldown_time:
+                        if mute_role in member.roles:
+                            await member.remove_roles(mute_role)
+                        del self.join_cooldown[str(guild.id)][str(user_id)]
+                        Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
+                except Exception as e:
+                    # error retrieving member. they probably left while muted.
+                    # cooldown_done[guild.id].add(user_id)
+                    # Logging.debug(f"failed to unmute {user_id} in guild {guild.id}")
+                    del self.join_cooldown[str(guild.id)][str(user_id)]
+                    Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
                     continue
-
-                cooldown_done[guild.id] = set()
-                if not self.join_cooldown or not self.join_cooldown[str(guild.id)]:
-                    continue
-                mute_role = guild.get_role(Configuration.get_var("muted_role"))
-                for user_id, join_time in self.join_cooldown[str(guild.id)].items():
-                    try:
-                        member = guild.get_member(int(user_id))
-                        user_age = now - member.created_at.timestamp()
-                        elapsed = int(now - join_time)
-                        cooldown_time = 60 * self.mute_minutes_old_account  # 10 minutes
-                        # print(f"time remaining for {member.id}: {cooldown_time-elapsed}")
-                        if user_age < 60*60*24:  # 1 day
-                            cooldown_time = 60 * self.mute_minutes_new_account  # 20 minutes for new users
-                        if elapsed > cooldown_time:
-                            if mute_role in member.roles:
-                                await member.remove_roles(mute_role)
-                            cooldown_done[guild.id].add(user_id)
-                    except Exception as e:
-                        # error retrieving member. they probably left while muted.
-                        cooldown_done[guild.id].add(user_id)
-                        continue
-            if cooldown_done:
-                for guild_id, member_set in cooldown_done.items():
-                    for member_id in member_set:
-                        del self.join_cooldown[str(guild_id)][str(member_id)]
-                Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
 
     async def cog_check(self, ctx):
         if not hasattr(ctx.author, 'guild'):
@@ -120,7 +130,7 @@ class Welcomer(BaseCog):
             if member.nick:
                 nick = f'*"{member.nick}"*'
             member_description = f"{member.name}#{member.discriminator} ({member.id}) {nick} " \
-                                 f"- joined {int((now-member.joined_at.timestamp())/60/60)} hours ago"
+                                 f"- joined {int((now - member.joined_at.timestamp()) / 60 / 60)} hours ago"
 
             if self.is_member_verified(member):
                 verified_members.append([member, member_description])
@@ -360,6 +370,8 @@ class Welcomer(BaseCog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
+        self.bot.loop.create_task(self.mute_new_member(member))
+
         if self.discord_verification_flow:
             # do not welcome new members when using discord verification
             # set entry_channel to use discord verification
@@ -380,7 +392,6 @@ class Welcomer(BaseCog):
 
         # send the welcome message
         await self.send_welcome(member)
-        self.bot.loop.create_task(self.mute_new_member(member))
 
     async def member_verify_action(self, message):
         entry_channel = self.bot.get_config_channel(message.guild.id, Utils.entry_channel)
@@ -483,7 +494,6 @@ class Welcomer(BaseCog):
         if react_user_id != self.bot.user.id and event.message_id == rules_message_id:
             await self.handle_reaction_change("remove", str(event.emoji), react_user_id)
 
-    @commands.guild_only()
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or not hasattr(message.author, "guild") or message.author.guild_permissions.mute_members:

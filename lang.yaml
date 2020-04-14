@@ -186,6 +186,15 @@ welcome:
       ```Send a welcome message that pings the nonmember role in the welcome channel. (Warning: this could ping a large number of people so check the count first)```
       `!welcome recent [hours=1] [ping=False]`
       ```Count the members who have joined recently (within specified number of hours) but don't have member role. Optionally welcome each recent member individually in the welcome channel. Be sure the run without ping first so you know how many will be welcomed.```
+dropbox:
+  list: Dropbox list for {server_name}.
+  added: Messages sent in {source} will now be delivered to {target}
+  updated: I updated a dropbox. Messages sent in {source} will now be delivered to {new_target} isntead of {old_target}
+  not_updating: Keeping the old one.
+  removed: Messages sent in {source} will no longer be redirected
+  not_removed: There's no dropbox for channel {source}
+  channel_not_found: Sorry, I couldn't find a channel with id {channel_id}
+  override_confirmation: The channel {source} already delivers messages to {old_target}; do you want to change the target to {new_target}?
 autoresponder:
   mod_action_header: Moderator actions
   mod_action_warning: Moderator action flag will be ignored if response channel is not set. Use `!autoresponder setchannel`

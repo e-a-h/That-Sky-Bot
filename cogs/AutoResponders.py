@@ -81,11 +81,14 @@ class AutoResponders(BaseCog):
 
                 # use JSON object for random response
                 try:
-                    # leading and trailing quotes are assumed
-                    response = json.loads(responder.response[1:-1])
+                    response = json.loads(responder.response)
                 except JSONDecodeError as e:
-                    # not json. do not raise exception, use string instead
-                    response = responder.response
+                    try:
+                        # leading and trailing quotes are checked
+                        response = json.loads(responder.response[1:-1])
+                    except JSONDecodeError as e:
+                        # not json. do not raise exception, use string instead
+                        response = responder.response
 
                 # use JSON object to require each of several triggers in any order
                 try:
@@ -595,7 +598,6 @@ class AutoResponders(BaseCog):
         except ValueError:
             await nope(ctx)
 
-    @commands.guild_only()
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Set up message listener and respond to specific text with various canned responses"""

@@ -92,7 +92,6 @@ class WordCounter(BaseCog):
         else:
             await ctx.send(f"{Emoji.get_chat_emoji('NO')} {Lang.get_string('word_counter/word_not_found', word=word)}")
 
-    @commands.guild_only()
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         prefix = Configuration.get_var("bot_prefix")
