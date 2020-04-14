@@ -308,7 +308,7 @@ class Krill(BaseCog):
         patterns = self.get_oreo_patterns()
         oreo_pattern = patterns['en']
         oreo_jp_pattern = patterns['jp']
-        dog_pattern = re.compile(r"\bdog\b|\bcookie\b", re.IGNORECASE)
+        dog_pattern = re.compile(r"\bdog\b|\bcookie\b|\bbiscuit\b|\bcanine\b", re.IGNORECASE)
 
         monster = False
         name_is_oreo = oreo_pattern.search(ctx.author.display_name) or oreo_jp_pattern.search(ctx.author.display_name)
@@ -318,43 +318,53 @@ class Krill(BaseCog):
             await ctx.send(f'not Oreo! {victim_name}, you monster!!')
             monster = True
             self.monsters[ctx.author.id] = datetime.now().timestamp()
-        else:
-            victim = arg
-            try:
-                victim_user = await UserConverter().convert(ctx, victim)
-                victim_user = ctx.message.guild.get_member(victim_user.id)
-                victim_name = victim_user.nick or victim_user.name
-            except Exception as e:
-                victim_name = victim
-                if re.search(r'@', victim_name):
-                    self.bot.get_command("krill").reset_cooldown(ctx)
-                    await ctx.send(f"That's a dirty trick, {ctx.author.mention}, and I'm not falling for it")
-                    return
+            return
 
-            # clean emoji and store non-emoji text for length evaluation
-            emoji_used = Utils.EMOJI_MATCHER.findall(victim_name)
-            non_emoji_text = Utils.EMOJI_MATCHER.sub('', victim_name)
-            if len(non_emoji_text) > 40:
-                await ctx.send("too much text!")
-                return
-            if len(emoji_used) > 15:
-                await ctx.send("too many emoji!")
+        victim = arg
+        try:
+            victim_user = await UserConverter().convert(ctx, victim)
+            victim_user = ctx.message.guild.get_member(victim_user.id)
+            victim_name = victim_user.nick or victim_user.name
+        except Exception as e:
+            victim_name = victim
+            if re.search(r'@', victim_name):
+                self.bot.get_command("krill").reset_cooldown(ctx)
+                await ctx.send(f"That's a dirty trick, {ctx.author.mention}, and I'm not falling for it")
                 return
 
-            # remove pattern interference
-            reg_clean = re.compile(r'[.\[\](){}\\+]')
-            victim_name = reg_clean.sub('', victim_name)
-            bad_emoji = set()
-            for emoji in emoji_used:
-                if utils.get(self.bot.emojis, id=int(emoji[2])) is None:
-                    bad_emoji.add(emoji[2])
-            for bad_id in bad_emoji:
-                # remove bad emoji
-                this_match = re.compile(f'<(a?):([^: \n]+):{bad_id}>')
-                victim_name = this_match.sub('', victim_name)
+        # clean emoji and store non-emoji text for length evaluation
+        emoji_used = Utils.EMOJI_MATCHER.findall(victim_name)
+        non_emoji_text = Utils.EMOJI_MATCHER.sub('', victim_name)
+        if len(non_emoji_text) > 40:
+            await ctx.send("too much text!")
+            return
+        if len(emoji_used) > 15:
+            await ctx.send("too many emoji!")
+            return
 
-            # Initial validation passed. Delete command message and check or start
-            await ctx.message.delete()
+        # remove pattern interference
+        reg_clean = re.compile(r'[.\[\](){}\\+]')
+        victim_name = reg_clean.sub('', victim_name)
+        bad_emoji = set()
+        for emoji in emoji_used:
+            if utils.get(self.bot.emojis, id=int(emoji[2])) is None:
+                bad_emoji.add(emoji[2])
+        for bad_id in bad_emoji:
+            # remove bad emoji
+            this_match = re.compile(f'<(a?):([^: \n]+):{bad_id}>')
+            victim_name = this_match.sub('', victim_name)
+
+        # one more backup check
+        victim_is_oreo = oreo_pattern.search(victim_name) or \
+                         oreo_jp_pattern.search(victim_name) or \
+                         dog_pattern.search(victim_name)
+        if victim_is_oreo:
+            self.monsters[ctx.author.id] = datetime.now().timestamp()
+            await ctx.send(f"rofl nice try!")
+            return
+
+        # Initial validation passed. Delete command message and check or start
+        await ctx.message.delete()
 
         # EMOJI hard coded because... it must be exactly these
         head = utils.get(self.bot.emojis, id=640741616080125981)

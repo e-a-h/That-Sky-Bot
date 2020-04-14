@@ -1,0 +1,322 @@
+questions:
+  text_only: I can't accept files yet. That step comes later. Just use your words
+  confirm_prompt: Are you sure {backticks}{message}{backticks} is correct?
+  another_attachment: Do you want to add another attachment?
+  confirm_attachments: Are those all the files you meant to send?
+  restart_attachment_singular: Forget that attachment and try again
+  restart_attachment_plural: Forget those attachments and try again
+  restart_attachments_yes: Yes, try adding attachments again
+  restart_attachments_no: Do not attach any files
+  attachment_prompt: Send up to {max} files or links
+  attachment_prompt_continued: Send up to {max} more files or links
+  attachment_prompt_final: You can send one more file or link
+  attachments_restart: Ok, I've thrown away all the attachments you sent. Do you want to try sending files or links again, or skip this step?
+  attachments_overflow: You can only add up to {max} attachments
+  attachment_not_found: There were no files or links in that message. Try sending again
+  approve_attachments: Final answer!
+  error_reaction_timeout: "{error_emoji} You didn't react within {timeout}"
+channel_config:
+  info: Channel Config for {server_name}
+  commands: |
+      `![channel_config|chanconf] reload`
+      `![channel_config|chanconf] set channel_name channel_id`
+  channel_set: Config channel "{channel_name}" set to <#{channel_id}>
+bugs:
+  bug_info: "**Report a New Bug!**\nBrowse or search this channel to see bug reports. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."
+  shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
+  sweep_trash: Sorry to bother you, but you had an in-progress bug report that was idle for too long. I deleted it. If you think you received this message in error, please report me to the proper authorites (a moderator in the Sky server)
+  stop_spamming: "{user} stop spamming the bug reaction!"
+  start_over: "{user} You are already in the middle of reporting a bug. Do you want to cancel that report to start over?"
+  start_over_yes: Cancel my in-progress report and start a new one
+  start_over_no: Do not cancel my in-progress report
+  skip_step: Skip this step
+  abort_report: Ok, I won't ask you any more questions for now. Go back to the bug report channel any time to start a new one!
+  latest_not_allowed: Tell me a number! ``Latest`` is not valid because the latest version changes with every update. You might not even have the latest version if you didn't update recently, so an actual number is really helpful here!
+  love_letter: Whoa there, I just need a version number, not an entire love letter
+  no_numbers: There don't appear to be any numbers in there
+  text_too_long: That text seems suspiciously long for the question asked... Try typing up a shorter answer (up to {max} characters) and we'll see if I like it
+  report_header: "**Bug Report {id} - submitted by {user}**"
+  report_timeout: This report has been cancelled. Go back to the bug report channel to start a new one!
+  attachments_yes: Yes, add pictures/videos
+  attachment_info: "**Attachment to report {id}**\n{links}"
+  attachment_info_plural: "**Attachments to report {id}**\n{links}"
+  report_confirmation: Thank you! Your report was submitted, and can be found in <#{channel_id}>!
+  question_ready: |
+    ```css
+    Report a Bug
+    ```
+    Help me collect the following information. It will be *very helpful* in identifying, reproducing, and fixing bugs:
+        - Device type
+        - Operating System Version
+        - Sky App Type
+        - Version of the Sky app
+        - Description of the problem, and how to reproduce it
+        - Attachment(s)
+        - Additional Information
+
+    **Don't start typing your report yet!** For questions like this one that have reaction icons, press one of the reactions to answer! Ready to start?
+  platform: Platform
+  question_platform: |
+    ```css
+    Device Type
+    ```
+    Are you using Android or iOS?
+  question_platform_version: |
+    ```css
+    Operating System Version
+    ```
+    What {platform} version do you use? This can be found in device settings. You can ***type*** your answer this time
+  device_info: Device
+  question_device_info: |
+    ```css
+    Device Info
+    ```
+    What model of {platform} device were you using when the bug occurred ({max} characters max)?
+  question_app_branch: |
+    ```css
+    Sky App Type
+    ```
+    Are you using the Live or Beta version of Sky? Beta is installed through TestFlight on iOS or through Google Groups on Android. If you are unsure, then choose Live
+  app_version: Sky app version
+  question_app_version: |
+    ```css
+    Sky App Version Number
+    ```
+    What **version** of the Sky app were you using when you experienced the bug?
+    {version_help}
+    The version number is the number in place of "X.X.X"
+  app_build: Sky app build
+  question_app_build: |
+    ```css
+    Sky App Build Number
+    ```
+    What **build** of the Sky app were you using when you experienced the bug?
+    See the instructions above. The build number is in parentheses.
+  version_android: |
+    **To find Sky version and build on Android devices:**
+    > 1. Device settings
+    > 2. Apps
+    > 3. Sky
+    > 4. Scroll down to find: Version X.X.X (build)
+    For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623647199427035147
+  version_ios: |
+    **To find Sky version and build on iOS devices:**
+    > 1. Device settings
+    > 2. Scroll down to Sky
+    > 3. Scroll down to find: Version X.X.X (build)
+    For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623643887977627658
+  title: Title/Topic
+  question_title: |
+    ```css
+    Title/Topic
+    ```
+    Provide a brief title or topic for your bug ({max} characters max)
+  description: Bug description
+  question_actual: |
+    ```css
+    Describe the bug
+    ```
+    Describe the problem you experienced, what looked or worked the wrong way. I'll ask for steps to reproduce the problem next, so don't tell me *how* it happened yet ({max} characters max)
+  steps_to_reproduce: Steps to reproduce
+  question_steps: |
+    ```css
+    How to Reproduce the Bug
+    ```
+    How did the bug happen? Tell me the steps you took that lead to the problem ({max} characters max). Example:
+    ```
+    - step 1
+    - step 2
+    - step 3
+    ```
+  expected: Expected outcome
+  question_expected: |
+    ```css
+    Expectation
+    ```
+    When following the steps you gave, what did you expect to happen ({max} characters max)?
+  additional_info: Additional information
+  question_additional: |
+    ```css
+    Additional Information
+    ```
+    Do you have any other information to add to this report?
+  question_additional_info: What other information would you like me to include in your report?
+  additional_info_yes: Provide additional information
+  question_attachments: |
+    ```css
+    Attachments
+    ```
+    Do you have screenshots, videos, or other documents to add?
+  question_ok: This is what your report will look like. Should I **submit** it or **discard** it? You have **{timeout} to review.**
+  send_report: All done! Send this report
+  mistake: Nope, I made a mistake. Throw away this report and start again
+  no_live_android: There is no live version available on Android yet, only beta. Go back to the bug report channel any time to start a new report!
+  dm_unable: '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
+eden:
+  reset: |
+    The Eye of Eden resets once per week.
+    Next reset is on {date} at {time} (In {countdown})
+  tz_help: I couldn't find a timezone called '{tz}.' Maybe you can find your timezone in this list <https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568>
+  tz_mention: I'm not falling for that again
+nope: Something isn't right...
+welcome:
+  welcome_msg: Welcome, {user}! Please read through all the items posted in our {rules_channel} channel. When you're done, click the {accept_emoji} emote at the end of the rules to join the community and gain access to the other channels.
+  welcome_mute_msg: |
+    **New members will need to wait a few minutes before chat is allowed;** until then, look around in the channels and get to know the server!
+  welcome_help: Hi {author}! If you'd like to access the rest of the channels and chat with other members, please read the {rules_channel} and follow the directions there. If you're having trouble with reactions, make sure they're enabled in **user settings > text and images > show emoji reactions on messages**
+  darkness: I see {unverified} lost soul lurking near, and {too_old} from before time.
+  darkness_plural: I see {unverified} lost souls lurking near, and {too_old} from before time.
+  darkened: |
+    {count} of my children have fallen into darkness.
+  darkened_plural: |
+    {count} of my children have fallen into darkness.
+  mute_settings_title: New member mute settings for {server_name}
+  help: |
+    `welcome` help:
+      `!welcome` Show this message
+
+    Sub-commands:
+      `!welcome [mute_config|configmute|muteconfig|configure_mute|mute_configure|mute] [on|off|1|0|yes|no] [minutes] [minutes]`
+      ```With no arguments, check the new member mute configuration. With arguments, turn muting on/off, and set duration (in minutes) for regular accounts, and for accounts created within the last 1 day.```
+      `!welcome [count|cr|count_recent] [hours=1]`
+      ```Count the members who have joined recently (within specified number of hours) but don't have member role.```
+      `!welcome [darken|darkness|give_shadows|give_shadow] [hours=1] [add_role=0]`
+      ```Count the members who have joined recently (within specified number of hours) but don't have member role or the nonmember role. Optionally add the nonmember role.```
+      `!welcome [nonmember|shadows|shadow|ping_unverified]`
+      ```Send a welcome message that pings the nonmember role in the welcome channel. (Warning: this could ping a large number of people so check the count first)```
+      `!welcome recent [hours=1] [ping=False]`
+      ```Count the members who have joined recently (within specified number of hours) but don't have member role. Optionally welcome each recent member individually in the welcome channel. Be sure the run without ping first so you know how many will be welcomed.```
+autoresponder:
+  mod_action_header: Moderator actions
+  mod_action_warning: Moderator action flag will be ignored if response channel is not set. Use `!autoresponder setchannel`
+  you_chose: You chose **{value}**
+  list: Auto-responder list for {server_name}.
+  raw: Auto-responder raw trigger/response in {server_name}.
+  none_set: No auto-responders have been created yet.
+  no_commands: No auto-responders have been created yet.
+  trigger_too_long: Auto-responder triggers can only be up to 100 chars long
+  added: Auto-responder for `{trigger}` has been added!
+  removed: Auto-responder `{trigger}` has been removed.
+  updated: Auto-responder `{trigger}` has been updated!
+  chanceset: Chance that `{trigger}` will trigger a response is now {chance}%
+  override_confirmation: This auto-responder already exists, do you want to replace it with this new text?
+  empty_reply: Empty response? Why bother with me at all. Just shout your triggers into the wind and you already get no response! (use remove if you want me to stop responding to a trigger)
+  empty_trigger: Your trigger is empty... so... you want me to react to *literally nothing??*
+  channel_unset: Okay, I'll {mode} to `{trigger}` in the same channel it's matched in
+  channel_set: Okay, I'll {mode} to `{trigger}` in {channel}
+  no_channel: No channel set.
+  updating: Updating...
+  not_updating: Keeping the old one.
+  not_found: Unable to remove `{trigger}` as it doesn't seem to exist.
+  creating: This auto-responder does not exist, making it for you instead.
+  which_flag: |
+    Which flag do you want? (type a number)
+    {options}
+  which_mode: Set channel to listen in, or channel to respond in?
+  which_trigger: Which trigger would you like? (type a number)
+  prompt_channel_id: Which channel should this trigger {mode} in? (channel id)
+  prompt_response: How would you like me to respond?
+  prompt_trigger: What should the new trigger be?
+  prompt_chance: How often should I respond? (floating point percent e.g. `35.15`)
+  help: |
+    `Auto-responder` help:
+      `![autor|auto|ar]` Show a list of responder tags and their flags
+
+    Sub-commands:
+      `!ar [help|h]` This message
+      `!ar [create|add|new]` Add a new trigger/response
+      `!ar [delete|del]` Remove a trigger/response
+      `!ar [edit|update|set]` Edit a response
+      `!ar [listflags|flags|lf]` List settings for a trigger/response
+      `!ar [setflag|sf]` Set an option for a trigger/response
+      `!ar [setchannel|channel|sc]` Set a response channel for a trigger
+      `!ar [getraw|raw]` Show the raw response text for a trigger
+      `!ar reload` Reload all responses for the current guild from database
+
+    Tokens:
+      All auto-responders can include these tokens. Enclose tokens in curly braces.
+      `author` mentions the user who triggered
+      `channel` mentions the channel in which response was triggered
+      `link` links to the message that triggered response
+  on_or_off: |
+    `{subject}` on or off?
+  expect_integer: I was hoping for an integer between {min} and {max}
+krill:
+  list_channels: Krill channels for {server_name}.
+  list_oreo_filter: Oreo filters for {server_name}.
+  list_oreo_monsters: The most horrible people in the _"{server_name}"_ server.
+  no_channels: No channels set for krill command. `!krill` may be used in any channel.
+  channel_added: Channel {channel} is now approved for krilling.
+  channel_removed: Channel {channel} has been fumigated. No more krill allowed.
+  channel_not_found: There are no krill in {channel}
+  channel_found: The channel {channel} is already infested by krill
+react_monitor:
+  info_title: Emoji reaction monitor settings
+art:
+  list_channels: Art channels for {server_name}.
+  no_channels: No channels set for art collection. No art will be colelcted
+  channel_added: Channel {listenchannel} is now approved for arting. Collecting "\#{tag}" into {collectchannel}
+  channel_not_found: I didn't find a collector for {listenchannel}, "\#{tag}"->{collectchannel}
+  channel_found: The channel {listenchannel} is already collecting art "\#{tag}"->{collectchannel}
+  channel_removed: There's been a robbery at the art museum! Channel {listenchannel} can't collect art anymore! "\#{tag}"->{collectchannel}
+custom_commands:
+  list_commands: Custom command list for {server_name}.
+  no_commands: No custom commands have been created yet.
+  empty_trigger: Empty triggers, isn't that like empty promises? Something you shouldn't do?
+  empty_reply: You want me to say nothing for that trigger? That makes no sense. If you want to remove an existing trigger then please use remove instead.
+  trigger_too_long: Custom command triggers can only be up to 20 chars long
+  command_added: Command `{trigger}` has been added!
+  updating_command: Updating...
+  not_updating_command: Keeping the old one.
+  override_confirmation: This command already exists, do you want to replace it with this new text?
+  command_removed: Command `{trigger}` has been removed.
+  not_found: Unable to remove `{trigger}` as it doesn't seem to exist.
+  creating_command: This command does not exist, making it for you instead.
+  command_updated: Command `{trigger}` has been updated!
+word_counter:
+  list_words: Words being counted for metrics in the {server_name} server
+  no_words: There are no words currently being counted.
+  word_added: The word "{word}" is now being counted.
+  word_found: The word "{word}" is already being counted.
+  word_removed: The word "{word}" is no longer being counted.
+  word_not_found: I didn't find the word "{word}" in the database
+sweeps:
+  jumpurl_prompt: Please provide a jumpurl or [channel_id]/[message_id]
+  unique_result: There are {count} entrants (unique reactions) to this drawing.
+  total_entries: There are {count} total entries to this drawing.
+  all_invalid_emoji: All of the reaction emojis come from other servers. I won't be able to add any reactions. Do you still want to clear reactions?
+  some_invalid_emoji: Some of the reaction emojis come from other servers. I won't be able to add them all back. Do you still want to clear reactions?
+  invalid_emoji_confirm: Ok I'll continue, but there are at least {count} emoji that I can't add back to the original message. You may need to add some yourself!
+  no_reactions: No reactions on that message. Aborting.
+  removing_reactions: |
+    ```Removing reactions from message (ending entry period)...```
+  adding_reactions: |
+    ```Adding reactions to message (restarting entry period)...```
+  adding_reactions_progress: Added these reactions -
+  emoji_fail: Failed to add emoji {emoji} (permissions? emoji comes from another server?)
+  partial_emoji_fail: |
+    ```Failed to add all reactions back to the original message. You might need to add some manually```
+  drawing_closed: |
+    ```Reactions removed. Drawing entry closed.```
+  drawing_restarted: |
+    ```Reactions reset. Drawing entry restarted.```
+  fetch_message_failed: Failed to get message {channel_id}/{message_id}
+  fetch_entries_failed: Failed to get entries {channel_id}/{message_id}
+  entries_sub_command: Sub-command required. try `sweeps entries unique` or `sweeps entries all`
+  end_sweeps_sub_command: Sub-command required. try `sweeps end clear` or `sweeps end restart`
+  help: |
+    `sweeps` help:
+      `![sweeps|drawing]` sub-command required
+
+    Sub-commands:
+      `!sweeps [help|h]` This message
+      `!sweeps [entries]` sub-command required
+      `!sweeps [end|cancel|stop]` sub-command required
+
+    Entries Sub-commands:
+      `!sweeps entries [unique] jump_url` fetch a list of unique entrants (users reacting to message)
+      `!sweeps entries [all] jump_url` fetch a list of all entrants, including multiple emoji per user
+
+    End Sub-commands:
+      `!sweeps end [clear|clean] jump_url` List entrants and remove all reactions
+      `!sweeps end [reset|restart] jump_url` List entrants to-date and reset reactions to starting state
