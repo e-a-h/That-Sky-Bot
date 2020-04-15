@@ -10,13 +10,7 @@ from cogs.BaseCog import BaseCog
 
 from utils import Lang, Emoji, Questions, Utils, Configuration
 
-os.chdir("sky-python-music-sheet-maker")
-
 try:
-    # from modes import InputMode, RenderMode, CSSMode
-
-    # from songparser import SongParser
-    # from song import Song
     from communicator import Communicator, QueriesExecutionAbort
     from music_sheet_maker import MusicSheetMaker
 except ImportError as e:
@@ -195,6 +189,56 @@ class Music(BaseCog):
             song_bundle = maker.render_song(recipient=player)
             await player.send_song_to_channel(channel, ctx, song_bundle, title)
 
+        except Forbidden as ex:
+            m.bot_cannot_dm_member.inc()
+            await ctx.send(
+                Lang.get_string("music/dm_unable", user=ctx.author.mention),
+                delete_after=30)
+
+        except asyncio.TimeoutError as ex:
+            m.report_incomplete_count.inc()
+            await channel.send(Lang.get_string("bugs/report_timeout"))
+            if active_question is not None:
+                m.reports_exit_question.observe(active_question)
+            self.bot.loop.create_task(self.delete_progress(ctx.author.id))
+        except CancelledError as ex:
+            m.report_incomplete_count.inc()
+            if active_question is not None:
+                m.reports_exit_question.observe(active_question)
+            if not restarting:
+                raise ex
+        except Exception as ex:
+            self.bot.loop.create_task(self.delete_progress(ctx.author.id))
+            await Utils.handle_exception("bug reporting", self.bot, ex)
+            raise ex
+        else:
+            self.bot.loop.create_task(self.delete_progress(ctx.author.id))
+
+        return
+
+
+"""
+    @commands.command(aliases=['song_tutorial'])
+    async def song_tutorial(self, ctx):
+
+        m = self.bot.metrics
+        active_question = None
+        restarting = False
+
+        # start a dm
+        try:
+            channel = await ctx.author.create_dm()
+            asking = True
+
+            async def abort():
+                nonlocal asking
+                await ctx.author.send(Lang.get_string("bugs/abort_report"))
+                asking = False
+                m.reports_abort_count.inc()
+                m.reports_exit_question.observe(active_question)
+                await self.delete_progress(ctx.author.id)
+
+            # Tutorial code here
 
         except Forbidden as ex:
             m.bot_cannot_dm_member.inc()
@@ -222,6 +266,7 @@ class Music(BaseCog):
             self.bot.loop.create_task(self.delete_progress(ctx.author.id))
 
         return
+"""
 
 
 def setup(bot):
