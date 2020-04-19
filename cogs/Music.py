@@ -15,11 +15,11 @@ from utils import Lang, Emoji, Questions, Utils, Configuration
 
 try:
     music_maker_path = os.path.normpath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sky-python-music-sheet-maker', 'src', 'skymusic'))
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), '../sky-python-music-sheet-maker'))
     if music_maker_path not in sys.path:
         sys.path.append(music_maker_path)
-    from communicator import Communicator, QueriesExecutionAbort
-    from music_sheet_maker import MusicSheetMaker
+    from src.skymusic.communicator import Communicator, QueriesExecutionAbort
+    from src.skymusic.music_sheet_maker import MusicSheetMaker
 except ImportError as e:
     print('*** IMPORT ERROR of one or several Music-Maker modules')
     print(e)
@@ -120,15 +120,15 @@ class MusicCogPlayer:
 
     async def send_song_to_channel(self, channel, user, song_bundle, song_title='Untitled'):
 
-        # A song bundle is a list of tuples
-        # Each tuple is made of a list of buffers and a list of corresponding modes
-        # Each buffer is an IOString or IOBytes object
+        # A song bundle is an objcet returning a dictionary of song meta data and a dict of IOString or IOBytes buffers, as lists indexed by their RenderMode
         await channel.trigger_typing()
         message = "Here are your song files(s)"
-
-        for (buffers, render_modes) in song_bundle:
-            my_files = [File(buffer, filename='%s_%d%s' % (song_title, i, render_mode.extension)) for
-                        (i, buffer), render_mode in zip(enumerate(buffers), render_modes)]
+        
+        song_renders = song_bundle.get_all_renders()
+        
+        for render_mode, buffers in song_renders.items():
+            my_files = [File(buffer, filename='%s_%d%s' % (song_title, i, render_mode.extension))
+                        for (i, buffer) in enumerate(buffers)]
             if len(my_files) > 10:
                 my_files = my_files[:9]
                 message += ". Sorry, I wasn't allowed to send you more than 10 files."
@@ -195,7 +195,7 @@ class Music(BaseCog):
             await self.delete_progress(user)
 
         # Start a song creation
-        task = self.bot.loop.create_task(self.actual_transcribe_song(user), ctx)
+        task = self.bot.loop.create_task(self.actual_transcribe_song(user, ctx))
         self.in_progress[user.id] = task
         try:
             await task
