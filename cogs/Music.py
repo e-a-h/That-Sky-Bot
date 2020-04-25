@@ -230,6 +230,13 @@ class Music(BaseCog):
                 # result = i_instr.get_reply().get_result()
                 active_question += 1
 
+                #2.c
+                q_aspect, _ = maker.ask_aspect_ratio(recipient=player, prerequisites=[i_instr],
+                                                                execute=False)
+                answered = await player.async_execute_queries(channel, user, q_aspect)
+                aspect_ratio = q_aspect.get_reply().get_result()
+                active_question += 1
+
                 # 3. Ask for notes
                 # TODO: allow the player to enter the notes using several messages??? or maybe not
                 q_notes, _ = maker.ask_notes(recipient=player, prerequisites=[i_instr], execute=False)
@@ -282,7 +289,7 @@ class Music(BaseCog):
                 active_question += 1
 
                 # 11. Renders Song
-                song_bundle = await asyncio.get_event_loop().run_in_executor(None, maker.render_song, player)
+                song_bundle = await asyncio.get_event_loop().run_in_executor(None, maker.render_song, player, None, aspect_ratio)
 
                 await player.send_song_to_channel(channel, user, song_bundle, title)
                 active_question += 1
