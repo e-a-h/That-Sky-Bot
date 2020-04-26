@@ -83,6 +83,15 @@ welcome:
   darkened_plural:
   mute_settings_title:
   help:
+dropbox:
+  list:
+  added:
+  updated:
+  not_updating:
+  removed:
+  not_removed:
+  channel_not_found:
+  override_confirmation:
 autoresponder:
   mod_action_header:
   mod_action_warning:
