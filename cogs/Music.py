@@ -5,7 +5,7 @@ import sys
 import time
 # from datetime import datetime
 
-from discord import Forbidden, File
+from discord import Forbidden, File, Reaction
 from discord.ext import commands, tasks
 from discord.ext.commands import Context, command
 
@@ -65,23 +65,26 @@ class MusicCogPlayer:
             reply_valid = False
             while not reply_valid:
 
+                async def answer_number(first_number, i):
+                    nonlocal answer_number
+                    if isinstance(i, int):
+                        answer_number = first_number + i
+                    else:
+                        answer_number = i
+                
                 query_dict = self.communicator.query_to_discord(q)
 
+                options = [Questions.Option("QUESTION_MARK", 'Help', handler=answer_number, args=(None,'?'))]
+
                 if 'options' in query_dict:
-
-                    async def answer_number(i: int):
-                        nonlocal answer_number
-                        answer_number = i
-
+                    
                     if len(query_dict['options']) > 0 and len(query_dict['options']) <= 10:
 
                         reaction_choices = True
                         question_text = query_dict['question']
-                        options = [Questions.Option("NUMBER_%d" % i, option['text'], handler=answer_number, args=(i,))
-                                   for i, option in enumerate(query_dict['options'])]
                         first_number = query_dict['options'][0]['number']
-                        # options_text = '\n'.join([str(option['number']) + ') ' + option['text'] for option in query_dict['options']])
-
+                        options = options + [Questions.Option("NUMBER_%d" % i, option['text'], handler=answer_number, args=(first_number,i))
+                                   for i, option in enumerate(query_dict['options'])]
                     else:
 
                         reaction_choices = False
@@ -99,8 +102,10 @@ class MusicCogPlayer:
 
                         await Questions.ask(bot=self.cog.bot, channel=channel, author=user, text=question_text,
                                             options=options, show_embed=True, delete_after=True)
-                        answer = answer_number + first_number
+                        answer = answer_number
+                        
                     else:
+                        
                         answer = await Questions.ask_text(self.cog.bot, channel, user,
                                                           question_text, timeout=question_timeout,
                                                           validator=self.max_length(2000))
