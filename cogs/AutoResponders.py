@@ -636,11 +636,16 @@ class AutoResponders(BaseCog):
                     if isinstance(word, list):
                         sub_list = []
                         for token in word:
-                            sub_list.append(re.escape(token))
+                            token = re.escape(token)
+                            if full_match:
+                                token = rf"\b{token}\b"
+                            sub_list.append(token)
                         # a list of words at this level indicates one word from a list must match
                         word = f"({'|'.join(sub_list)})"
                     else:
                         word = re.escape(word)
+                        if full_match:
+                            word = rf"\b{word}\b"
                     # escape the words and join together as a series of look-ahead searches
                     words.append(f'(?=.*{word})')
                 trigger = ''.join(words)
