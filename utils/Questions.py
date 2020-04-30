@@ -25,7 +25,14 @@ async def ask(bot, channel, author, text, options, timeout=60, show_embed=False,
     handlers = dict()
     for option in options:
         emoji = Emoji.get_emoji(option.emoji)
-        await message.add_reaction(emoji)
+        add_attempts = 10
+        # try reaction 10x in case it fails to add
+        while add_attempts > 0:
+            try:
+                await message.add_reaction(emoji)
+                break
+            except Exception as ex:
+                add_attempts = add_attempts - 1
         handlers[str(emoji)] = {'handler': option.handler, 'args': option.args}
 
     def check(reaction: Reaction, user):
