@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 import pytz
 from discord.ext import commands
+from discord.ext.commands import BucketType
 from pytz import UnknownTimeZoneError
 
 from cogs.BaseCog import BaseCog
@@ -14,6 +15,8 @@ class Eden(BaseCog):
     def __init__(self, bot):
         super().__init__(bot)
         self.cool_down = dict()
+        self.responses = dict()
+        self.cooldown_responses = dict()
 
     def check_cool_down(self, user):
         if user.id in self.cool_down:
@@ -31,24 +34,51 @@ class Eden(BaseCog):
     @commands.command(aliases=["edenreset", "er"])
     async def reset(self, ctx, tz=None):
         """Show information about reset time (and countdown) for Eye of Eden"""
+        cid = ctx.channel.id
+
+        # TODO: channel cooldown
+        channel_cooldown = False
+        response_cooldown = False
+
+        # create cooldown response trackers if none
+        if cid not in self.cooldown_responses:
+            self.cooldown_responses[cid] = 0
+        if cid not in self.responses:
+            self.responses[cid] = 0
+
+        async for message in ctx.channel.history(limit=10):
+            if message.id == self.responses[cid]:
+                channel_cooldown = True
+            if message.id == self.cooldown_responses[cid]:
+                response_cooldown = True
+
+        if channel_cooldown:
+            await ctx.message.delete()
+            if not response_cooldown:
+                # send channel cooldown message
+                msg = Lang.get_locale_string('eden/channel_cooldown', ctx, author=ctx.author.mention)
+                cooldown_msg = await ctx.send(msg)
+                self.cooldown_responses[cid] = cooldown_msg.id
+            return
 
         server_zone = pytz.timezone("America/Los_Angeles")
         try:
             if tz is None:
                 tz = server_zone
             elif re.search(r'@', tz):
-                await ctx.send(Lang.get_string('eden/tz_mention'))
+                await ctx.send(Lang.get_locale_string('eden/tz_mention', ctx))
                 return
             else:
                 tz = pytz.timezone(tz)
         except UnknownTimeZoneError as e:
-            await ctx.send(Lang.get_string('eden/tz_help', tz=tz))
+            await ctx.send(Lang.get_locale_string('eden/tz_help', ctx, tz=tz))
             return
 
         cool_down = self.check_cool_down(ctx.author)
         if cool_down:
             v = Utils.to_pretty_time(cool_down)
-            await ctx.send(f"Cool it, {ctx.author.mention}. Try again in {v}")
+            msg = Lang.get_locale_string('eden/cool_it', ctx, author=ctx.author.mention, remain=v)
+            await ctx.send(msg)
             return
         else:
             # start a new cool-down timer
@@ -69,7 +99,12 @@ class Eden(BaseCog):
         pretty_date = reset_time_local.strftime("%A %B %d")
         pretty_time = reset_time_local.strftime("%H:%M %Z")
 
-        await ctx.send(Lang.get_string("eden/reset", date=pretty_date, time=pretty_time, countdown=pretty_countdown))
+        response = await ctx.send(Lang.get_locale_string("eden/reset",
+                                                         ctx,
+                                                         date=pretty_date,
+                                                         time=pretty_time,
+                                                         countdown=pretty_countdown))
+        self.responses[cid] = response.id
 
 
 def setup(bot):

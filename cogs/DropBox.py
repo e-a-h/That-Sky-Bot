@@ -48,7 +48,7 @@ class DropBox(BaseCog):
         embed = Embed(
             timestamp=ctx.message.created_at,
             color=0x663399,
-            title=Lang.get_string("dropbox/list", server_name=ctx.guild.name))
+            title=Lang.get_locale_string("dropbox/list", ctx, server_name=ctx.guild.name))
         for source, target in self.dropboxes[ctx.guild.id].items():
             source_channel = self.bot.get_channel(source)
             target_channel = self.bot.get_channel(target)
@@ -72,9 +72,9 @@ class DropBox(BaseCog):
         source_channel = self.bot.get_channel(sourceid)
         target_channel = self.bot.get_channel(targetid)
         if not source_channel:
-            await ctx.send(Lang.get_string('dropbox/channel_not_found', channel_id=sourceid))
+            await ctx.send(Lang.get_locale_string('dropbox/channel_not_found', ctx, channel_id=sourceid))
         if not target_channel:
-            await ctx.send(Lang.get_string('dropbox/channel_not_found', channel_id=targetid))
+            await ctx.send(Lang.get_locale_string('dropbox/channel_not_found', ctx, channel_id=targetid))
         if not source_channel or not target_channel:
             # valid source and target channels are required
             return
@@ -98,31 +98,34 @@ class DropBox(BaseCog):
                 self.bot,
                 ctx.channel,
                 ctx.author,
-                Lang.get_string('dropbox/override_confirmation',
-                                source=source_description,
-                                old_target=old_target_description,
-                                new_target=new_target_description),
+                Lang.get_locale_string('dropbox/override_confirmation',
+                                       ctx,
+                                       source=source_description,
+                                       old_target=old_target_description,
+                                       new_target=new_target_description),
                 [
                     Questions.Option('YES', handler=lambda: update(True)),
                     Questions.Option('NO', handler=lambda: update(False))
-                ], delete_after=True)
+                ], delete_after=True, locale=ctx)
 
         if update_entry is False:
             # user chose not to update
-            await ctx.send(Lang.get_string('dropbox/not_updating'))
+            await ctx.send(Lang.get_locale_string('dropbox/not_updating', ctx))
             return
 
         if update_entry:
             # user chose to update
-            msg = Lang.get_string('dropbox/updated',
-                                  source=source_description,
-                                  old_target=old_target_description,
-                                  new_target=new_target_description)
+            msg = Lang.get_locale_string('dropbox/updated',
+                                         ctx,
+                                         source=source_description,
+                                         old_target=old_target_description,
+                                         new_target=new_target_description)
         else:
             # no existing source. adding a new dropbox
-            msg = Lang.get_string('dropbox/added',
-                                  source=source_description,
-                                  target=new_target_description)
+            msg = Lang.get_locale_string('dropbox/added',
+                                         ctx,
+                                         source=source_description,
+                                         target=new_target_description)
 
         # update local mapping and save to db
         self.dropboxes[ctx.guild.id][sourceid] = targetid
@@ -138,7 +141,7 @@ class DropBox(BaseCog):
     async def remove(self, ctx, sourceid: int):
         source_description = Utils.get_channel_description(self.bot, sourceid)
         if sourceid not in self.dropboxes[ctx.guild.id]:
-            await ctx.send(Lang.get_string('dropbox/not_removed', source=source_description))
+            await ctx.send(Lang.get_locale_string('dropbox/not_removed', ctx, source=source_description))
             return
 
         try:
@@ -148,7 +151,7 @@ class DropBox(BaseCog):
         except Exception as e:
             await Utils.handle_exception('dropbox delete failure', self.bot, e)
             raise e
-        await ctx.send(Lang.get_string('dropbox/removed', source=source_description))
+        await ctx.send(Lang.get_locale_string('dropbox/removed', ctx, source=source_description))
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.message):
@@ -191,10 +194,12 @@ class DropBox(BaseCog):
 
                 # TODO: try/ignore: add reaction for "claim" "flag" "followup" "delete"
                 # TODO: if delivery confirmation
-                await ctx.send(f"Your message was delivered, {ctx.author.mention}!")
+                msg = Lang.get_locale_string('dropbox/msg_delivered', ctx, author=ctx.author.mention)
+                await ctx.send(msg)
             except Exception as e:
                 # TODO: if delivery confirmation
-                await ctx.send(f"Your message was **not** delivered, {ctx.author.mention}. Please try again, or contact a moderator")
+                msg = Lang.get_locale_string('dropbox/msg_not_delivered', ctx, author=ctx.author.mention)
+                await ctx.send(msg)
                 await Utils.handle_exception("dropbox delivery failure", self.bot, e)
 
             await message.delete()

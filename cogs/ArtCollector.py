@@ -350,7 +350,9 @@ class ArtCollector(BaseCog):
     @commands.bot_has_permissions(embed_links=True)
     async def art_channel(self, ctx: commands.Context):
         """Show a list of art channels"""
-        embed = discord.Embed(timestamp=ctx.message.created_at, color=0x663399, title=Lang.get_string("art/list_channels", server_name=ctx.guild.name))
+        embed = discord.Embed(timestamp=ctx.message.created_at,
+                              color=0x663399,
+                              title=Lang.get_locale_string("art/list_channels", ctx, server_name=ctx.guild.name))
         if len(self.channels[ctx.guild.id]) > 0:
             value = ""
             for listen_channel_id, collection in self.channels[ctx.guild.id].items():
@@ -366,18 +368,17 @@ class ArtCollector(BaseCog):
             embed.add_field(name="\u200b", value=value)
             await ctx.send(embed=embed)
         else:
-            await ctx.send(Lang.get_string("art/no_channels"))
+            await ctx.send(Lang.get_locale_string("art/no_channels", ctx))
 
     @art_channel.command(aliases=["new"])
     @commands.guild_only()
     async def add(self, ctx: commands.Context, listen_channel_id: int, collect_channel_id: int, tag: str = ""):
         """
         Add channel to art collector setup.
-        :param ctx:
-        :param listen_channel_id: id of channel to listen in
-        :param collect_channel_id: id of channel to collect into
-        :param tag: [no_tag|listen|any random tag to track]
-        :return:
+
+        listen_channel_id: id of channel to listen in
+        collect_channel_id: id of channel to collect into
+        tag: [no_tag|listen|any random tag to track] (default "")
         """
         # TODO: use better Converter for channel_id
         # TODO: move "listen" tag to its own command, like "art_channel add_tracking_channel 12345"
@@ -386,11 +387,11 @@ class ArtCollector(BaseCog):
         collect_channel_mention = f"<#{collect_channel_id}>"
 
         if CHANNEL_ID_MATCHER.fullmatch(listen_channel_mention) is None or ctx.guild.get_channel(listen_channel_id) is None:
-            await ctx.send(f"No such channel to listen in: `{listen_channel_id}`")
+            await ctx.send(Lang.get_locale_string('art/no_such_channel', ctx, listen_channel_id=listen_channel_id))
             return
 
         if CHANNEL_ID_MATCHER.fullmatch(collect_channel_mention) is None or ctx.guild.get_channel(collect_channel_id) is None:
-            await ctx.send(f"No such channel to collect into: `{collect_channel_id}`")
+            await ctx.send(Lang.get_locale_string('art/no_such_channel', ctx, collect_channel_id=collect_channel_id))
             return
 
         row = ArtChannel.get_or_none(serverid=ctx.guild.id,
@@ -400,18 +401,20 @@ class ArtCollector(BaseCog):
         listen_channel_name = await Utils.clean(listen_channel_mention, guild=ctx.guild)
         collect_channel_name = await Utils.clean(collect_channel_mention, guild=ctx.guild)
         if row is None:
+            # no row found exactly matching channels and tag
             ArtChannel.create(serverid=ctx.guild.id,
                               listenchannelid=listen_channel_id,
                               collectionchannelid=collect_channel_id,
                               tag=tag)
             await self.startup_cleanup()
-            channel_added_str = Lang.get_string('art/channel_added',
+            channel_added_str = Lang.get_locale_string('art/channel_added', ctx,
                                                 listenchannel=listen_channel_mention,
                                                 collectchannel=collect_channel_mention,
                                                 tag=tag)
             await ctx.send(f"{Emoji.get_chat_emoji('YES')} {channel_added_str}")
         else:
-            await ctx.send(Lang.get_string('art/channel_found',
+            # Don't overwrite existing
+            await ctx.send(Lang.get_locale_string('art/channel_found', ctx,
                                            listenchannel=listen_channel_mention,
                                            collectchannel=collect_channel_mention,
                                            tag=row.tag))
@@ -419,7 +422,13 @@ class ArtCollector(BaseCog):
     @art_channel.command(aliases=["del", "delete"])
     @commands.guild_only()
     async def remove(self, ctx: commands.Context, listen_channel_id: int, collect_channel_id: int, tag=""):
-        """command_remove_help"""
+        """
+        Remove channel from art collector setup.
+
+        listen_channel_id: id of channel to listen in
+        collect_channel_id: id of channel to collect into
+        tag: [no_tag|listen|any random tag to track] (default "")
+        """
         key = tag or self.no_tag
 
         # Are we listening for tag in listenchannel, collecting into collectchannel?
@@ -436,16 +445,16 @@ class ArtCollector(BaseCog):
                 await self.startup_cleanup()
                 lc_mention = self.bot.get_channel(listen_channel_id).mention
                 cc_mention = self.bot.get_channel(collect_channel_id).mention
-                channel_removed_str = Lang.get_string('art/channel_removed',
+                channel_removed_str = Lang.get_locale_string('art/channel_removed', ctx,
                                                       listenchannel=lc_mention,
                                                       collectchannel=cc_mention,
                                                       tag=key)
                 await ctx.send(f"{Emoji.get_chat_emoji('YES')} {channel_removed_str}")
             except Exception as ex:
-                await ctx.send("That's not an art channel... or tag... or ?? something?")
+                await ctx.send(Lang.get_locale_string('art/remove_channel_failed', ctx))
                 pass
         else:
-            channel_not_found_str = Lang.get_string('art/channel_not_found',
+            channel_not_found_str = Lang.get_locale_string('art/channel_not_found', ctx,
                                                     listenchannel=listen_channel_id,
                                                     collectchannel=collect_channel_id,
                                                     tag=tag)
@@ -456,8 +465,6 @@ class ArtCollector(BaseCog):
         """
         Message listener. watch art channels for attachments. share attachments to collection channel
         optionally use tags to sort posts into tag collection channels.
-        :param message:
-        :return:
         """
         try:
             if message.author.bot\
@@ -511,8 +518,6 @@ class ArtCollector(BaseCog):
         """
         reaction listener for art collection channels.
         Clears reactions and on "no" reaction, removes post from collection
-        :param event:
-        :return:
         """
         try:
             channel = self.bot.get_channel(event.channel_id)
