@@ -199,14 +199,17 @@ class Welcomer(BaseCog):
             welcome_channel = self.bot.get_config_channel(guild.id, Utils.welcome_channel)
             rules_channel = self.bot.get_config_channel(guild.id, Utils.rules_channel)
 
+            # Send welcome message in configured language. default to english
             if welcome_channel and rules_channel:
-                txt = Lang.get_string("welcome/welcome_msg",
-                                      user=member.mention,
-                                      rules_channel=rules_channel.mention,
-                                      accept_emoji=Emoji.get_chat_emoji('CANDLE'))
+                txt = Lang.get_locale_string("welcome/welcome_msg",
+                                             Configuration.get_var('welcome_locale', 'en_US'),
+                                             user=member.mention,
+                                             rules_channel=rules_channel.mention,
+                                             accept_emoji=Emoji.get_chat_emoji('CANDLE'))
                 if self.mute_new_members:
                     # add mute notification if mute for new members is on
-                    mute_txt = Lang.get_string("welcome/welcome_mute_msg")
+                    mute_txt = Lang.get_locale_string("welcome/welcome_mute_msg",
+                                                      Configuration.get_var('welcome_locale', 'en_US'))
                     txt = f"{txt}\n{mute_txt}"
                 await welcome_channel.send(txt)
                 return True
@@ -219,11 +222,19 @@ class Welcomer(BaseCog):
     @commands.group(name="welcome", invoke_without_command=True)
     @commands.guild_only()
     async def welcome(self, ctx):
-        await ctx.send(Lang.get_string('welcome/help'))
+        """Configure welcome message settings"""
+        await ctx.send(Lang.get_locale_string('welcome/help', ctx))
 
     @welcome.command(aliases=['configmute', 'muteconfig', 'configure_mute', 'mute_configure', 'mute'])
     @commands.guild_only()
     async def mute_config(self, ctx, active: bool = None, mute_minutes_old: int = 10, mute_minutes_new: int = 20):
+        """
+        Mute settings for new members
+
+        active: mute on or off
+        mute_minutes_old: how long (minutes) to mute established accounts
+        mute_minutes_new: how long (minutes) to mute accounts < 1 day old
+        """
         self.set_verification_mode(ctx.guild)
         if self.discord_verification_flow:
             # discord verification flow precludes new-member muting
@@ -244,7 +255,7 @@ class Welcomer(BaseCog):
         status = discord.Embed(
             timestamp=ctx.message.created_at,
             color=0x663399,
-            title=Lang.get_string("welcome/mute_settings_title", server_name=ctx.guild.name))
+            title=Lang.get_locale_string("welcome/mute_settings_title", ctx, server_name=ctx.guild.name))
 
         status.add_field(name="Mute new members",
                          value=f"**{'ON' if self.mute_new_members else 'OFF'}**",
@@ -260,6 +271,11 @@ class Welcomer(BaseCog):
     @welcome.command(aliases=["count", "cr"])
     @commands.guild_only()
     async def count_recent(self, ctx, time_delta: int = 1):
+        """
+        Count members who have joined within [time_delta] hours
+
+        time_delta: number of hours to check for recent joins
+        """
         await ctx.send(f"counting members who joined in the last {time_delta} hours...")
         recent = self.fetch_recent(time_delta)
         content = f"There are {len(recent['unverified'])} members who joined within {time_delta} hours, but who still haven't verified" + '\n'
@@ -270,12 +286,18 @@ class Welcomer(BaseCog):
     @welcome.command(aliases=["darken", "darkness", "give_shadows"])
     @commands.guild_only()
     async def give_shadow(self, ctx, time_delta: typing.Optional[int] = 1, add_role: bool = False):
+        """
+        Add non-member role to members with no role
+
+        time_delta: how far back (in hours) to search for members with no roles
+        add_role:
+        """
         recent = self.fetch_non_role(time_delta)
         string_name = 'welcome/darkness' if (len(recent['unverified']) == 1) else 'welcome/darkness_plural'
-        await ctx.send(Lang.get_string(string_name,
-                                       unverified=len(recent['unverified']),
-                                       time_delta=time_delta,
-                                       too_old=len(recent['too_old'])))
+        await ctx.send(Lang.get_locale_string(string_name, ctx,
+                                              unverified=len(recent['unverified']),
+                                              time_delta=time_delta,
+                                              too_old=len(recent['too_old'])))
         if add_role:
             nonmember_role = ctx.guild.get_role(Configuration.get_var("nonmember_role"))
             # slowly add roles, since this may be a large number of members
@@ -288,7 +310,7 @@ class Welcomer(BaseCog):
             except Exception as ex:
                 await Utils.handle_exception("problem adding shadow role", self, ex)
             string_name = 'welcome/darkened' if count == 1 else 'welcome/darkened_plural'
-            await ctx.send(Lang.get_string(string_name, count=count))
+            await ctx.send(Lang.get_locale_string(string_name, ctx, count=count))
 
     @welcome.command(aliases=["nonmember", "shadows", "shadow"])
     @commands.guild_only()
@@ -300,10 +322,10 @@ class Welcomer(BaseCog):
             rules_channel = self.bot.get_config_channel(guild.id, Utils.rules_channel)
 
             if welcome_channel and rules_channel:
-                txt = Lang.get_string("welcome/welcome_msg",
-                                      user=nonmember_role.mention,
-                                      rules_channel=rules_channel.mention,
-                                      accept_emoji=Emoji.get_chat_emoji('CANDLE'))
+                txt = Lang.get_locale_string("welcome/welcome_msg", ctx,
+                                             user=nonmember_role.mention,
+                                             rules_channel=rules_channel.mention,
+                                             accept_emoji=Emoji.get_chat_emoji('CANDLE'))
 
                 await nonmember_role.edit(mentionable=True)
                 await welcome_channel.send(txt)
@@ -320,10 +342,9 @@ class Welcomer(BaseCog):
     async def recent(self, ctx, time_delta: typing.Optional[int] = 1, ping: bool = False):
         """
         Manually welcome all members who have joined within a certain number of hours
-        :param ctx:
-        :param time_delta: number of hours within which members have joined
-        :param ping: send welcome to members in welcome channel
-        :return:
+
+        time_delta: number of hours within which members have joined
+        ping: boolean flag, indicates whether to send welcome to members in welcome channel
         """
         await ctx.send(f"counting members who joined in the last {time_delta} hours...")
         recent = self.fetch_recent(time_delta)
@@ -422,7 +443,9 @@ class Welcomer(BaseCog):
             return
 
         # give other bots a chance to perform other actions first (like mute)
-        await asyncio.sleep(3)
+        await asyncio.sleep(5)
+        # refresh member for up-to-date roles
+        member = member.guild.get_member(member.id)
 
         mute_role = member.guild.get_role(Configuration.get_var("muted_role"))
 
@@ -533,11 +556,13 @@ class Welcomer(BaseCog):
             # print("it hasn't been 10 minutes...")
             return
 
+        ctx = self.bot.get_context(message)
+
         # record the time so member won't be pinged again too soon if they keep talking
         self.welcome_talkers[message.guild.id][message.author.id] = now
-        await welcome_channel.send(Lang.get_string("welcome/welcome_help",
-                                                   author=message.author.mention,
-                                                   rules_channel=rules_channel.mention))
+        await welcome_channel.send(Lang.get_locale_string("welcome/welcome_help", ctx,
+                                                          author=message.author.mention,
+                                                          rules_channel=rules_channel.mention))
         # ping log channel with detail
         if log_channel:
             await log_channel.send(f"{Utils.get_member_log_name(message.author)} "

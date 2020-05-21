@@ -48,7 +48,7 @@ class WordCounter(BaseCog):
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=0x663399,
-            title=Lang.get_string("word_counter/list_words", server_name=ctx.guild.name))
+            title=Lang.get_locale_string("word_counter/list_words", ctx, server_name=ctx.guild.name))
 
         word_list = set()
         for row in CountWord.select(CountWord.word).where(CountWord.serverid == ctx.guild.id):
@@ -66,7 +66,7 @@ class WordCounter(BaseCog):
             embed.add_field(name="\u200b", value=value)
             await ctx.send(embed=embed)
         else:
-            await ctx.send(Lang.get_string("word_counter/no_words"))
+            await ctx.send(Lang.get_locale_string("word_counter/no_words", ctx))
 
     @word_counter.command(aliases=["new"])
     @commands.guild_only()
@@ -76,9 +76,11 @@ class WordCounter(BaseCog):
         if row is None:
             CountWord.create(serverid = ctx.guild.id, word=word)
             await self.startup_cleanup()
-            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('word_counter/word_added', word=word)}")
+            emoji = Emoji.get_chat_emoji('YES')
+            msg = Lang.get_locale_string('word_counter/word_added', ctx, word=word)
+            await ctx.send(f"{emoji} {msg}")
         else:
-            await ctx.send(Lang.get_string('word_counter/word_found', word=word))
+            await ctx.send(Lang.get_locale_string('word_counter/word_found', ctx, word=word))
 
     @word_counter.command(aliases=["del", "delete"])
     @commands.guild_only()
@@ -88,9 +90,12 @@ class WordCounter(BaseCog):
         if row is not None:
             row.delete_instance()
             await self.startup_cleanup()
-            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('word_counter/word_removed', word=word)}")
+            emoji = Emoji.get_chat_emoji('YES')
+            msg = Lang.get_locale_string('word_counter/word_removed', ctx, word=word)
         else:
-            await ctx.send(f"{Emoji.get_chat_emoji('NO')} {Lang.get_string('word_counter/word_not_found', word=word)}")
+            emoji = Emoji.get_chat_emoji('NO')
+            msg = Lang.get_locale_string('word_counter/word_not_found', ctx, word=word)
+        await ctx.send(f"{emoji} {msg}")
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
