@@ -119,6 +119,10 @@ def before_send(event, hint):
     return event
 
 
+def can_help(ctx):
+    return ctx.author.guild_permissions.mute_members
+
+
 if __name__ == '__main__':
     Logging.init()
     Logging.info("Launching Skybot!")
@@ -133,7 +137,7 @@ if __name__ == '__main__':
     loop = asyncio.get_event_loop()
 
     skybot = Skybot(command_prefix=Configuration.get_var("bot_prefix"), case_insensitive=True, loop=loop)
-    skybot.help_command = commands.DefaultHelpCommand(command_attrs=dict(name='snelp'))
+    skybot.help_command = commands.DefaultHelpCommand(command_attrs=dict(name='snelp', checks=[can_help]))
 
     Utils.BOT = skybot
 

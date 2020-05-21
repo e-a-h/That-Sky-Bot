@@ -14,9 +14,13 @@ class LangConfig(BaseCog):
     def __init__(self, bot):
         super().__init__(bot)
 
+    async def cog_check(self, ctx):
+        return ctx.author.guild_permissions.ban_members
+
     @commands.guild_only()
     @commands.group(name="lang", invoke_without_command=True)
     async def lang(self, ctx):
+        """Show language settings for this server"""
         channels = []
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
@@ -39,6 +43,7 @@ class LangConfig(BaseCog):
     @commands.guild_only()
     @lang.command()
     async def reload(self, ctx):
+        """Reload language locale files"""
         Lang.load_locales()
         await ctx.send(Lang.get_locale_string('lang/reloaded', ctx, server_name=ctx.guild.name))
 
@@ -46,6 +51,7 @@ class LangConfig(BaseCog):
     @commands.guild_only()
     @lang.command(aliases=["server_locale", "serverlocale", "default"])
     async def set_server_locale(self, ctx, locale: str):
+        """Set default locale for this server"""
         if locale not in Lang.locales and locale not in self.unset_str:
             await ctx.send(Lang.get_locale_string('lang/unknown_locale', ctx, locale=locale, locale_lsit=Lang.locales))
             return
@@ -68,6 +74,13 @@ class LangConfig(BaseCog):
     @commands.guild_only()
     @lang.command(aliases=["channel", "channel_locale"])
     async def set_channel_locale(self, ctx, locale: str, channel_id: int = 0):
+        """
+        Set Locale for a specific channel
+
+        locale: Locale string, or one of ["*", "x", "none", "unset", "off"] to unset
+        channel_id: ID for channel to set, or do not provide ID and invocation channel will be used.
+        """
+        # TODO: add ALL_LOCALES as channel option
         if locale not in Lang.locales and locale not in self.unset_str:
             await ctx.send(Lang.get_locale_string('lang/unknown_locale', ctx, locale=locale, locale_lsit=Lang.locales))
             return

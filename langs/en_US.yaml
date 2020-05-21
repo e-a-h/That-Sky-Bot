@@ -25,6 +25,7 @@ bugs:
   bug_info: "**Report a New Bug!**\nBrowse or search this channel to see bug reports. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."
   shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
   sweep_trash: Sorry to bother you, but you had an in-progress bug report that was idle for too long. I deleted it. If you think you received this message in error, please report me to the proper authorites (a moderator in the Sky server)
+  user_reset: Sorry to bother you, but if you had a Sky bug report active, it has been aborted. If you still have a bug to report, please try again later.
   stop_spamming: "{user} stop spamming the bug reaction!"
   start_over: "{user} You are already in the middle of reporting a bug. Do you want to cancel that report to start over?"
   start_over_yes: Cancel my in-progress report and start a new one

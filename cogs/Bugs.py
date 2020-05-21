@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import re
 import time
 from concurrent.futures import CancelledError
@@ -32,17 +33,26 @@ class Bugs(BaseCog):
     def cog_unload(self):
         self.verify_empty_bug_queue.cancel()
 
+    def can_mod(ctx):
+        return ctx.author.guild_permissions.mute_members
+
+    def can_admin(ctx):
+        return ctx.author.guild_permissions.manage_channels
+
     async def sweep_trash(self, user, ctx):
         await asyncio.sleep(Configuration.get_var("bug_trash_sweep_minutes") * 60)
         if user.id in self.in_progress:
             if not self.in_progress[user.id].done() or not self.in_progress[user.id].cancelled():
                 await user.send(Lang.get_locale_string("bugs/sweep_trash", ctx))
-
             await self.delete_progress(user.id)
 
     async def delete_progress(self, uid):
         if uid in self.in_progress:
-            self.in_progress[uid].cancel()
+            try:
+                self.in_progress[uid].cancel()
+            except Exception as e:
+                # ignore task cancel failures
+                pass
             del self.in_progress[uid]
         if uid in self.sweeps:
             self.sweeps[uid].cancel()
@@ -64,7 +74,10 @@ class Bugs(BaseCog):
                 except (NotFound, HTTPException) as e:
                     pass
                 Configuration.set_persistent_var(f"{name}_shutdown", None)
-            await self.send_bug_info(name)
+            try:
+                await self.send_bug_info(name)
+            except Exception as e:
+                await Logging.bot_log(f'Bug message failed in {channel.mention}')
 
     async def send_bug_info(self, key):
         channel = self.bot.get_channel(Configuration.get_var("channels")[key])
@@ -117,8 +130,14 @@ class Bugs(BaseCog):
 
     @commands.command(aliases=["bugmaint", "maintenance", "maintenance_mode", "maint"])
     @commands.guild_only()
-    @commands.is_owner()
+    @commands.check(can_mod)
     async def bug_maintenance(self, ctx, active: bool):
+        """
+        Bot maintenance mode.
+
+        Closes bug reporting channels and opens bug maintenance channel.
+        Watches active bug reports for 10 minutes or so to give people a chance to finish reports in progress.
+        """
         try:
             # show/hide maintenance channel
             maint_message_channel = self.bot.get_channel(Configuration.get_var("bug_maintenance_channel"))
@@ -159,6 +178,7 @@ class Bugs(BaseCog):
 
     @commands.group(name='bug', invoke_without_command=True)
     async def bug(self, ctx: Context):
+        """Report a bug!"""
         # remove command to not flood chat (unless we are in a DM already)
         if ctx.guild is not None:
             await ctx.message.delete()
@@ -166,15 +186,20 @@ class Bugs(BaseCog):
 
     @bug.command(aliases=["resetactive", "reset_in_progress", "resetinprogress", "reset", "clean"])
     @commands.guild_only()
+    @commands.check(can_admin)
     async def reset_active(self, ctx):
-        is_owner = await ctx.bot.is_owner(ctx.author)
-        if is_owner:
-            to_kill = len(self.in_progress)
-            active_keys = self.in_progress.keys()
-            for uid in active_keys:
+        """Reset active bug reports. Bot will attempt to DM users whose reports are cancelled."""
+        to_kill = len(self.in_progress)
+        active_keys = [key for key in self.in_progress.keys()]
+        for uid in active_keys:
+            try:
                 await self.delete_progress(uid)
-            self.in_progress = dict()
-            await ctx.send(Lang.get_locale_string('bugs/dead_bugs_cleaned', ctx, active_keys=active_keys, in_progress=len(self.in_progress)))
+                user = self.bot.get_user(uid)
+                await user.send(Lang.get_locale_string('bugs/user_reset', Lang.ALL_LOCALES))
+            except Exception as e:
+                await ctx.send(f"can't reset bug report for <@{uid}>")
+        self.in_progress = dict()
+        await ctx.send(Lang.get_locale_string('bugs/dead_bugs_cleaned', ctx, active_keys=len(active_keys), in_progress=len(self.in_progress)))
 
     async def report_bug(self, user, trigger_channel):
         # fully ignore muted users

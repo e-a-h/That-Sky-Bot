@@ -26,6 +26,7 @@ bugs:
   bug_info:
   shutdown_message:
   sweep_trash:
+  user_reset:
   stop_spamming:
   start_over:
   start_over_yes:
