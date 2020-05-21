@@ -41,6 +41,13 @@ bugs:
   attachment_info: "**Attachment to report {id}**\n{links}"
   attachment_info_plural: "**Attachments to report {id}**\n{links}"
   report_confirmation: Thank you! Your report was submitted, and can be found in <#{channel_id}>!
+  maint_check_fail: Sorry {author} but I give up. Maybe the bug queue is busted, as usual.
+  bugs_all_done: Bug reports are all done, {author}!!
+  none_in_progress: There are no bug reports in progress.
+  report_channel_permissions_fail: Failed to set reporting channel permissions. Check channel permissions because I might have broken something...
+  dead_bugs_cleaned: "Ok. Number of dead bugs cleaned up: {active_keys}. Number still alive: {in_progress}"
+  maint_on: "bot maintenance mode **on**: Reporting channels **closed**."
+  maint_off: "bot maintenance mode **off**: Reporting channels **open**."
   question_ready: |
     ```css
     Report a Bug
@@ -158,7 +165,11 @@ eden:
     Next reset is on {date} at {time} (In {countdown})
   tz_help: I couldn't find a timezone called '{tz}.' Maybe you can find your timezone in this list <https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568>
   tz_mention: I'm not falling for that again
-nope: Something isn't right...
+  cool_it: Cool it, {author}. Try again in {remain}
+  channel_cooldown: I just... didn't I just answer that question {author}?
+common:
+  nope: Something isn't right...
+test: test this
 welcome:
   welcome_msg: Welcome, {user}! Please read through all the items posted in our {rules_channel} channel. When you're done, click the {accept_emoji} emote at the end of the rules to join the community and gain access to the other channels.
   welcome_mute_msg: |
@@ -186,6 +197,20 @@ welcome:
       ```Send a welcome message that pings the nonmember role in the welcome channel. (Warning: this could ping a large number of people so check the count first)```
       `!welcome recent [hours=1] [ping=False]`
       ```Count the members who have joined recently (within specified number of hours) but don't have member role. Optionally welcome each recent member individually in the welcome channel. Be sure the run without ping first so you know how many will be welcomed.```
+lang:
+  default_set: Default language for server `{server_name}` is now `{locale}`.
+  default_not_changed: Default language for server `{server_name}` was alaredy `{locale}`. No changes recorded.
+  lang_settings_title: |
+    **Language/locale settings** in `{server_name}` server
+  unknown_locale: |
+    `{locale}` is not a locale I know. Try one from this list: `{locale_lsit}`
+  reloaded: Language files reloaded for `{server_name}` server
+  channel_not_unset: I can't unset channel locale, because channel locale is not set for <#{channelid}>
+  channel_unset: Channel locale `{old_value}` been **unset**. Server locale will be used.
+  channel_already_set: Locale is already `{locale}` in <#{channelid}>
+  channel_set: Channel <#{channelid}> now has `{locale}` as its default language.
+  test: key `{lang_key}` in locale `{locale}` says ```{result}```
+  test_failed: I tried to find `{lang_key}` in the `{locale}` locale, but couldn't
 dropbox:
   list: Dropbox list for {server_name}.
   added: Messages sent in {source} will now be delivered to {target}
@@ -195,6 +220,8 @@ dropbox:
   not_removed: There's no dropbox for channel {source}
   channel_not_found: Sorry, I couldn't find a channel with id {channel_id}
   override_confirmation: The channel {source} already delivers messages to {old_target}; do you want to change the target to {new_target}?
+  msg_delivered: Your message was delivered, {author}
+  msg_not_delivered: Your message was **not** delivered, {author}. Please try again, or contact a moderator
 autoresponder:
   mod_action_header: Moderator actions
   mod_action_warning: Moderator action flag will be ignored if response channel is not set. Use `!autoresponder setchannel`
@@ -227,26 +254,6 @@ autoresponder:
   prompt_response: How would you like me to respond?
   prompt_trigger: What should the new trigger be?
   prompt_chance: How often should I respond? (floating point percent e.g. `35.15`)
-  help: |
-    `Auto-responder` help:
-      `![autor|auto|ar]` Show a list of responder tags and their flags
-
-    Sub-commands:
-      `!ar [help|h]` This message
-      `!ar [create|add|new]` Add a new trigger/response
-      `!ar [delete|del]` Remove a trigger/response
-      `!ar [edit|update|set]` Edit a response
-      `!ar [listflags|flags|lf]` List settings for a trigger/response
-      `!ar [setflag|sf]` Set an option for a trigger/response
-      `!ar [setchannel|channel|sc]` Set a response channel for a trigger
-      `!ar [getraw|raw]` Show the raw response text for a trigger
-      `!ar reload` Reload all responses for the current guild from database
-
-    Tokens:
-      All auto-responders can include these tokens. Enclose tokens in curly braces.
-      `author` mentions the user who triggered
-      `channel` mentions the channel in which response was triggered
-      `link` links to the message that triggered response
   on_or_off: |
     `{subject}` on or off?
   expect_integer: I was hoping for an integer between {min} and {max}
@@ -259,6 +266,37 @@ krill:
   channel_removed: Channel {channel} has been fumigated. No more krill allowed.
   channel_not_found: There are no krill in {channel}
   channel_found: The channel {channel} is already infested by krill
+  letter_not_found: the character "{letter}" is not in my filters
+  smells_clean: All the letters in "{value}" are already covered.
+  invalid_letter_category: You can only use letters `{categories}`
+  bad_person: Bad Person
+  letter_already_filtered: That {letter} is already on the list
+  letter_filter_added: I added "{letter}" to the {category} list!
+  letter_not_filtered: That {letter} is not on the list
+  letter_filter_removed: I removed "{letter}" from the {category} list!
+  oreo_cooldown_reset: Oreo cooldown reset
+  no_monsters: There are no monsters in sight!
+  monster_added: |
+    {name} is a monster
+  monster_removed: |
+    {name} isn't a monster anymore
+  member_ignored: |
+    {name} is ignored
+  member_not_ignored: |
+    {name} isn't a ignored anymore
+  member_not_found: beep boop, no {name} here
+  oreo_cooldown_message: |
+    {name} is a horrible person and can spend the next {time_remaining} thinking about what they've done
+  not_oreo: not Oreo! {victim_name}, you monster!!
+  dirty_trick: That's a dirty trick, {name}, and I'm not falling for it
+  too_much_text: too much text!
+  too_many_emoji: too many emoji!
+  nice_try: rofl nice try!
+  summoned_by: |
+    *summoned by {name}*
+  cooldown_message: Cool it, {name}. Try again in {time_remaining}
+  no_such_channel: |
+    No such channel: `{channel_id}`
 react_monitor:
   info_title: Emoji reaction monitor settings
 art:
@@ -268,6 +306,9 @@ art:
   channel_not_found: I didn't find a collector for {listenchannel}, "\#{tag}"->{collectchannel}
   channel_found: The channel {listenchannel} is already collecting art "\#{tag}"->{collectchannel}
   channel_removed: There's been a robbery at the art museum! Channel {listenchannel} can't collect art anymore! "\#{tag}"->{collectchannel}
+  no_such_channel: |
+    No such channel: `{listen_channel_id}`
+  remove_channel_failed: That's not an art channel... or tag... or ?? something?
 custom_commands:
   list_commands: Custom command list for {server_name}.
   no_commands: No custom commands have been created yet.

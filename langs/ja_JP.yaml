@@ -1,48 +1,49 @@
 questions:
-  text_only: I can't accept files yet. That step comes later. Just use your words
-  confirm_prompt: Are you sure {backticks}{message}{backticks} is correct?
-  another_attachment: Do you want to add another attachment?
-  confirm_attachments: Are those all the files you meant to send?
-  restart_attachment_singular: Forget that attachment and try again
-  restart_attachment_plural: Forget those attachments and try again
-  restart_attachments_yes: Yes, try adding attachments again
-  restart_attachments_no: Do not attach any files
-  attachment_prompt: Send up to {max} files or links
-  attachment_prompt_continued: Send up to {max} more files or links
-  attachment_prompt_final: You can send one more file or link
-  attachments_restart: Ok, I've thrown away all the attachments you sent. Do you want to try sending files or links again, or skip this step?
-  attachments_overflow: You can only add up to {max} attachments
-  attachment_not_found: There were no files or links in that message. Try sending again
-  approve_attachments: Final answer!
-  error_reaction_timeout: "{error_emoji} You didn't react within {timeout}"
+  text_only: --jp-- I can't accept files yet. That step comes later. Just use your words
+  confirm_prompt: --jp-- Are you sure {backticks}{message}{backticks} is correct?
+  another_attachment: --jp-- Do you want to add another attachment?
+  confirm_attachments: --jp-- Are those all the files you meant to send?
+  restart_attachment_singular: --jp-- Forget that attachment and try again
+  restart_attachment_plural: --jp-- Forget those attachments and try again
+  restart_attachments_yes: --jp-- Yes, try adding attachments again
+  restart_attachments_no: --jp-- Do not attach any files
+  attachment_prompt: --jp-- Send up to {max} files or links
+  attachment_prompt_continued: --jp-- Send up to {max} more files or links
+  attachment_prompt_final: --jp-- You can send one more file or link
+  attachments_restart: --jp-- Ok, I've thrown away all the attachments you sent. Do you want to try sending files or links again, or skip this step?
+  attachments_overflow: --jp-- You can only add up to {max} attachments
+  attachment_not_found: --jp-- There were no files or links in that message. Try sending again
+  approve_attachments: --jp-- Final answer!
+  error_reaction_timeout: "--jp-- {error_emoji} You didn't react within {timeout}"
 channel_config:
-  info: Channel Config for {server_name}
+  info: --jp-- Channel Config for {server_name}
   commands: |
-      `![channel_config|chanconf] reload`
+      --jp-- `![channel_config|chanconf] reload`
       `![channel_config|chanconf] set channel_name channel_id`
-  channel_set: Config channel "{channel_name}" set to <#{channel_id}>
+  channel_set: --jp-- Config channel "{channel_name}" set to <#{channel_id}>
 bugs:
-  bug_info: "**Report a New Bug!**\nBrowse or search this channel to see bug reports. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."
-  shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
-  sweep_trash: Sorry to bother you, but you had an in-progress bug report that was idle for too long. I deleted it. If you think you received this message in error, please report me to the proper authorites (a moderator in the Sky server)
-  stop_spamming: "{user} stop spamming the bug reaction!"
-  start_over: "{user} You are already in the middle of reporting a bug. Do you want to cancel that report to start over?"
-  start_over_yes: Cancel my in-progress report and start a new one
-  start_over_no: Do not cancel my in-progress report
-  skip_step: Skip this step
-  abort_report: Ok, I won't ask you any more questions for now. Go back to the bug report channel any time to start a new one!
-  latest_not_allowed: Tell me a number! ``Latest`` is not valid because the latest version changes with every update. You might not even have the latest version if you didn't update recently, so an actual number is really helpful here!
-  love_letter: Whoa there, I just need a version number, not an entire love letter
-  no_numbers: There don't appear to be any numbers in there
-  text_too_long: That text seems suspiciously long for the question asked... Try typing up a shorter answer (up to {max} characters) and we'll see if I like it
-  report_header: "**Bug Report {id} - submitted by {user}**"
-  report_timeout: This report has been cancelled. Go back to the bug report channel to start a new one!
-  attachments_yes: Yes, add pictures/videos
-  attachment_info: "**Attachment to report {id}**\n{links}"
-  attachment_info_plural: "**Attachments to report {id}**\n{links}"
-  report_confirmation: Thank you! Your report was submitted, and can be found in <#{channel_id}>!
+  bug_info: "--jp-- **Report a New Bug!**\nBrowse or search this channel to see bug reports. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."
+  shutdown_message: --jp-- This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
+  sweep_trash: --jp-- Sorry to bother you, but you had an in-progress bug report that was idle for too long. I deleted it. If you think you received this message in error, please report me to the proper authorites (a moderator in the Sky server)
+  stop_spamming: "--jp-- {user} stop spamming the bug reaction!"
+  start_over: "--jp-- {user} You are already in the middle of reporting a bug. Do you want to cancel that report to start over?"
+  start_over_yes: --jp-- Cancel my in-progress report and start a new one
+  start_over_no: --jp-- Do not cancel my in-progress report
+  skip_step: --jp-- Skip this step
+  abort_report: --jp-- Ok, I won't ask you any more questions for now. Go back to the bug report channel any time to start a new one!
+  latest_not_allowed: --jp-- Tell me a number! ``Latest`` is not valid because the latest version changes with every update. You might not even have the latest version if you didn't update recently, so an actual number is really helpful here!
+  love_letter: --jp-- Whoa there, I just need a version number, not an entire love letter
+  no_numbers: --jp-- There don't appear to be any numbers in there
+  text_too_long: --jp-- That text seems suspiciously long for the question asked... Try typing up a shorter answer (up to {max} characters) and we'll see if I like it
+  report_header: "--jp-- **Bug Report {id} - submitted by {user}**"
+  report_timeout: --jp-- This report has been cancelled. Go back to the bug report channel to start a new one!
+  attachments_yes: --jp-- Yes, add pictures/videos
+  attachment_info: "--jp-- **Attachment to report {id}**\n{links}"
+  attachment_info_plural: "--jp-- **Attachments to report {id}**\n{links}"
+  report_confirmation: --jp-- Thank you! Your report was submitted, and can be found in <#{channel_id}>!
+  maint_check_fail: --jp-- Sorry {author} but I give up. Maybe the bug queue is busted, as usual.
   question_ready: |
-    ```css
+    --jp-- ```css
     Report a Bug
     ```
     Help me collect the following information. It will be *very helpful* in identifying, reproducing, and fixing bugs:
@@ -55,70 +56,74 @@ bugs:
         - Additional Information
 
     **Don't start typing your report yet!** For questions like this one that have reaction icons, press one of the reactions to answer! Ready to start?
-  platform: Platform
+  platform: --jp-- Platform
   question_platform: |
-    ```css
+    --jp-- ```css
     Device Type
     ```
     Are you using Android or iOS?
   question_platform_version: |
-    ```css
+    --jp-- ```css
     Operating System Version
     ```
     What {platform} version do you use? This can be found in device settings. You can ***type*** your answer this time
-  device_info: Device
+  device_info: --jp-- Device
   question_device_info: |
-    ```css
+    --jp-- ```css
     Device Info
     ```
     What model of {platform} device were you using when the bug occurred ({max} characters max)?
   question_app_branch: |
-    ```css
+    --jp-- ```css
     Sky App Type
     ```
     Are you using the Live or Beta version of Sky? Beta is installed through TestFlight on iOS or through Google Groups on Android. If you are unsure, then choose Live
-  app_version: Sky app version
+  app_version: --jp-- Sky app version
   question_app_version: |
-    ```css
+    --jp-- ```css
     Sky App Version Number
     ```
     What **version** of the Sky app were you using when you experienced the bug?
     {version_help}
     The version number is the number in place of "X.X.X"
-  app_build: Sky app build
+  app_build: --jp-- Sky app build
   question_app_build: |
+    --jp--
     ```css
     Sky App Build Number
     ```
     What **build** of the Sky app were you using when you experienced the bug?
     See the instructions above. The build number is in parentheses.
   version_android: |
-    **To find Sky version and build on Android devices:**
+    --jp-- **To find Sky version and build on Android devices:**
     > 1. Device settings
     > 2. Apps
     > 3. Sky
     > 4. Scroll down to find: Version X.X.X (build)
     For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623647199427035147
   version_ios: |
-    **To find Sky version and build on iOS devices:**
+    --jp-- **To find Sky version and build on iOS devices:**
     > 1. Device settings
     > 2. Scroll down to Sky
     > 3. Scroll down to find: Version X.X.X (build)
     For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623643887977627658
-  title: Title/Topic
+  title: --jp-- Title/Topic
   question_title: |
+    --jp--
     ```css
     Title/Topic
     ```
     Provide a brief title or topic for your bug ({max} characters max)
-  description: Bug description
+  description: --jp-- Bug description
   question_actual: |
+    --jp--
     ```css
     Describe the bug
     ```
     Describe the problem you experienced, what looked or worked the wrong way. I'll ask for steps to reproduce the problem next, so don't tell me *how* it happened yet ({max} characters max)
-  steps_to_reproduce: Steps to reproduce
+  steps_to_reproduce: --jp-- Steps to reproduce
   question_steps: |
+    --jp--
     ```css
     How to Reproduce the Bug
     ```
@@ -128,51 +133,58 @@ bugs:
     - step 2
     - step 3
     ```
-  expected: Expected outcome
+  expected: --jp-- Expected outcome
   question_expected: |
+    --jp--
     ```css
     Expectation
     ```
     When following the steps you gave, what did you expect to happen ({max} characters max)?
-  additional_info: Additional information
+  additional_info: --jp-- Additional information
   question_additional: |
+    --jp--
     ```css
     Additional Information
     ```
     Do you have any other information to add to this report?
-  question_additional_info: What other information would you like me to include in your report?
-  additional_info_yes: Provide additional information
+  question_additional_info: --jp-- What other information would you like me to include in your report?
+  additional_info_yes: --jp-- Provide additional information
   question_attachments: |
+    --jp--
     ```css
     Attachments
     ```
     Do you have screenshots, videos, or other documents to add?
-  question_ok: This is what your report will look like. Should I **submit** it or **discard** it? You have **{timeout} to review.**
-  send_report: All done! Send this report
-  mistake: Nope, I made a mistake. Throw away this report and start again
-  no_live_android: There is no live version available on Android yet, only beta. Go back to the bug report channel any time to start a new report!
-  dm_unable: '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
+  question_ok: --jp-- This is what your report will look like. Should I **submit** it or **discard** it? You have **{timeout} to review.**
+  send_report: --jp-- All done! Send this report
+  mistake: --jp-- Nope, I made a mistake. Throw away this report and start again
+  no_live_android: --jp-- There is no live version available on Android yet, only beta. Go back to the bug report channel any time to start a new report!
+  dm_unable: --jp-- '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
 eden:
   reset: |
-    The Eye of Eden resets once per week.
+    --jp-- The Eye of Eden resets once per week.
     Next reset is on {date} at {time} (In {countdown})
-  tz_help: I couldn't find a timezone called '{tz}.' Maybe you can find your timezone in this list <https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568>
-  tz_mention: I'm not falling for that again
-nope: Something isn't right...
+  tz_help: --jp-- I couldn't find a timezone called '{tz}.' Maybe you can find your timezone in this list <https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568>
+  tz_mention: --jp-- I'm not falling for that again
+  cool_it: --jp-- Cool it, {author}. Try again in {remain}
+  channel_cooldown: --jp-- I just... didn't I just answer that question {author}?
+common:
+  nope: --jp-- Something isn't right...
+test: --jp-- test this
 welcome:
-  welcome_msg: Welcome, {user}! Please read through all the items posted in our {rules_channel} channel. When you're done, click the {accept_emoji} emote at the end of the rules to join the community and gain access to the other channels.
+  welcome_msg: --jp-- Welcome, {user}! Please read through all the items posted in our {rules_channel} channel. When you're done, click the {accept_emoji} emote at the end of the rules to join the community and gain access to the other channels.
   welcome_mute_msg: |
-    **New members will need to wait a few minutes before chat is allowed;** until then, look around in the channels and get to know the server!
-  welcome_help: Hi {author}! If you'd like to access the rest of the channels and chat with other members, please read the {rules_channel} and follow the directions there. If you're having trouble with reactions, make sure they're enabled in **user settings > text and images > show emoji reactions on messages**
-  darkness: I see {unverified} lost soul lurking near, and {too_old} from before time.
-  darkness_plural: I see {unverified} lost souls lurking near, and {too_old} from before time.
+    --jp-- **New members will need to wait a few minutes before chat is allowed;** until then, look around in the channels and get to know the server!
+  welcome_help: --jp-- Hi {author}! If you'd like to access the rest of the channels and chat with other members, please read the {rules_channel} and follow the directions there. If you're having trouble with reactions, make sure they're enabled in **user settings > text and images > show emoji reactions on messages**
+  darkness: --jp-- I see {unverified} lost soul lurking near, and {too_old} from before time.
+  darkness_plural: --jp-- I see {unverified} lost souls lurking near, and {too_old} from before time.
   darkened: |
-    {count} of my children have fallen into darkness.
+    --jp-- {count} of my children have fallen into darkness.
   darkened_plural: |
-    {count} of my children have fallen into darkness.
-  mute_settings_title: New member mute settings for {server_name}
+    --jp-- {count} of my children have fallen into darkness.
+  mute_settings_title: --jp-- New member mute settings for {server_name}
   help: |
-    `welcome` help:
+    --jp-- `welcome` help:
       `!welcome` Show this message
 
     Sub-commands:
@@ -186,135 +198,160 @@ welcome:
       ```Send a welcome message that pings the nonmember role in the welcome channel. (Warning: this could ping a large number of people so check the count first)```
       `!welcome recent [hours=1] [ping=False]`
       ```Count the members who have joined recently (within specified number of hours) but don't have member role. Optionally welcome each recent member individually in the welcome channel. Be sure the run without ping first so you know how many will be welcomed.```
+lang:
+  default_set: --jp-- Server `{server_name}` now has '{locale}' as its default language.
+  default_not_changed: --jp-- Default language for server `{server_name}` was alaredy `{locale}`. No changes recorded.
+  lang_settings_title: |
+    --jp-- **Language/locale settings** in `{server_name}` server
+  unknown_locale: |
+    --jp-- '{locale}' is not a locale I know. Try one from this list: {locale_lsit}
+  reloaded: --jp-- Language files reloaded for `{server_name}` server
+  channel_not_unset: --jp-- I can't unset channel locale, because channel locale is not set for <#{channelid}>
+  channel_unset: --jp-- Channel locale `{old_value}` been **unset**. Server locale will be used.
+  channel_already_set: --jp-- Locale is already `{locale}` in <#{channelid}>
+  channel_set: --jp-- Channel <#{channelid}> now has `{locale}` as its default language.
+  test: --jp-- key {lang_key} in locale {locale} says ```{result}```
+  test_failed: --jp-- I tried to find `{lang_key}` in the `{locale}` locale, but couldn't
 dropbox:
-  list: Dropbox list for {server_name}.
-  added: Messages sent in {source} will now be delivered to {target}
-  updated: I updated a dropbox. Messages sent in {source} will now be delivered to {new_target} isntead of {old_target}
-  not_updating: Keeping the old one.
-  removed: Messages sent in {source} will no longer be redirected
-  not_removed: There's no dropbox for channel {source}
-  channel_not_found: Sorry, I couldn't find a channel with id {channel_id}
-  override_confirmation: The channel {source} already delivers messages to {old_target}; do you want to change the target to {new_target}?
+  list: --jp-- Dropbox list for {server_name}.
+  added: --jp-- Messages sent in {source} will now be delivered to {target}
+  updated: --jp-- I updated a dropbox. Messages sent in {source} will now be delivered to {new_target} isntead of {old_target}
+  not_updating: --jp-- Keeping the old one.
+  removed: --jp-- Messages sent in {source} will no longer be redirected
+  not_removed: --jp-- There's no dropbox for channel {source}
+  channel_not_found: --jp-- Sorry, I couldn't find a channel with id {channel_id}
+  override_confirmation: --jp-- The channel {source} already delivers messages to {old_target}; do you want to change the target to {new_target}?
+  msg_delivered: --jp-- Your message was delivered, {author}
+  msg_not_delivered: --jp-- Your message was **not** delivered, {author}. Please try again, or contact a moderator
 autoresponder:
-  mod_action_header: Moderator actions
-  mod_action_warning: Moderator action flag will be ignored if response channel is not set. Use `!autoresponder setchannel`
-  you_chose: You chose **{value}**
-  list: Auto-responder list for {server_name}.
-  raw: Auto-responder raw trigger/response in {server_name}.
-  none_set: No auto-responders have been created yet.
-  no_commands: No auto-responders have been created yet.
-  trigger_too_long: Auto-responder triggers can only be up to 100 chars long
-  added: Auto-responder for `{trigger}` has been added!
-  removed: Auto-responder `{trigger}` has been removed.
-  updated: Auto-responder `{trigger}` has been updated!
-  chanceset: Chance that `{trigger}` will trigger a response is now {chance}%
-  override_confirmation: This auto-responder already exists, do you want to replace it with this new text?
-  empty_reply: Empty response? Why bother with me at all. Just shout your triggers into the wind and you already get no response! (use remove if you want me to stop responding to a trigger)
-  empty_trigger: Your trigger is empty... so... you want me to react to *literally nothing??*
-  channel_unset: Okay, I'll {mode} to `{trigger}` in the same channel it's matched in
-  channel_set: Okay, I'll {mode} to `{trigger}` in {channel}
-  no_channel: No channel set.
-  updating: Updating...
-  not_updating: Keeping the old one.
-  not_found: Unable to remove `{trigger}` as it doesn't seem to exist.
-  creating: This auto-responder does not exist, making it for you instead.
+  mod_action_header: --jp-- Moderator actions
+  mod_action_warning: --jp-- Moderator action flag will be ignored if response channel is not set. Use `!autoresponder setchannel`
+  you_chose: --jp-- You chose **{value}**
+  list: --jp-- Auto-responder list for {server_name}.
+  raw: --jp-- Auto-responder raw trigger/response in {server_name}.
+  none_set: --jp-- No auto-responders have been created yet.
+  no_commands: --jp-- No auto-responders have been created yet.
+  trigger_too_long: --jp-- Auto-responder triggers can only be up to 100 chars long
+  added: --jp-- Auto-responder for `{trigger}` has been added!
+  removed: --jp-- Auto-responder `{trigger}` has been removed.
+  updated: --jp-- Auto-responder `{trigger}` has been updated!
+  chanceset: --jp-- Chance that `{trigger}` will trigger a response is now {chance}%
+  override_confirmation: --jp-- This auto-responder already exists, do you want to replace it with this new text?
+  empty_reply: --jp-- Empty response? Why bother with me at all. Just shout your triggers into the wind and you already get no response! (use remove if you want me to stop responding to a trigger)
+  empty_trigger: --jp-- Your trigger is empty... so... you want me to react to *literally nothing??*
+  channel_unset: --jp-- Okay, I'll {mode} to `{trigger}` in the same channel it's matched in
+  channel_set: --jp-- Okay, I'll {mode} to `{trigger}` in {channel}
+  no_channel: --jp-- No channel set.
+  updating: --jp-- Updating...
+  not_updating: --jp-- Keeping the old one.
+  not_found: --jp-- Unable to remove `{trigger}` as it doesn't seem to exist.
+  creating: --jp-- This auto-responder does not exist, making it for you instead.
   which_flag: |
-    Which flag do you want? (type a number)
+    --jp-- Which flag do you want? (type a number)
     {options}
-  which_mode: Set channel to listen in, or channel to respond in?
-  which_trigger: Which trigger would you like? (type a number)
-  prompt_channel_id: Which channel should this trigger {mode} in? (channel id)
-  prompt_response: How would you like me to respond?
-  prompt_trigger: What should the new trigger be?
-  prompt_chance: How often should I respond? (floating point percent e.g. `35.15`)
-  help: |
-    `Auto-responder` help:
-      `![autor|auto|ar]` Show a list of responder tags and their flags
-
-    Sub-commands:
-      `!ar [help|h]` This message
-      `!ar [create|add|new]` Add a new trigger/response
-      `!ar [delete|del]` Remove a trigger/response
-      `!ar [edit|update|set]` Edit a response
-      `!ar [listflags|flags|lf]` List settings for a trigger/response
-      `!ar [setflag|sf]` Set an option for a trigger/response
-      `!ar [setchannel|channel|sc]` Set a response channel for a trigger
-      `!ar [getraw|raw]` Show the raw response text for a trigger
-      `!ar reload` Reload all responses for the current guild from database
-
-    Tokens:
-      All auto-responders can include these tokens. Enclose tokens in curly braces.
-      `author` mentions the user who triggered
-      `channel` mentions the channel in which response was triggered
-      `link` links to the message that triggered response
+  which_mode: --jp-- Set channel to listen in, or channel to respond in?
+  which_trigger: --jp-- Which trigger would you like? (type a number)
+  prompt_channel_id: --jp-- Which channel should this trigger {mode} in? (channel id)
+  prompt_response: --jp-- How would you like me to respond?
+  prompt_trigger: --jp-- What should the new trigger be?
+  prompt_chance: --jp-- How often should I respond? (floating point percent e.g. `35.15`)
   on_or_off: |
-    `{subject}` on or off?
-  expect_integer: I was hoping for an integer between {min} and {max}
+    --jp-- `{subject}` on or off?
+  expect_integer: --jp-- I was hoping for an integer between {min} and {max}
 krill:
-  list_channels: Krill channels for {server_name}.
-  list_oreo_filter: Oreo filters for {server_name}.
-  list_oreo_monsters: The most horrible people in the _"{server_name}"_ server.
-  no_channels: No channels set for krill command. `!krill` may be used in any channel.
-  channel_added: Channel {channel} is now approved for krilling.
-  channel_removed: Channel {channel} has been fumigated. No more krill allowed.
-  channel_not_found: There are no krill in {channel}
-  channel_found: The channel {channel} is already infested by krill
+  list_channels: --jp-- Krill channels for {server_name}.
+  list_oreo_filter: --jp-- Oreo filters for {server_name}.
+  list_oreo_monsters: --jp-- The most horrible people in the _"{server_name}"_ server.
+  no_channels: --jp-- No channels set for krill command. `!krill` may be used in any channel.
+  channel_added: --jp-- Channel {channel} is now approved for krilling.
+  channel_removed: --jp-- Channel {channel} has been fumigated. No more krill allowed.
+  channel_not_found: --jp-- There are no krill in {channel}
+  channel_found: --jp-- The channel {channel} is already infested by krill
+  letter_not_found: --jp-- the character "{letter}" is not in my filters
+  smells_clean: --jp-- All the letters in "{value}" are already covered.
+  invalid_letter_category: --jp-- You can only use letters `{categories}`
+  bad_person: --jp-- Bad Person
+  letter_already_filtered: --jp-- That {letter} is already on the list
+  letter_filter_added: --jp-- I added "{letter}" to the {category} list!
+  letter_not_filtered: --jp-- That {letter} is not on the list
+  letter_filter_removed: --jp-- I removed "{letter}" from the {category} list!
+  oreo_cooldown_reset: --jp-- Oreo cooldown reset
+  no_monsters: --jp-- There are no monsters in sight!
+  monster_added: --jp-- {name} is a monster
+  monster_removed: --jp-- {name} isn't a monster anymore
+  member_ignored: --jp-- {name} is ignored
+  member_not_ignored: --jp-- {name} isn't a ignored anymore
+  member_not_found: --jp-- beep boop, no {name} here
+  oreo_cooldown_message: --jp-- {name} is a horrible person and can spend the next {time_remaining} thinking about what they've done
+  not_oreo: --jp-- not Oreo! {victim_name}, you monster!!
+  dirty_trick: --jp-- That's a dirty trick, {name}, and I'm not falling for it
+  too_much_text: --jp-- too much text!
+  too_many_emoji: --jp-- too many emoji!
+  nice_try: --jp-- rofl nice try!
+  summoned_by: |
+    --jp-- *summoned by {name}*
+  cooldown_message: --jp-- Cool it, {name}. Try again in {time_remaining}
+  no_such_channel: |
+    --jp-- No such channel: `{channel_id}`
 react_monitor:
-  info_title: Emoji reaction monitor settings
+  info_title: --jp-- Emoji reaction monitor settings
 art:
-  list_channels: Art channels for {server_name}.
-  no_channels: No channels set for art collection. No art will be colelcted
-  channel_added: Channel {listenchannel} is now approved for arting. Collecting "\#{tag}" into {collectchannel}
-  channel_not_found: I didn't find a collector for {listenchannel}, "\#{tag}"->{collectchannel}
-  channel_found: The channel {listenchannel} is already collecting art "\#{tag}"->{collectchannel}
-  channel_removed: There's been a robbery at the art museum! Channel {listenchannel} can't collect art anymore! "\#{tag}"->{collectchannel}
+  list_channels: --jp-- Art channels for {server_name}.
+  no_channels: --jp-- No channels set for art collection. No art will be colelcted
+  channel_added: --jp-- Channel {listenchannel} is now approved for arting. Collecting "\#{tag}" into {collectchannel}
+  channel_not_found: --jp-- I didn't find a collector for {listenchannel}, "\#{tag}"->{collectchannel}
+  channel_found: --jp-- The channel {listenchannel} is already collecting art "\#{tag}"->{collectchannel}
+  channel_removed: --jp-- There's been a robbery at the art museum! Channel {listenchannel} can't collect art anymore! "\#{tag}"->{collectchannel}
+  no_such_channel: |
+    --jp-- No such channel: `{listen_channel_id}`
+  remove_channel_failed: --jp-- That's not an art channel... or tag... or ?? something?
 custom_commands:
-  list_commands: Custom command list for {server_name}.
-  no_commands: No custom commands have been created yet.
-  empty_trigger: Empty triggers, isn't that like empty promises? Something you shouldn't do?
-  empty_reply: You want me to say nothing for that trigger? That makes no sense. If you want to remove an existing trigger then please use remove instead.
-  trigger_too_long: Custom command triggers can only be up to 20 chars long
-  command_added: Command `{trigger}` has been added!
-  updating_command: Updating...
-  not_updating_command: Keeping the old one.
-  override_confirmation: This command already exists, do you want to replace it with this new text?
-  command_removed: Command `{trigger}` has been removed.
-  not_found: Unable to remove `{trigger}` as it doesn't seem to exist.
-  creating_command: This command does not exist, making it for you instead.
-  command_updated: Command `{trigger}` has been updated!
+  list_commands: --jp-- Custom command list for {server_name}.
+  no_commands: --jp-- No custom commands have been created yet.
+  empty_trigger: --jp-- Empty triggers, isn't that like empty promises? Something you shouldn't do?
+  empty_reply: --jp-- You want me to say nothing for that trigger? That makes no sense. If you want to remove an existing trigger then please use remove instead.
+  trigger_too_long: --jp-- Custom command triggers can only be up to 20 chars long
+  command_added: --jp-- Command `{trigger}` has been added!
+  updating_command: --jp-- Updating...
+  not_updating_command: --jp-- Keeping the old one.
+  override_confirmation: --jp-- This command already exists, do you want to replace it with this new text?
+  command_removed: --jp-- Command `{trigger}` has been removed.
+  not_found: --jp-- Unable to remove `{trigger}` as it doesn't seem to exist.
+  creating_command: --jp-- This command does not exist, making it for you instead.
+  command_updated: --jp-- Command `{trigger}` has been updated!
 word_counter:
-  list_words: Words being counted for metrics in the {server_name} server
-  no_words: There are no words currently being counted.
-  word_added: The word "{word}" is now being counted.
-  word_found: The word "{word}" is already being counted.
-  word_removed: The word "{word}" is no longer being counted.
-  word_not_found: I didn't find the word "{word}" in the database
+  list_words: --jp-- Words being counted for metrics in the {server_name} server
+  no_words: --jp-- There are no words currently being counted.
+  word_added: --jp-- The word "{word}" is now being counted.
+  word_found: --jp-- The word "{word}" is already being counted.
+  word_removed: --jp-- The word "{word}" is no longer being counted.
+  word_not_found: --jp-- I didn't find the word "{word}" in the database
 sweeps:
-  jumpurl_prompt: Please provide a jumpurl or [channel_id]/[message_id]
-  unique_result: There are {count} entrants (unique reactions) to this drawing.
-  total_entries: There are {count} total entries to this drawing.
-  all_invalid_emoji: All of the reaction emojis come from other servers. I won't be able to add any reactions. Do you still want to clear reactions?
-  some_invalid_emoji: Some of the reaction emojis come from other servers. I won't be able to add them all back. Do you still want to clear reactions?
-  invalid_emoji_confirm: Ok I'll continue, but there are at least {count} emoji that I can't add back to the original message. You may need to add some yourself!
-  no_reactions: No reactions on that message. Aborting.
+  jumpurl_prompt: --jp-- Please provide a jumpurl or [channel_id]/[message_id]
+  unique_result: --jp-- There are {count} entrants (unique reactions) to this drawing.
+  total_entries: --jp-- There are {count} total entries to this drawing.
+  all_invalid_emoji: --jp-- All of the reaction emojis come from other servers. I won't be able to add any reactions. Do you still want to clear reactions?
+  some_invalid_emoji: --jp-- Some of the reaction emojis come from other servers. I won't be able to add them all back. Do you still want to clear reactions?
+  invalid_emoji_confirm: --jp-- Ok I'll continue, but there are at least {count} emoji that I can't add back to the original message. You may need to add some yourself!
+  no_reactions: --jp-- No reactions on that message. Aborting.
   removing_reactions: |
-    ```Removing reactions from message (ending entry period)...```
+    --jp-- ```Removing reactions from message (ending entry period)...```
   adding_reactions: |
-    ```Adding reactions to message (restarting entry period)...```
+    --jp-- ```Adding reactions to message (restarting entry period)...```
   adding_reactions_progress: Added these reactions -
-  emoji_fail: Failed to add emoji {emoji} (permissions? emoji comes from another server?)
+  emoji_fail: --jp-- Failed to add emoji {emoji} (permissions? emoji comes from another server?)
   partial_emoji_fail: |
-    ```Failed to add all reactions back to the original message. You might need to add some manually```
+    --jp-- ```Failed to add all reactions back to the original message. You might need to add some manually```
   drawing_closed: |
-    ```Reactions removed. Drawing entry closed.```
+    --jp-- ```Reactions removed. Drawing entry closed.```
   drawing_restarted: |
-    ```Reactions reset. Drawing entry restarted.```
-  fetch_message_failed: Failed to get message {channel_id}/{message_id}
-  fetch_entries_failed: Failed to get entries {channel_id}/{message_id}
-  entries_sub_command: Sub-command required. try `sweeps entries unique` or `sweeps entries all`
-  end_sweeps_sub_command: Sub-command required. try `sweeps end clear` or `sweeps end restart`
+    --jp-- ```Reactions reset. Drawing entry restarted.```
+  fetch_message_failed: --jp-- Failed to get message {channel_id}/{message_id}
+  fetch_entries_failed: --jp-- Failed to get entries {channel_id}/{message_id}
+  entries_sub_command: --jp-- Sub-command required. try `sweeps entries unique` or `sweeps entries all`
+  end_sweeps_sub_command: --jp-- Sub-command required. try `sweeps end clear` or `sweeps end restart`
   help: |
-    `sweeps` help:
+    --jp-- `sweeps` help:
       `![sweeps|drawing]` sub-command required
 
     Sub-commands:

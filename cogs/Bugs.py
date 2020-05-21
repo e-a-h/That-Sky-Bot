@@ -11,7 +11,7 @@ from discord.ext.commands import Context, command
 import prometheus_client as prom
 
 from cogs.BaseCog import BaseCog
-from utils import Questions, Emoji, Utils, Configuration, Lang
+from utils import Questions, Emoji, Utils, Configuration, Lang, Logging
 from utils.Database import BugReport, Attachments
 
 
@@ -32,11 +32,11 @@ class Bugs(BaseCog):
     def cog_unload(self):
         self.verify_empty_bug_queue.cancel()
 
-    async def sweep_trash(self, user):
-        await asyncio.sleep(Configuration.get_var("bug_trash_sweep_minutes")*60)
+    async def sweep_trash(self, user, ctx):
+        await asyncio.sleep(Configuration.get_var("bug_trash_sweep_minutes") * 60)
         if user.id in self.in_progress:
             if not self.in_progress[user.id].done() or not self.in_progress[user.id].cancelled():
-                await user.send(Lang.get_string("bugs/sweep_trash"))
+                await user.send(Lang.get_locale_string("bugs/sweep_trash", ctx))
 
             await self.delete_progress(user.id)
 
@@ -50,7 +50,7 @@ class Bugs(BaseCog):
     async def shutdown(self):
         for name, cid in Configuration.get_var("channels").items():
             channel = self.bot.get_channel(cid)
-            message = await channel.send(Lang.get_string("bugs/shutdown_message"))
+            message = await channel.send(Lang.get_locale_string("bugs/shutdown_message"))
             Configuration.set_persistent_var(f"{name}_shutdown", message.id)
 
     async def startup_cleanup(self):
@@ -69,6 +69,11 @@ class Bugs(BaseCog):
     async def send_bug_info(self, key):
         channel = self.bot.get_channel(Configuration.get_var("channels")[key])
         bug_info_id = Configuration.get_persistent_var(f"{key}_message")
+
+        last_message = await channel.history(limit=1).flatten()
+        last_message = last_message[0]
+        ctx = await self.bot.get_context(last_message)
+
         if bug_info_id is not None:
             try:
                 message = await channel.fetch_message(bug_info_id)
@@ -80,7 +85,7 @@ class Bugs(BaseCog):
                     self.bug_messages.remove(message.id)
 
         bugemoji = Emoji.get_emoji('BUG')
-        message = await channel.send(Lang.get_string("bugs/bug_info", bug_emoji=bugemoji))
+        message = await channel.send(Lang.get_locale_string("bugs/bug_info", ctx, bug_emoji=bugemoji))
         await message.add_reaction(bugemoji)
         self.bug_messages.add(message.id)
         Configuration.set_persistent_var(f"{key}_message", message.id)
@@ -90,7 +95,7 @@ class Bugs(BaseCog):
         if len(self.in_progress) > 0:
 
             if self.maint_check_count == 10:
-                await ctx.send(f"Sorry {ctx.author.mention} but I give up. Maybe the bug queue is busted, as usual.")
+                await ctx.send(Lang.get_locale_string('bugs/maint_check_fail', ctx, author=ctx.author.mention))
                 self.verify_empty_bug_queue.cancel()
                 return
 
@@ -103,9 +108,9 @@ class Bugs(BaseCog):
             return
         elif self.maint_check_count > 0:
             await self.maintenance_message.delete()
-            await ctx.send(f"Bug reports are all done, {ctx.author.mention}!!")
+            await ctx.send(Lang.get_locale_string('bugs/bugs_all_done', ctx, author=ctx.author.mention))
         else:
-            await ctx.send(f"There are no bug reports in progress.")
+            await ctx.send(Lang.get_locale_string('bugs/none_in_progress', ctx))
 
         self.maintenance_message = None
         self.verify_empty_bug_queue.cancel()
@@ -142,16 +147,15 @@ class Bugs(BaseCog):
                     beta_overwrite.read_messages = None if active else True
                     await channel.set_permissions(beta_role, overwrite=beta_overwrite)
         except Exception as e:
-            await ctx.send("Failed to set reporting channel permissions. Check channel permissions because "
-                           "I might have broken something...")
+            await ctx.send(Lang.get_locale_string('bugs/report_channel_permissions_fail', ctx))
             await Utils.handle_exception("failed to set bug report channel permissions", self.bot, e)
         else:
             if active:
                 self.maint_check_count = 0
                 self.verify_empty_bug_queue.start(ctx)
-                await ctx.send("bot maintenance mode **on**: Reporting channels **closed**.")
+                await ctx.send(Lang.get_locale_string('bugs/maint_on', ctx))
             else:
-                await ctx.send("bot maintenance mode **off**: Reporting channels **open**.")
+                await ctx.send(Lang.get_locale_string('bugs/maint_off', ctx))
 
     @commands.group(name='bug', invoke_without_command=True)
     async def bug(self, ctx: Context):
@@ -170,11 +174,14 @@ class Bugs(BaseCog):
             for uid in active_keys:
                 await self.delete_progress(uid)
             self.in_progress = dict()
-            await ctx.send(f"Ok. Number of dead bugs cleaned up: {active_keys}. Number still alive: {len(self.in_progress)}")
+            await ctx.send(Lang.get_locale_string('bugs/dead_bugs_cleaned', ctx, active_keys=active_keys, in_progress=len(self.in_progress)))
 
     async def report_bug(self, user, trigger_channel):
         # fully ignore muted users
         m = self.bot.metrics
+        last_message = await trigger_channel.history(limit=1).flatten()
+        last_message = last_message[0]
+        ctx = await self.bot.get_context(last_message)
         await asyncio.sleep(1)
         guild = self.bot.get_guild(Configuration.get_var("guild_id"))
         member = guild.get_member(user.id)
@@ -190,7 +197,7 @@ class Bugs(BaseCog):
             # already tracking progress for this user
             if user.id in self.blocking:
                 # user blocked from starting a new report. waiting for DM response
-                await trigger_channel.send(Lang.get_string("bugs/stop_spamming", user=user.mention), delete_after=10)
+                await ctx.send(Lang.get_locale_string("bugs/stop_spamming", ctx, user=user.mention), delete_after=10)
                 return
 
             should_reset = False
@@ -203,11 +210,13 @@ class Bugs(BaseCog):
             self.blocking.add(user.id)
 
             # ask if user wants to start over
-            await Questions.ask(self.bot, trigger_channel, user, Lang.get_string("bugs/start_over", user=user.mention),
+            await Questions.ask(self.bot, trigger_channel, user,
+                                Lang.get_locale_string("bugs/start_over", ctx, user=user.mention),
                                 [
-                                    Questions.Option("YES", Lang.get_string("bugs/start_over_yes"), handler=start_over),
-                                    Questions.Option("NO", Lang.get_string("bugs/start_over_no"))
-                                ], delete_after=True, show_embed=True)
+                                    Questions.Option("YES", Lang.get_locale_string("bugs/start_over_yes", ctx),
+                                                     handler=start_over),
+                                    Questions.Option("NO", Lang.get_locale_string("bugs/start_over_no", ctx))
+                                ], delete_after=True, show_embed=True, locale=ctx)
 
             # not starting over. remove blocking
             if user.id in self.blocking:
@@ -221,7 +230,7 @@ class Bugs(BaseCog):
 
         # Start a bug report
         task = self.bot.loop.create_task(self.actual_bug_reporter(user, trigger_channel))
-        sweep = self.bot.loop.create_task(self.sweep_trash(user))
+        sweep = self.bot.loop.create_task(self.sweep_trash(user, ctx))
         self.in_progress[user.id] = task
         self.sweeps[user.id] = sweep
         try:
@@ -236,6 +245,9 @@ class Bugs(BaseCog):
         restarting = False
         try:
             channel = await user.create_dm()
+            last_message = await trigger_channel.history(limit=1).flatten()
+            last_message = last_message[0]
+            ctx = await self.bot.get_context(last_message)
 
             # vars to store everything
             asking = True
@@ -252,7 +264,7 @@ class Bugs(BaseCog):
 
             async def abort():
                 nonlocal asking
-                await user.send(Lang.get_string("bugs/abort_report"))
+                await user.send(Lang.get_locale_string("bugs/abort_report", ctx))
                 asking = False
                 m.reports_abort_count.inc()
                 m.reports_exit_question.observe(active_question)
@@ -276,18 +288,18 @@ class Bugs(BaseCog):
 
             def verify_version(v):
                 if "latest" in v:
-                    return Lang.get_string("bugs/latest_not_allowed")
+                    return Lang.get_locale_string("bugs/latest_not_allowed", ctx)
                 # TODO: double check if we actually want to enforce this
                 if len(Utils.NUMBER_MATCHER.findall(v)) == 0:
-                    return Lang.get_string("bugs/no_numbers")
+                    return Lang.get_locale_string("bugs/no_numbers", ctx)
                 if len(v) > 20:
-                    return Lang.get_string("bugs/love_letter")
+                    return Lang.get_locale_string("bugs/love_letter", ctx)
                 return True
 
             def max_length(length):
                 def real_check(text):
                     if len(text) > length:
-                        return Lang.get_string("bugs/text_too_long", max=length)
+                        return Lang.get_locale_string("bugs/text_too_long", ctx, max=length)
                     return True
 
                 return real_check
@@ -305,15 +317,16 @@ class Bugs(BaseCog):
                 channel_name = f"{platform}_{branch}".lower()
                 c = Configuration.get_var("channels")[channel_name]
                 message = await self.bot.get_channel(c).send(
-                    content=Lang.get_string("bugs/report_header", id=br.id, user=user.mention), embed=report)
+                    content=Lang.get_locale_string("bugs/report_header", ctx, id=br.id, user=user.mention),
+                    embed=report)
                 if len(attachment_links) != 0:
                     key = "attachment_info" if len(attachment_links) == 1 else "attachment_info_plural"
                     attachment = await self.bot.get_channel(c).send(
-                        Lang.get_string(f"bugs/{key}", id=br.id, links="\n".join(attachment_links)))
+                        Lang.get_locale_string(f"bugs/{key}", ctx, id=br.id, links="\n".join(attachment_links)))
                     br.attachment_message_id = attachment.id
                 br.message_id = message.id
                 br.save()
-                await channel.send(Lang.get_string("bugs/report_confirmation", channel_id=c))
+                await channel.send(Lang.get_locale_string("bugs/report_confirmation", ctx, channel_id=c))
                 await self.send_bug_info(channel_name)
 
             async def restart():
@@ -342,125 +355,149 @@ class Bugs(BaseCog):
                 active_question = active_question + 1
 
             active_question = 0
-            await Questions.ask(self.bot, channel, user, Lang.get_string("bugs/question_ready"),
+            await Questions.ask(self.bot, channel, user, Lang.get_locale_string("bugs/question_ready", ctx),
                                 [
                                     Questions.Option("YES", "Press this reaction to answer YES and begin a report"),
                                     Questions.Option("NO", "Press this reaction to answer NO", handler=abort),
-                                ], show_embed=True)
+                                ], show_embed=True, locale=ctx)
             update_metrics()
 
             if asking:
                 # question 1: android or ios?
-                await Questions.ask(self.bot, channel, user, Lang.get_string("bugs/question_platform"),
+                await Questions.ask(self.bot, channel, user, Lang.get_locale_string("bugs/question_platform", ctx),
                                     [
                                         Questions.Option("ANDROID", "Android", lambda: set_platform("Android")),
                                         Questions.Option("IOS", "iOS", lambda: set_platform("iOS"))
-                                    ], show_embed=True)
+                                    ], show_embed=True, locale=ctx)
                 update_metrics()
 
                 # question 2: android/ios version
                 platform_version = await Questions.ask_text(self.bot, channel, user,
-                                                            Lang.get_string("bugs/question_platform_version",
-                                                                            platform=platform),
-                                                            validator=verify_version)
+                                                            Lang.get_locale_string("bugs/question_platform_version",
+                                                                                   ctx,
+                                                                                   platform=platform),
+                                                            validator=verify_version, locale=ctx)
                 update_metrics()
 
                 # question 3: hardware info
                 deviceinfo = await Questions.ask_text(self.bot, channel, user,
-                                                      Lang.get_string("bugs/question_device_info",
-                                                                      platform=platform, max=200),
-                                                      validator=max_length(200))
+                                                      Lang.get_locale_string("bugs/question_device_info",
+                                                                             ctx, platform=platform, max=200),
+                                                      validator=max_length(200), locale=ctx)
                 update_metrics()
 
                 # question 4: stable or beta?
-                await Questions.ask(self.bot, channel, user, Lang.get_string("bugs/question_app_branch"),
+                await Questions.ask(self.bot, channel, user, Lang.get_locale_string("bugs/question_app_branch", ctx),
                                     [
                                         Questions.Option("STABLE", "Live", lambda: set_branch("Stable")),
                                         Questions.Option("BETA", "Beta", lambda: set_branch("Beta"))
-                                    ], show_embed=True)
+                                    ], show_embed=True, locale=ctx)
                 update_metrics()
 
                 # question 5: sky app version
-                app_version = await Questions.ask_text(self.bot,
-                                                       channel,
-                                                       user,
-                                                       Lang.get_string(
-                                                           "bugs/question_app_version",
-                                                           version_help=Lang.get_string("bugs/version_" + platform.lower())),
-                                                       validator=verify_version)
+                app_version = await Questions.ask_text(
+                    self.bot,
+                    channel,
+                    user,
+                    Lang.get_locale_string(
+                        "bugs/question_app_version", ctx,
+                        version_help=Lang.get_locale_string("bugs/version_" + platform.lower())),
+                    validator=verify_version, locale=ctx)
                 update_metrics()
 
                 # question 6: sky app build number
-                app_build = await Questions.ask_text(self.bot, channel, user, Lang.get_string("bugs/question_app_build"),
-                                                     validator=verify_version)
+                app_build = await Questions.ask_text(
+                    self.bot, channel, user, Lang.get_locale_string("bugs/question_app_build", ctx),
+                    validator=verify_version, locale=ctx)
                 update_metrics()
 
                 # question 7: Title
-                title = await Questions.ask_text(self.bot, channel, user, Lang.get_string("bugs/question_title", max=300),
-                                                 validator=max_length(300))
+                title = await Questions.ask_text(
+                    self.bot, channel, user, Lang.get_locale_string("bugs/question_title", ctx, max=300),
+                    validator=max_length(300), locale=ctx)
                 update_metrics()
 
                 # question 8: "actual" - defect behavior
-                actual = await Questions.ask_text(self.bot, channel, user, Lang.get_string("bugs/question_actual", max=800),
-                                                  validator=max_length(800))
+                actual = await Questions.ask_text(
+                    self.bot, channel, user, Lang.get_locale_string("bugs/question_actual", ctx, max=800),
+                    validator=max_length(800), locale=ctx)
                 update_metrics()
 
                 # question 9: steps to reproduce
-                steps = await Questions.ask_text(self.bot, channel, user, Lang.get_string("bugs/question_steps", max=800),
-                                                 validator=max_length(800))
+                steps = await Questions.ask_text(
+                    self.bot, channel, user, Lang.get_locale_string("bugs/question_steps", ctx, max=800),
+                    validator=max_length(800), locale=ctx)
                 update_metrics()
 
                 # question 10: expected behavior
-                expected = await Questions.ask_text(self.bot, channel, user,
-                                                    Lang.get_string("bugs/question_expected", max=800),
-                                                    validator=max_length(800))
+                expected = await Questions.ask_text(
+                    self.bot, channel, user,
+                    Lang.get_locale_string("bugs/question_expected", ctx, max=800),
+                    validator=max_length(800), locale=ctx)
                 update_metrics()
 
                 # question 11: attachments y/n
-                await Questions.ask(self.bot, channel, user, Lang.get_string("bugs/question_attachments"),
-                                    [
-                                        Questions.Option("YES", Lang.get_string("bugs/attachments_yes"), handler=add_attachments),
-                                        Questions.Option("NO", Lang.get_string("bugs/skip_step"))
-                                    ], show_embed=True)
+                await Questions.ask(
+                    self.bot, channel, user, Lang.get_locale_string("bugs/question_attachments", ctx),
+                    [
+                        Questions.Option("YES",
+                                         Lang.get_locale_string("bugs/attachments_yes", ctx),
+                                         handler=add_attachments),
+                        Questions.Option("NO", Lang.get_locale_string("bugs/skip_step", ctx))
+                    ], show_embed=True, locale=ctx)
                 update_metrics()
 
                 if attachments:
                     # question 12: attachments
-                    attachment_links = await Questions.ask_attachements(self.bot, channel, user)
+                    attachment_links = await Questions.ask_attachements(self.bot, channel, user, locale=ctx)
                 # update metrics outside condition to keep count up-to-date and reflect skipped question as zero time
                 update_metrics()
 
                 # question 13: additional info y/n
-                await Questions.ask(self.bot, channel, user, Lang.get_string("bugs/question_additional"),
-                                    [
-                                        Questions.Option("YES", Lang.get_string("bugs/additional_info_yes"), handler=add_additional),
-                                        Questions.Option("NO", Lang.get_string("bugs/skip_step"))
-                                    ], show_embed=True)
+                await Questions.ask(
+                    self.bot, channel, user, Lang.get_locale_string("bugs/question_additional", ctx),
+                    [
+                        Questions.Option("YES",
+                                         Lang.get_locale_string("bugs/additional_info_yes", ctx),
+                                         handler=add_additional),
+                        Questions.Option("NO", Lang.get_locale_string("bugs/skip_step", ctx))
+                    ], show_embed=True, locale=ctx)
                 update_metrics()
 
                 if additional:
                     # question 14: additional info
-                    additional_text = await Questions.ask_text(self.bot, channel, user,
-                                                               Lang.get_string("bugs/question_additional_info"),
-                                                               validator=max_length(500))
+                    additional_text = await Questions.ask_text(
+                        self.bot, channel, user,
+                        Lang.get_locale_string("bugs/question_additional_info", ctx),
+                        validator=max_length(500), locale=ctx)
                 # update metrics outside condition to keep count up-to-date and reflect skipped question as zero time
                 update_metrics()
 
                 # assemble the report and show to user for review
                 report = Embed(timestamp=datetime.utcfromtimestamp(time.time()))
                 report.set_author(name=f"{user} ({user.id})", icon_url=user.avatar_url_as(size=32))
-                report.add_field(name=Lang.get_string("bugs/platform"), value=f"{platform} {platform_version}")
-                report.add_field(name=Lang.get_string("bugs/app_version"), value=app_version)
-                report.add_field(name=Lang.get_string("bugs/app_build"), value=app_build)
-                report.add_field(name=Lang.get_string("bugs/device_info"), value=deviceinfo, inline=False)
-                report.add_field(name=Lang.get_string("bugs/title"), value=title, inline=False)
-                report.add_field(name=Lang.get_string("bugs/description"), value=actual, inline=False)
-                report.add_field(name=Lang.get_string("bugs/steps_to_reproduce"), value=steps, inline=False)
-                report.add_field(name=Lang.get_string("bugs/expected"), value=expected)
+                report.add_field(
+                    name=Lang.get_locale_string("bugs/platform", ctx), value=f"{platform} {platform_version}")
+                report.add_field(
+                    name=Lang.get_locale_string("bugs/app_version", ctx), value=app_version)
+                report.add_field(
+                    name=Lang.get_locale_string("bugs/app_build", ctx), value=app_build)
+                report.add_field(
+                    name=Lang.get_locale_string("bugs/device_info", ctx), value=deviceinfo, inline=False)
+                report.add_field(
+                    name=Lang.get_locale_string("bugs/title", ctx), value=title, inline=False)
+                report.add_field(
+                    name=Lang.get_locale_string("bugs/description", ctx), value=actual, inline=False)
+                report.add_field(
+                    name=Lang.get_locale_string("bugs/steps_to_reproduce", ctx), value=steps, inline=False)
+                report.add_field(
+                    name=Lang.get_locale_string("bugs/expected", ctx), value=expected)
                 if additional:
-                    report.add_field(name=Lang.get_string("bugs/additional_info"), value=additional_text, inline=False)
+                    report.add_field(
+                        name=Lang.get_locale_string("bugs/additional_info", ctx), value=additional_text, inline=False)
 
-                await channel.send(content=Lang.get_string("bugs/report_header", id="##", user=user.mention), embed=report)
+                await channel.send(
+                    content=Lang.get_locale_string("bugs/report_header", ctx, id="##", user=user.mention), embed=report)
                 if attachment_links:
                     attachment_message = ''
                     for a in attachment_links:
@@ -471,12 +508,13 @@ class Bugs(BaseCog):
                 await asyncio.sleep(1)
 
                 # Question 15 - final review
-                await Questions.ask(self.bot, channel, user,
-                                    Lang.get_string("bugs/question_ok", timeout=Questions.timeout_format(review_time)),
-                                    [
-                                        Questions.Option("YES", Lang.get_string("bugs/send_report"), send_report),
-                                        Questions.Option("NO", Lang.get_string("bugs/mistake"), restart)
-                                    ], show_embed=True, timeout=review_time)
+                await Questions.ask(
+                    self.bot, channel, user,
+                    Lang.get_locale_string("bugs/question_ok", ctx, timeout=Questions.timeout_format(review_time)),
+                    [
+                        Questions.Option("YES", Lang.get_locale_string("bugs/send_report", ctx), send_report),
+                        Questions.Option("NO", Lang.get_locale_string("bugs/mistake", ctx), restart)
+                    ], show_embed=True, timeout=review_time, locale=ctx)
                 update_metrics()
                 report_duration = time.time() - report_start_time
                 m.reports_duration.set(report_duration)
@@ -486,11 +524,11 @@ class Bugs(BaseCog):
         except Forbidden as ex:
             m.bot_cannot_dm_member.inc()
             await trigger_channel.send(
-                Lang.get_string("bugs/dm_unable", user=user.mention),
+                Lang.get_locale_string("bugs/dm_unable", ctx, user=user.mention),
                 delete_after=30)
         except asyncio.TimeoutError as ex:
             m.report_incomplete_count.inc()
-            await channel.send(Lang.get_string("bugs/report_timeout"))
+            await channel.send(Lang.get_locale_string("bugs/report_timeout", ctx))
             if active_question is not None:
                 m.reports_exit_question.observe(active_question)
             self.bot.loop.create_task(self.delete_progress(user.id))

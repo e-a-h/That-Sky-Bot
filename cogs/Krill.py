@@ -118,10 +118,11 @@ class Krill(BaseCog):
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     async def oreo(self, ctx: commands.Context):
+        """Show the oreo filter settings."""
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=0x663399,
-            title=Lang.get_string("krill/list_oreo_filter", server_name=ctx.guild.name))
+            title=Lang.get_locale_string("krill/list_oreo_filter", ctx, server_name=ctx.guild.name))
         embed.add_field(name='Letter "o"', value=" ".join(self.oreo_filter['o']))
         embed.add_field(name='Letter "r"', value=" ".join(self.oreo_filter['r']))
         embed.add_field(name='Letter "e"', value=" ".join(self.oreo_filter['e']))
@@ -135,10 +136,12 @@ class Krill(BaseCog):
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     async def sniff(self, ctx: commands.Context,  *, value=''):
+        """Search a string for unfiltered characters."""
         checked = ""
         found = False
         pattern = self.get_oreo_patterns()['chars']
 
+        # TODO: recognize emojis?
         for letter in value:
             if letter not in checked:
                 checked = checked + letter
@@ -146,14 +149,15 @@ class Krill(BaseCog):
                 continue
             if not pattern.search(letter):
                 found = True
-                await ctx.send(f"the character \"{letter}\" is not in my filters")
+                await ctx.send(Lang.get_locale_string("krill/letter_not_found", ctx, letter=letter))
         if not found:
-            await ctx.send(f"All the letters in \"{value}\" are already covered.")
+            await ctx.send(Lang.get_locale_string("krill/smells_clean", ctx, value=value))
 
     @staticmethod
     async def validate_oreo_letter(ctx, letter):
-        if letter not in ['o', 'r', 'e', 'oh', 're', 'お', 'れ', 'sp']:
-            await ctx.send("You can only use letters `o`, `r`, `e`, `お` or `oh`, `れ` or `re`, `sp` for space")
+        categories = ['o', 'r', 'e', 'oh', 're', 'お', 'れ', 'sp']
+        if letter not in categories:
+            await ctx.send(Lang.get_locale_string("krill/invalid_letter_category", ctx, value=', '.join(categories)))
             return False
         if letter == 'お':
             letter = 'oh'
@@ -164,7 +168,8 @@ class Krill(BaseCog):
     @oreo.command(aliases=["add", "letter"])
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
-    async def add_letter(self, ctx: commands.Context, letter, value):
+    async def add_letter(self, ctx: commands.Context, letter, *, value):
+        """Add a letter from the oreo filter."""
         letter = await self.validate_oreo_letter(ctx, letter)
         if not letter:
             return
@@ -173,92 +178,94 @@ class Krill(BaseCog):
         if letter != "sp":
             value = re.escape(value)
         if value in self.oreo_filter[letter]:
-            await ctx.send(f"That {x} is already on the list")
+            await ctx.send(Lang.get_locale_string("krill/letter_already_filtered", ctx, letter=x))
             return
 
         self.oreo_filter[letter].append(value)
         Configuration.set_persistent_var("oreo_filter", self.oreo_filter)
-        await ctx.send(f"I added \"{value}\" to the {x} list!")
+        await ctx.send(Lang.get_locale_string("krill/letter_filter_added", ctx, letter=value, category=x))
 
     @oreo.command(aliases=["remove"])
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
-    async def remove_letter(self, ctx: commands.Context, letter, value):
+    async def remove_letter(self, ctx: commands.Context, letter, *, value):
+        """Remove a letter from the oreo filter."""
         letter = await self.validate_oreo_letter(ctx, letter)
         if not letter:
             return
 
         x = "space" if letter == "sp" else f"letter \"{letter}\""
         if value not in self.oreo_filter[letter]:
-            await ctx.send(f"That {x} is not on the list")
+            await ctx.send(Lang.get_locale_string("krill/letter_not_filtered", ctx, letter=x))
             return
 
         self.oreo_filter[letter].remove(value)
         Configuration.set_persistent_var("oreo_filter", self.oreo_filter)
-        await ctx.send(f"I removed \"{value}\" from the {x} list!")
+        await ctx.send(Lang.get_locale_string("krill/letter_filter_removed", ctx, letter=value, category=x))
 
     @oreo.command(aliases=["reset"])
     @commands.check(can_admin_krill)
     @commands.bot_has_permissions(embed_links=True)
     async def reset_cooldown(self, ctx: commands.Context):
+        """Clear the oreo cooldown list."""
         self.monsters = dict()
-        await ctx.send("Oreo cooldown reset")
+        await ctx.send(Lang.get_locale_string("krill/oreo_cooldown_reset", ctx))
 
     @oreo.command(aliases=["list", "monsters"])
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     async def list_monsters(self, ctx: commands.Context):
+        """Show a list of everyone on oreo cooldown."""
         if not self.monsters:
-            await ctx.send("There are no monsters in sight!")
+            await ctx.send(Lang.get_locale_string("krill/no_monsters", ctx))
             return
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=0x663399,
-            title=Lang.get_string("krill/list_oreo_monsters", server_name=ctx.guild.name))
+            title=Lang.get_locale_string("krill/list_oreo_monsters", ctx, server_name=ctx.guild.name))
         for monster in self.monsters.keys():
-            embed.add_field(name="Bad Person", value=ctx.guild.get_member(monster).display_name, inline=False)
+            bad_person = Lang.get_locale_string("krill/bad_person", ctx)
+            embed.add_field(name=bad_person, value=ctx.guild.get_member(monster).display_name, inline=False)
         await ctx.send(embed=embed)
 
     @oreo.command(aliases=["monster"])
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
-    async def add_monster(self, ctx: commands.Context, user_id: int):
+    async def add_monster(self, ctx: commands.Context, member: discord.Member):
+        """Add a member to oreo monster list."""
         await ctx.message.delete()
-        if ctx.guild.get_member(user_id):
-            self.monsters[user_id] = datetime.now().timestamp()
-            await ctx.send(f"<@{user_id}> is a monster")
-        else:
-            await ctx.send(f"beep boop, no {user_id} here")
+        self.monsters[member.id] = datetime.now().timestamp()
+        await ctx.send(Lang.get_locale_string("krill/monster_added", ctx, name=member.mention))
 
     @oreo.command()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
-    async def remove_monster(self, ctx: commands.Context, user_id: int):
-        if ctx.guild.get_member(user_id) and user_id in self.monsters.keys():
-            del self.monsters[user_id]
-            await ctx.send(f"<@{user_id}> isn't a monster anymore")
+    async def remove_monster(self, ctx: commands.Context, member: discord.Member):
+        """Remove a member from oreo monster list."""
+        if member.id in self.monsters.keys():
+            del self.monsters[member.id]
+            await ctx.send(Lang.get_locale_string("krill/monster_removed", ctx, name=member.mention))
         else:
-            await ctx.send(f"beep boop, no {user_id} here")
+            await ctx.send(Lang.get_locale_string("krill/member_not_found", ctx, name=member.mention))
 
     @oreo.command()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
-    async def ignore(self, ctx: commands.Context, user_id: int):
-        if ctx.guild.get_member(user_id):
-            self.ignored.add(user_id)
-            await ctx.send(f"<@{user_id}> is ignored")
-        else:
-            await ctx.send(f"beep boop, no {user_id} here")
+    async def ignore(self, ctx: commands.Context, member: discord.Member):
+        """Add a member to krill command ignore list."""
+        self.ignored.add(member.id)
+        await ctx.send(Lang.get_locale_string("krill/member_ignored", ctx, name=member.mention))
 
     @oreo.command()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
-    async def unignore(self, ctx: commands.Context, user_id: int):
-        if ctx.guild.get_member(user_id) and user_id in self.ignored:
-            self.ignored.remove(user_id)
-            await ctx.send(f"<@{user_id}> isn't a ignored anymore")
+    async def unignore(self, ctx: commands.Context, member: discord.Member):
+        """Remove a member from krill command ignore list."""
+        if member.id in self.ignored:
+            self.ignored.remove(member.id)
+            await ctx.send(Lang.get_locale_string("krill/member_not_ignored", ctx, name=member.mention))
         else:
-            await ctx.send(f"beep boop, no {user_id} here")
+            await ctx.send(Lang.get_locale_string("krill/member_not_found", ctx, name=member.mention))
 
     def get_oreo_patterns(self):
         # o-ø º.o r...r e é 0 º oおれ
@@ -293,8 +300,11 @@ class Krill(BaseCog):
     @commands.cooldown(1, 600, BucketType.member)
     @commands.guild_only()
     async def krill(self, ctx, *, arg=''):
+        """Krill attack!!!"""
         if ctx.message.author.id in self.ignored:
             return
+
+        await ctx.trigger_typing()
 
         if ctx.message.author.id in self.monsters.keys():
             now = datetime.now().timestamp()
@@ -302,7 +312,10 @@ class Krill(BaseCog):
             penalty = 6 * hour
             if self.monsters[ctx.author.id] + penalty > now:
                 remain = (self.monsters[ctx.author.id] + penalty) - now
-                await ctx.send(f"{ctx.author.mention} is a horrible person and can spend the next {Utils.to_pretty_time(remain)} thinking about what they've done")
+                await ctx.send(Lang.get_locale_string("krill/oreo_cooldown_message",
+                                                      ctx,
+                                                      name=ctx.author.mention,
+                                                      time_remaining=Utils.to_pretty_time(remain)))
                 return
 
         patterns = self.get_oreo_patterns()
@@ -315,7 +328,7 @@ class Krill(BaseCog):
         if oreo_pattern.search(arg) or oreo_jp_pattern.search(arg) or name_is_oreo or dog_pattern.search(arg):
             self.bot.get_command("krill").reset_cooldown(ctx)
             victim_name = "bad person" if name_is_oreo else ctx.author.mention
-            await ctx.send(f'not Oreo! {victim_name}, you monster!!')
+            await ctx.send(Lang.get_locale_string("krill/not_oreo", ctx, victim_name=victim_name))
             monster = True
             self.monsters[ctx.author.id] = datetime.now().timestamp()
             return
@@ -329,16 +342,18 @@ class Krill(BaseCog):
             victim_name = victim
             if re.search(r'@', victim_name):
                 self.bot.get_command("krill").reset_cooldown(ctx)
-                await ctx.send(f"That's a dirty trick, {ctx.author.mention}, and I'm not falling for it")
+                await ctx.send(Lang.get_locale_string("krill/dirty_trick", ctx, name=ctx.author.mention))
                 return
 
         # clean emoji and store non-emoji text for length evaluation
         emoji_used = Utils.EMOJI_MATCHER.findall(victim_name)
         non_emoji_text = Utils.EMOJI_MATCHER.sub('', victim_name)
         if len(non_emoji_text) > 40:
+            await ctx.send(Lang.get_locale_string("krill/too_much_text", ctx))
             await ctx.send("too much text!")
             return
         if len(emoji_used) > 15:
+            await ctx.send(Lang.get_locale_string("krill/too_many_emoji", ctx))
             await ctx.send("too many emoji!")
             return
 
@@ -360,7 +375,7 @@ class Krill(BaseCog):
                          dog_pattern.search(victim_name)
         if victim_is_oreo:
             self.monsters[ctx.author.id] = datetime.now().timestamp()
-            await ctx.send(f"rofl nice try!")
+            await ctx.send(Lang.get_locale_string("krill/nice_try", ctx))
             return
 
         # Initial validation passed. Delete command message and check or start
@@ -423,7 +438,8 @@ class Krill(BaseCog):
         spacestep = str(blank) * step
         message = await ctx.send(f"{spacestep}{victim_name} {red}{spaces}{head}{body}{tail}")
         if not monster:
-            await ctx.send(f"*summoned by {ctx.author.mention}*")
+            await ctx.send(Lang.get_locale_string("krill/summoned_by", ctx, name=ctx.author.mention))
+        await ctx.trigger_typing()
         while distance > 0:
             distance = distance - step
             spaces = str(blank) * distance
@@ -454,7 +470,10 @@ class Krill(BaseCog):
                 await ctx.reinvoke()
                 return
             time_display = Utils.to_pretty_time(error.retry_after)
-            await ctx.send(f"Cool it, {ctx.author.mention}. Try again in {time_display}")
+            await ctx.send(Lang.get_locale_string("krill/cooldown_message",
+                                                  ctx,
+                                                  name=ctx.author.mention,
+                                                  time_remaining=time_display))
 
     @commands.group(name="krillchannel", aliases=['krillchan'], invoke_without_command=True)
     @commands.guild_only()
@@ -463,7 +482,9 @@ class Krill(BaseCog):
     async def krill_channel(self, ctx: commands.Context):
         """Show a list of allowed channels"""
         # if ctx.invoked_subcommand is None:
-        embed = discord.Embed(timestamp=ctx.message.created_at, color=0x663399, title=Lang.get_string("krill/list_channels", server_name=ctx.guild.name))
+        embed = discord.Embed(timestamp=ctx.message.created_at,
+                              color=0x663399,
+                              title=Lang.get_locale_string("krill/list_channels", ctx, server_name=ctx.guild.name))
         if len(self.channels[ctx.guild.id]) > 0:
             value = ""
             for channel_id in self.channels[ctx.guild.id]:
@@ -475,18 +496,18 @@ class Krill(BaseCog):
             embed.add_field(name="\u200b", value=value)
             await ctx.send(embed=embed)
         else:
-            await ctx.send(Lang.get_string("krill/no_channels"))
+            await ctx.send(Lang.get_locale_string("krill/no_channels", ctx))
 
     @krill_channel.command(aliases=["new"])
     @commands.check(can_admin_krill)
     @commands.guild_only()
     async def add(self, ctx: commands.Context, channel_id: str):
-        """command_add_help"""
+        """Add a channel from list of channels in which krill command is allowed"""
         # TODO: use Converter for channel_id
         channel_id = int(channel_id)
         channel = f"<#{channel_id}>"
         if CHANNEL_ID_MATCHER.fullmatch(channel) is None or ctx.guild.get_channel(channel_id) is None:
-            await ctx.send(f"No such channel: `{channel_id}`")
+            await ctx.send(Lang.get_locale_string("krill/no_such_channel", ctx, channel_id=channel_id))
             return
 
         row = KrillChannel.get_or_none(serverid=ctx.guild.id, channelid=channel_id)
@@ -494,15 +515,15 @@ class Krill(BaseCog):
         if row is None:
             KrillChannel.create(serverid = ctx.guild.id, channelid=channel_id)
             self.channels[ctx.guild.id].add(channel_id)
-            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('krill/channel_added', channel=channel_name)}")
+            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_locale_string('krill/channel_added', ctx, channel=channel_name)}")
         else:
-            await ctx.send(Lang.get_string('krill/channel_found', channel=channel_name))
+            await ctx.send(Lang.get_locale_string('krill/channel_found', ctx, channel=channel_name))
 
     @krill_channel.command(aliases=["del", "delete"])
     @commands.check(can_admin_krill)
     @commands.guild_only()
     async def remove(self, ctx:commands.Context, channel_id):
-        """command_remove_help"""
+        """Remove a channel from list of channels in which krill command is allowed"""
         channel_id = int(channel_id)
         channel = f"<#{channel_id}>"
         channel_name = await Utils.clean(channel, guild=ctx.guild)
@@ -510,9 +531,9 @@ class Krill(BaseCog):
         if channel_id in self.channels[ctx.guild.id]:
             KrillChannel.get(serverid = ctx.guild.id, channelid=channel_id).delete_instance()
             self.channels[ctx.guild.id].remove(channel_id)
-            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_string('krill/channel_removed', channel=channel_id)}")
+            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_locale_string('krill/channel_removed', ctx, channel=channel_id)}")
         else:
-            await ctx.send(f"{Emoji.get_chat_emoji('NO')} {Lang.get_string('krill/channel_not_found', channel=channel_id)}")
+            await ctx.send(f"{Emoji.get_chat_emoji('NO')} {Lang.get_locale_string('krill/channel_not_found', ctx, channel=channel_id)}")
 
 
 def setup(bot):

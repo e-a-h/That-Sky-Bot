@@ -78,7 +78,7 @@ class ReactMonitor(BaseCog):
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=0x663399,
-            title=Lang.get_string("react_monitor/info_title", server_name=ctx.guild.name))
+            title=Lang.get_locale_string("react_monitor/info_title", ctx, server_name=ctx.guild.name))
 
         embed.add_field(name="Monitor React Removal", value="Yes" if watch.watchremoves else "No")
 
@@ -184,6 +184,9 @@ class ReactMonitor(BaseCog):
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, event):
+        if not event.guild_id:
+            return
+
         now = datetime.now().timestamp()
         # TODO: Evaluate - count react removal and auto-mute for hitting threshold in given time?
         # Add user_id to dict of recent reaction removers with timestamp

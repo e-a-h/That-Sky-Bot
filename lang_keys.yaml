@@ -1,6 +1,10 @@
+test:
 common:
   nope:
 questions:
+  text_only:
+  confirm_prompt:
+  another_attachment:
   confirm_attachments:
   restart_attachment_singular:
   restart_attachment_plural:
@@ -38,6 +42,13 @@ bugs:
   attachment_info:
   attachment_info_plural:
   report_confirmation:
+  maint_check_fail:
+  bugs_all_done:
+  none_in_progress:
+  report_channel_permissions_fail:
+  dead_bugs_cleaned:
+  maint_on:
+  maint_off:
   question_ready:
   platform:
   question_platform:
@@ -73,6 +84,8 @@ eden:
   reset:
   tz_help:
   tz_mention:
+  cool_it:
+  channel_cooldown:
 welcome:
   welcome_msg:
   welcome_mute_msg:
@@ -83,6 +96,18 @@ welcome:
   darkened_plural:
   mute_settings_title:
   help:
+lang:
+  default_set:
+  default_not_changed:
+  lang_settings_title:
+  unknown_locale:
+  reloaded:
+  channel_not_unset:
+  channel_unset:
+  channel_already_set:
+  channel_set:
+  test:
+  test_failed:
 dropbox:
   list:
   added:
@@ -92,6 +117,8 @@ dropbox:
   not_removed:
   channel_not_found:
   override_confirmation:
+  msg_delivered:
+  msg_not_delivered:
 autoresponder:
   mod_action_header:
   mod_action_warning:
@@ -122,7 +149,6 @@ autoresponder:
   prompt_response:
   prompt_trigger:
   prompt_chance:
-  help:
   on_or_off:
   expect_integer:
 krill:
@@ -134,6 +160,30 @@ krill:
   channel_removed:
   channel_not_found:
   channel_found:
+  letter_not_found:
+  smells_clean:
+  invalid_letter_category:
+  bad_person:
+  letter_already_filtered:
+  letter_filter_added:
+  letter_not_filtered:
+  letter_filter_removed:
+  oreo_cooldown_reset:
+  no_monsters:
+  monster_added:
+  monster_removed:
+  member_ignored:
+  member_not_ignored:
+  member_not_found:
+  oreo_cooldown_message:
+  not_oreo:
+  dirty_trick:
+  too_much_text:
+  too_many_emoji:
+  nice_try:
+  summoned_by:
+  cooldown_message:
+  no_such_channel:
 react_monitor:
   info_title:
 art:
@@ -143,6 +193,8 @@ art:
   channel_not_found:
   channel_found:
   channel_removed:
+  no_such_channel:
+  remove_channel_failed:
 custom_commands:
   list_commands:
   no_commands:

@@ -15,14 +15,14 @@ connection = MySQLDatabase(Configuration.get_var("DATABASE_NAME"),
 class Guild(Model):
     id = PrimaryKeyField()
     serverid = BigIntegerField()
-    memberrole = BigIntegerField()
-    nonmemberrole = BigIntegerField()
-    mutedrole = BigIntegerField()
-    welcomechannelid = BigIntegerField()
-    ruleschannelid = BigIntegerField()
-    logchannelid = BigIntegerField()
-    entrychannelid = BigIntegerField()
-    rulesreactmessageid = BigIntegerField()
+    memberrole = BigIntegerField(default=0)
+    nonmemberrole = BigIntegerField(default=0)
+    mutedrole = BigIntegerField(default=0)
+    welcomechannelid = BigIntegerField(default=0)
+    ruleschannelid = BigIntegerField(default=0)
+    logchannelid = BigIntegerField(default=0)
+    entrychannelid = BigIntegerField(default=0)
+    rulesreactmessageid = BigIntegerField(default=0)
     defaultlocale = CharField(max_length=10)
 
     class Meta:
@@ -160,9 +160,9 @@ class DropboxChannel(Model):
 
 class Localization(Model):
     id = PrimaryKeyField()
-    guild = ForeignKeyField(Guild, backref='channel_locales')
+    guild = ForeignKeyField(Guild, backref='locales')
     channelid = BigIntegerField(default=0)
-    locale = CharField(max_length=10)
+    locale = CharField(max_length=10, default='')
 
     class Meta:
         database = connection
