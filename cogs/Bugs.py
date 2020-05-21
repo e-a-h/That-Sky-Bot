@@ -195,11 +195,15 @@ class Bugs(BaseCog):
             try:
                 await self.delete_progress(uid)
                 user = self.bot.get_user(uid)
-                await user.send(Lang.get_locale_string('bugs/user_reset', Lang.ALL_LOCALES))
+                await user.send(Lang.get_locale_string('bugs/user_reset',
+                                                       Configuration.get_var('welcome_locale', 'en_US')))
             except Exception as e:
                 await ctx.send(f"can't reset bug report for <@{uid}>")
         self.in_progress = dict()
-        await ctx.send(Lang.get_locale_string('bugs/dead_bugs_cleaned', ctx, active_keys=len(active_keys), in_progress=len(self.in_progress)))
+        await ctx.send(Lang.get_locale_string('bugs/dead_bugs_cleaned',
+                                              ctx,
+                                              active_keys=len(active_keys),
+                                              in_progress=len(self.in_progress)))
 
     async def report_bug(self, user, trigger_channel):
         # fully ignore muted users
