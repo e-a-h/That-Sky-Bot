@@ -32,20 +32,23 @@ class Skybot(Bot):
                          "python"))
 
     async def on_ready(self):
-        if not self.loaded:
-            Logging.BOT_LOG_CHANNEL = self.get_channel(Configuration.get_var("log_channel"))
-            Emoji.initialize(self)
+        if self.loaded:
+            await Logging.bot_log("Skybot reconnect")
+            return
 
-            for cog in Configuration.get_var("cogs"):
-                try:
-                    self.load_extension("cogs." + cog)
-                except Exception as e:
-                    await Utils.handle_exception(f"Failed to load cog {cog}", self, e)
-            Logging.info("Cogs loaded")
-            self.db_keepalive = self.loop.create_task(self.keepDBalive())
-            self.loaded = True
+        Logging.BOT_LOG_CHANNEL = self.get_channel(Configuration.get_var("log_channel"))
+        Emoji.initialize(self)
 
-        await Logging.bot_log("Sky bot soaring through the skies!")
+        for cog in Configuration.get_var("cogs"):
+            try:
+                self.load_extension("cogs." + cog)
+            except Exception as e:
+                await Utils.handle_exception(f"Failed to load cog {cog}", self, e)
+        Logging.info("Cogs loaded")
+        self.db_keepalive = self.loop.create_task(self.keepDBalive())
+        self.loaded = True
+
+        await Logging.bot_log("Skybot soaring through the skies!")
 
     def get_config_channel(self, guild_id: int, channel_name: str):
         if Utils.validate_channel_name(channel_name):
@@ -123,9 +126,13 @@ def before_send(event, hint):
     return event
 
 
+def can_help(ctx):
+    return ctx.author.guild_permissions.mute_members
+
+
 if __name__ == '__main__':
     Logging.init()
-    Logging.info("Launching thatskybot!")
+    Logging.info("Launching Skybot!")
 
     dsn = Configuration.get_var('SENTRY_DSN', '')
     dsn_env = Configuration.get_var('SENTRY_ENV', 'Dev')
@@ -137,7 +144,7 @@ if __name__ == '__main__':
     loop = asyncio.get_event_loop()
 
     skybot = Skybot(command_prefix=Configuration.get_var("bot_prefix"), case_insensitive=True, loop=loop)
-    skybot.remove_command("help")
+    skybot.help_command = commands.DefaultHelpCommand(command_attrs=dict(name='snelp', checks=[can_help]))
 
     Utils.BOT = skybot
 
@@ -156,4 +163,4 @@ if __name__ == '__main__':
             loop.run_until_complete(skybot.close())
         loop.close()
 
-    Logging.info("Shutdown complete")
+    Logging.info("Skybot shutdown complete")

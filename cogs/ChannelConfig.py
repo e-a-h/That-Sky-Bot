@@ -48,8 +48,8 @@ class ChannelConfig(BaseCog):
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=0x663399,
-            title=Lang.get_string("channel_config/info", server_name=ctx.guild.name))
-        embed.add_field(name='Commands', value=Lang.get_string("channel_config/commands"), inline=False)
+            title=Lang.get_locale_string("channel_config/info", ctx, server_name=ctx.guild.name))
+        embed.add_field(name='Commands', value=Lang.get_locale_string("channel_config/commands", ctx), inline=False)
         embed.add_field(name='Configurable Channels',
                         value=f"[{Utils.welcome_channel}|{Utils.rules_channel}|"
                               f"{Utils.log_channel}|{Utils.ro_art_channel}|{Utils.entry_channel}]",
@@ -77,7 +77,7 @@ class ChannelConfig(BaseCog):
             return
         channel_added = await self.set_channel(ctx, channel_name, channel_id)
         if channel_added:
-            message = Lang.get_string('channel_config/channel_set', channel_name=channel_name, channel_id=channel_id)
+            message = Lang.get_locale_string('channel_config/channel_set', ctx, channel_name=channel_name, channel_id=channel_id)
             await ctx.send(f"{Emoji.get_chat_emoji('YES')} {message}")
         else:
             await ctx.send(f"{Emoji.get_chat_emoji('BUG')} Failed")
