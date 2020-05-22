@@ -122,9 +122,8 @@ class Welcomer(BaseCog):
     def fetch_recent(self, time_delta: int = 1):
         """
         fetch all members who have joined within a certain number of hours
-        :param ctx:
-        :param time_delta: number of hours within which members have joined
-        :return:
+
+        time_delta: number of hours within which members have joined
         """
         now = datetime.now().timestamp()
         then = now - (time_delta * 60 * 60)
@@ -214,14 +213,14 @@ class Welcomer(BaseCog):
             # Send welcome message in configured language. default to english
             if welcome_channel and rules_channel:
                 txt = Lang.get_locale_string("welcome/welcome_msg",
-                                             Configuration.get_var('welcome_locale', 'en_US'),
+                                             Configuration.get_var('broadcast_locale', 'en_US'),
                                              user=member.mention,
                                              rules_channel=rules_channel.mention,
                                              accept_emoji=Emoji.get_chat_emoji('CANDLE'))
                 if self.mute_new_members:
                     # add mute notification if mute for new members is on
                     mute_txt = Lang.get_locale_string("welcome/welcome_mute_msg",
-                                                      Configuration.get_var('welcome_locale', 'en_US'))
+                                                      Configuration.get_var('broadcast_locale', 'en_US'))
                     txt = f"{txt}\n{mute_txt}"
                 await welcome_channel.send(txt)
                 return True
@@ -279,6 +278,37 @@ class Welcomer(BaseCog):
                          value=f"{self.mute_minutes_new_account} minutes",
                          inline=False)
         await ctx.send(embed=status)
+
+    @welcome.command(aliases=["list", "muted"])
+    @commands.guild_only()
+    async def list_muted(self, ctx):
+        muted_role = ctx.guild.get_role(Configuration.get_var("muted_role"))
+        cooling_down = []
+        untracked_mute = []
+        on_cooldown_not_muted = []
+        for member in ctx.guild.members:
+            if member.id in self.join_cooldown[ctx.guild.id]:
+                if muted_role in member.roles:
+                    cooling_down.append(Utils.get_member_log_name(member))
+                else:
+                    on_cooldown_not_muted.append(Utils.get_member_log_name(member))
+            else:
+                if muted_role in member.roles:
+                    untracked_mute.append(Utils.get_member_log_name(member))
+                else:
+                    # not on cooldown, not muted
+                    pass
+        if cooling_down:
+            msg = '\n'.join(cooling_down)
+            await ctx.send(f"**Members who are muted after recently joining:**\n{msg}")
+        if untracked_mute:
+            msg = '\n'.join(untracked_mute)
+            await ctx.send(f"**Other members who are muted:**\n{msg}")
+        if on_cooldown_not_muted:
+            msg = '\n'.join(on_cooldown_not_muted)
+            await ctx.send(f"**Members on the cooldown list WITHOUT mute**\n{msg}")
+        if not cooling_down and not untracked_mute and not on_cooldown_not_muted:
+            await ctx.send("There are no mutes and nothing tracked by welcomer.")
 
     @welcome.command(aliases=["count", "cr"])
     @commands.guild_only()
