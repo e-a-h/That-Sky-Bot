@@ -27,9 +27,9 @@ class Welcomer(BaseCog):
         self.check_cooldown.cancel()
 
     async def startup_cleanup(self):
+        self.join_cooldown = Configuration.get_persistent_var("join_cooldown", dict())
         for guild in self.bot.guilds:
             self.set_verification_mode(guild)
-            self.join_cooldown = Configuration.get_persistent_var("join_cooldown", dict())
             self.mute_minutes_old_account = Configuration.get_persistent_var(f"{guild.id}_mute_minutes_old_account", 10)
             self.mute_minutes_new_account = Configuration.get_persistent_var(f"{guild.id}_mute_minutes_new_account", 20)
             self.welcome_talkers[guild.id] = dict()
@@ -54,6 +54,10 @@ class Welcomer(BaseCog):
         # check for members to unmute
         now = datetime.now().timestamp()
 
+        def remove_member_from_cooldown(guildid, memberid):
+            del self.join_cooldown[str(guildid)][str(memberid)]
+            Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
+
         for guild in self.bot.guilds:
             # report number of mutes to metrics server
             m.bot_welcome_mute.labels(guild_id=guild.id).set(len(self.join_cooldown[str(guild.id)]))
@@ -73,23 +77,31 @@ class Welcomer(BaseCog):
             for user_id, join_time in my_mutes[str(guild.id)].items():
                 try:
                     member = guild.get_member(int(user_id))
+                    if member is None:
+                        # user left server.
+                        remove_member_from_cooldown(guild.id, user_id)
+                        continue
+
                     user_age = now - member.created_at.timestamp()
                     elapsed = int(now - join_time)
-                    cooldown_time = 60 * self.mute_minutes_old_account  # 10 minutes
+                    cooldown_time = 60 * self.mute_minutes_old_account  # 10 minutes default
                     if user_age < 60 * 60 * 24:  # 1 day
-                        cooldown_time = 60 * self.mute_minutes_new_account  # 20 minutes for new users
-                    # Logging.info(f"time remaining for {member.id}: {cooldown_time - elapsed}")
+                        cooldown_time = 60 * self.mute_minutes_new_account  # 20 minutes default for new users
+
                     if elapsed > cooldown_time:
+                        # member has waited long enough
                         if mute_role in member.roles:
                             await member.remove_roles(mute_role)
-                        del self.join_cooldown[str(guild.id)][str(user_id)]
-                        Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
+                        remove_member_from_cooldown(guild.id, user_id)
+
                 except Exception as e:
-                    # error retrieving member. they probably left while muted.
-                    # cooldown_done[guild.id].add(user_id)
-                    # Logging.debug(f"failed to unmute {user_id} in guild {guild.id}")
-                    del self.join_cooldown[str(guild.id)][str(user_id)]
-                    Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
+                    # error with member. not sure why. log it and remove from cooldown to prevent repeats
+                    remove_member_from_cooldown(guild.id, user_id)
+                    await Utils.handle_exception(f"Failed to unmute new member {user_id} in guild {guild.id}",
+                                                 self.bot, e)
+                    log_channel = self.bot.get_config_channel(guild.id, Utils.log_channel)
+                    if log_channel is not None:
+                        await log_channel.send(f"Failed to unmute <@{user_id}>. Maybe someone should look into that?")
                     continue
 
     async def cog_check(self, ctx):
