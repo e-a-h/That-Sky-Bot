@@ -46,6 +46,10 @@ class Welcomer(BaseCog):
         self.mute_new_members = False if self.discord_verification_flow else \
             Configuration.get_persistent_var(f"{guild.id}_mute_new_members", True)
 
+    def remove_member_from_cooldown(self, guildid, memberid):
+        del self.join_cooldown[str(guildid)][str(memberid)]
+        Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
+
     @tasks.loop(seconds=10.0)
     async def check_cooldown(self):
         m = self.bot.metrics
@@ -53,10 +57,6 @@ class Welcomer(BaseCog):
 
         # check for members to unmute
         now = datetime.now().timestamp()
-
-        def remove_member_from_cooldown(guildid, memberid):
-            del self.join_cooldown[str(guildid)][str(memberid)]
-            Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
 
         for guild in self.bot.guilds:
             # report number of mutes to metrics server
@@ -79,7 +79,7 @@ class Welcomer(BaseCog):
                     member = guild.get_member(int(user_id))
                     if member is None:
                         # user left server.
-                        remove_member_from_cooldown(guild.id, user_id)
+                        self.remove_member_from_cooldown(guild.id, user_id)
                         continue
 
                     user_age = now - member.created_at.timestamp()
@@ -92,11 +92,11 @@ class Welcomer(BaseCog):
                         # member has waited long enough
                         if mute_role in member.roles:
                             await member.remove_roles(mute_role)
-                        remove_member_from_cooldown(guild.id, user_id)
+                        self.remove_member_from_cooldown(guild.id, user_id)
 
                 except Exception as e:
                     # error with member. not sure why. log it and remove from cooldown to prevent repeats
-                    remove_member_from_cooldown(guild.id, user_id)
+                    self.remove_member_from_cooldown(guild.id, user_id)
                     await Utils.handle_exception(f"Failed to unmute new member {user_id} in guild {guild.id}",
                                                  self.bot, e)
                     log_channel = self.bot.get_config_channel(guild.id, Utils.log_channel)
@@ -282,12 +282,18 @@ class Welcomer(BaseCog):
     @welcome.command(aliases=["list", "muted"])
     @commands.guild_only()
     async def list_muted(self, ctx):
+        """
+        List muted members
+
+        List all members who are muted. Separate join-cooldown members from regular mutes.
+        Also list un-muted members who are somehow still on the cooldown list just in case.
+        """
         muted_role = ctx.guild.get_role(Configuration.get_var("muted_role"))
         cooling_down = []
         untracked_mute = []
         on_cooldown_not_muted = []
         for member in ctx.guild.members:
-            if member.id in self.join_cooldown[ctx.guild.id]:
+            if str(member.id) in self.join_cooldown[str(ctx.guild.id)]:
                 if muted_role in member.roles:
                     cooling_down.append(Utils.get_member_log_name(member))
                 else:
@@ -299,14 +305,23 @@ class Welcomer(BaseCog):
                     # not on cooldown, not muted
                     pass
         if cooling_down:
+            await ctx.send(f"**Members who are muted for join-cooldown:**")
             msg = '\n'.join(cooling_down)
-            await ctx.send(f"**Members who are muted after recently joining:**\n{msg}")
+            pages = Utils.paginate(msg)
+            for page in pages:
+                await ctx.send(page)
         if untracked_mute:
+            await ctx.send(f"**Members who are muted, but not on join-cooldown:**")
             msg = '\n'.join(untracked_mute)
-            await ctx.send(f"**Other members who are muted:**\n{msg}")
+            pages = Utils.paginate(msg)
+            for page in pages:
+                await ctx.send(page)
         if on_cooldown_not_muted:
+            await ctx.send(f"**Members on the join-cooldown list WITHOUT mute**")
             msg = '\n'.join(on_cooldown_not_muted)
-            await ctx.send(f"**Members on the cooldown list WITHOUT mute**\n{msg}")
+            pages = Utils.paginate(msg)
+            for page in pages:
+                await ctx.send(page)
         if not cooling_down and not untracked_mute and not on_cooldown_not_muted:
             await ctx.send("There are no mutes and nothing tracked by welcomer.")
 
