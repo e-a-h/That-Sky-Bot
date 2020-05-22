@@ -130,8 +130,9 @@ class MusicCogPlayer:
         message = "Here are your song files(s)"
         
         song_renders = song_bundle.get_all_renders()
-        
+                
         for render_mode, buffers in song_renders.items():
+
             my_files = [File(buffer, filename='%s_%d%s' % (song_title, i, render_mode.extension))
                         for (i, buffer) in enumerate(buffers)]
             if len(my_files) > 10:
@@ -226,30 +227,23 @@ class Music(BaseCog):
                 player = MusicCogPlayer(cog=self, locale='en_US')
                 maker = MusicSheetMaker(locale='en_US')
 
-                # 1. Set Song Parser
+                # 1. Sets Song Parser
                 maker.set_song_parser()
 
-                # 2. Display instructions
+                # 2. Displays instructions
                 i_instr, _ = maker.ask_instructions(recipient=player, execute=False)
                 answered = await player.async_execute_queries(channel, user, i_instr)
                 # result = i_instr.get_reply().get_result()
                 active_question += 1
 
-                #2.c
-                q_aspect, _ = maker.ask_aspect_ratio(recipient=player, prerequisites=[i_instr],
-                                                                execute=False)
-                answered = await player.async_execute_queries(channel, user, q_aspect)
-                aspect_ratio = q_aspect.get_reply().get_result()
-                active_question += 1
-
-                # 3. Ask for notes
+                # 3. Asks for notes
                 # TODO: allow the player to enter the notes using several messages??? or maybe not
                 q_notes, _ = maker.ask_notes(recipient=player, prerequisites=[i_instr], execute=False)
                 answered = await player.async_execute_queries(channel, user, q_notes)
                 notes = q_notes.get_reply().get_result()
                 active_question += 1
 
-                # 4. Ask for input mode (or display the one found)
+                # 4. Asks for input mode (or display the one found)
                 q_mode, input_mode = maker.ask_input_mode(recipient=player, notes=notes, prerequisites=[q_notes],
                                                           execute=False)
                 answered = await player.async_execute_queries(channel, user, q_mode)
@@ -257,49 +251,73 @@ class Music(BaseCog):
                     input_mode = q_mode.get_reply().get_result()
                 active_question += 1
 
-                # 5. Set input_mode
+                # 4b. Sets input_mode
                 maker.set_parser_input_mode(recipient=player, input_mode=input_mode)
                 active_question += 1
 
-                # 6. Ask for song keye (or display the only one possible)
+                # 5. Asks for song key (or display the only one possible)
                 (q_key, song_key) = maker.ask_song_key(recipient=player, notes=notes, input_mode=input_mode,
                                                        prerequisites=[q_notes, q_mode], execute=False)
                 answered = await player.async_execute_queries(channel, user, q_key)
                 if song_key is None:
-                    song_key = maker.retrieve_song_key(recipient=player, notes=notes, input_mode=input_mode)
-                    # song_key = q_mode.get_reply().get_result()
+                    song_key = q_key.get_reply().get_result()
                 active_question += 1
 
-                # 7. Asks for octave shift
+                # 6. Asks for octave shift
                 q_shift, _ = maker.ask_octave_shift(recipient=player, execute=False)
                 answered = await player.async_execute_queries(channel, user, q_shift)
                 octave_shift = q_shift.get_reply().get_result()
                 active_question += 1
 
-                # 8. Parse song
+                # 7. Parses song
                 maker.parse_song(recipient=player, notes=notes, song_key=song_key, octave_shift=octave_shift)
                 active_question += 1
 
-                # 9. Displays error ratio
+                # 8. Displays error ratio
                 i_error, _ = maker.display_error_ratio(recipient=player, prerequisites=[q_notes, q_mode, q_shift],
                                                        execute=False)
                 answered = await player.async_execute_queries(channel, user, i_error)
                 active_question += 1
 
-                # 10. Asks for song metadata
+                # 9. Asks for song metadata
                 qs_meta, _ = maker.ask_song_metadata(recipient=player, execute=False)
                 answered = await player.async_execute_queries(channel, user, qs_meta)
                 (title, artist, transcript) = [q.get_reply().get_result() for q in qs_meta]
-                maker.get_song().set_meta(title=title, artist=artist, transcript=transcript, song_key=song_key)
+                
+                # 9.b Sets song metadata
+                maker.set_song_metadata(recipient=player, meta=(title, artist, transcript), song_key=song_key)
                 active_question += 1
 
-                # 11. Renders Song
-                song_bundle = await asyncio.get_event_loop().run_in_executor(None, maker.render_song, player, None, aspect_ratio)
+                # 10 Asks for render modes
+                #q_render, _ = self.ask_render_modes(recipient=recipient)
+                #if q_render is not None:
+                #    answered = await player.async_execute_queries(channel, user, q_render)
+                #    render_modes = q_render.get_reply().get_result()
+                #active_question += 1
+                
+                # 11 Asks render mode
+                q_aspect, aspect_ratio = maker.ask_aspect_ratio(recipient=player, execute=False)
+                if aspect_ratio is None:
+                    answered = await player.async_execute_queries(channel, user, q_aspect)
+                    aspect_ratio = q_aspect.get_reply().get_result()
+                active_question += 1
+
+                # 12. Ask beats per minutes
+                #q_song_bpm, _ = self.ask_song_bpm(recipient=player, execute=False)
+                #(q_song_bpm, song_bpm) = self.ask_song_bpm(recipient=recipient, prerequisites=[q_render])  # EXPERIMENTAL       
+                #if q_song_bpm is not None:
+                #    answered = await player.async_execute_queries(channel, user, q_song_bpm)
+                #    song_bpm = q_song_bpm.get_reply().get_result()
+                #active_question += 1
+
+
+                # 13. Renders Song
+                song_bundle = await asyncio.get_event_loop().run_in_executor(None, maker.render_song, player, None, aspect_ratio, 120)
 
                 await player.send_song_to_channel(channel, user, song_bundle, title)
                 active_question += 1
 
-                self.bot.loop.create_task(self.delete_progress_delayed(user))
+                self.bot.loop.create_task(self.delete_progress(user))
 
         except Forbidden as ex:
             await ctx.send(
