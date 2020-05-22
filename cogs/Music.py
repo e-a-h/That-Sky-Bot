@@ -217,15 +217,16 @@ class Music(BaseCog):
             # starts a dm
             channel = await user.create_dm()
             asking = True
+            locale = Lang.get_defaulted_locale(ctx)[0]
 
             if not asking:
                 return
             else:
-
+                
                 active_question = 0
 
-                player = MusicCogPlayer(cog=self, locale='en_US')
-                maker = MusicSheetMaker(locale='en_US')
+                player = MusicCogPlayer(cog=self, locale=locale)
+                maker = MusicSheetMaker(locale=locale)
 
                 # 1. Sets Song Parser
                 maker.set_song_parser()
