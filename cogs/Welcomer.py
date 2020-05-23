@@ -279,14 +279,25 @@ class Welcomer(BaseCog):
                          inline=False)
         await ctx.send(embed=status)
 
+    def muted_mode(argument):
+        mode = int(argument)
+        if mode in [0, 1, 2, 3]:
+            return mode
+        raise discord.ext.commands.UserInputError('Bad mode')
+
     @welcome.command(aliases=["list", "muted"])
     @commands.guild_only()
-    async def list_muted(self, ctx):
+    async def list_muted(self, ctx, mode: muted_mode = 1):
         """
         List muted members
 
         List all members who are muted. Separate join-cooldown members from regular mutes.
         Also list un-muted members who are somehow still on the cooldown list just in case.
+
+        mode: 1. List muted members on join-cooldown
+              2. List muted members NOT on join-cooldown
+              3. List join-cooldown members who are NOT muted
+              0. List all
         """
         muted_role = ctx.guild.get_role(Configuration.get_var("muted_role"))
         cooling_down = []
@@ -304,19 +315,28 @@ class Welcomer(BaseCog):
                 else:
                     # not on cooldown, not muted
                     pass
-        if cooling_down:
+        if mode in [0, 1]:
+            if not cooling_down:
+                await ctx.send("No members on join-cooldown")
+                return
             await ctx.send(f"**Members who are muted for join-cooldown:**")
             msg = '\n'.join(cooling_down)
             pages = Utils.paginate(msg)
             for page in pages:
                 await ctx.send(page)
-        if untracked_mute:
+        if mode in [0, 2]:
+            if not untracked_mute:
+                await ctx.send("No non-cooldown mutes")
+                return
             await ctx.send(f"**Members who are muted, but not on join-cooldown:**")
             msg = '\n'.join(untracked_mute)
             pages = Utils.paginate(msg)
             for page in pages:
                 await ctx.send(page)
-        if on_cooldown_not_muted:
+        if mode in [0, 3]:
+            if not on_cooldown_not_muted:
+                await ctx.send("No errant unmuted cooldown members")
+                return
             await ctx.send(f"**Members on the join-cooldown list WITHOUT mute**")
             msg = '\n'.join(on_cooldown_not_muted)
             pages = Utils.paginate(msg)
@@ -547,6 +567,13 @@ class Welcomer(BaseCog):
     @commands.command(aliases=['set_rules_message', 'setrulesid'])
     @commands.guild_only()
     async def set_rules_react_message_id(self, ctx, message_id: int):
+        """
+        Set the message ID of the rules react-to-join message
+
+        Setting rules message ID also clears reactions, and may be helpful if discord glitches from too many reacts
+
+        message_id: Message id of rules react message
+        """
         rules_channel = self.bot.get_config_channel(ctx.guild.id, Utils.rules_channel)
         try:
             rules = await rules_channel.fetch_message(message_id)
