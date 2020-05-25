@@ -62,9 +62,13 @@ def get_defaulted_locale(ctx):
     if isinstance(ctx, Context):
         # TODO: move guild/channel checks to LangConfig, store in dict, update there on guild events and config changes
         cid = ctx.channel.id
+
         if ctx.guild is None:
             # DM - default the language
-            return Configuration.get_var('broadcast_locale', 'en_US')
+            locale = Configuration.get_var('broadcast_locale', 'en_US')
+            if locale == ALL_LOCALES:
+                return locales
+            return [locale]
 
         gid = ctx.guild.id
         guild_row = Guild.get_or_none(serverid=gid)

@@ -40,26 +40,29 @@ class Eden(BaseCog):
         channel_cooldown = False
         response_cooldown = False
 
-        # create cooldown response trackers if none
-        if cid not in self.cooldown_responses:
-            self.cooldown_responses[cid] = 0
-        if cid not in self.responses:
-            self.responses[cid] = 0
+        # cooldown stuff when not in DMs
+        if ctx.guild:
+            # create cooldown response trackers if none
+            if cid not in self.cooldown_responses:
+                self.cooldown_responses[cid] = 0
+            if cid not in self.responses:
+                self.responses[cid] = 0
 
-        async for message in ctx.channel.history(limit=10):
-            if message.id == self.responses[cid]:
-                channel_cooldown = True
-            if message.id == self.cooldown_responses[cid]:
-                response_cooldown = True
+            # Give some snark if this command was called within 10 messages
+            async for message in ctx.channel.history(limit=10):
+                if message.id == self.responses[cid]:
+                    channel_cooldown = True
+                if message.id == self.cooldown_responses[cid]:
+                    response_cooldown = True
 
-        if channel_cooldown:
-            await ctx.message.delete()
-            if not response_cooldown:
-                # send channel cooldown message
-                msg = Lang.get_locale_string('eden/channel_cooldown', ctx, author=ctx.author.mention)
-                cooldown_msg = await ctx.send(msg)
-                self.cooldown_responses[cid] = cooldown_msg.id
-            return
+            if channel_cooldown:
+                await ctx.message.delete()
+                if not response_cooldown:
+                    # send channel cooldown message
+                    msg = Lang.get_locale_string('eden/channel_cooldown', ctx, author=ctx.author.mention)
+                    cooldown_msg = await ctx.send(msg)
+                    self.cooldown_responses[cid] = cooldown_msg.id
+                return
 
         server_zone = pytz.timezone("America/Los_Angeles")
         try:
@@ -74,15 +77,17 @@ class Eden(BaseCog):
             await ctx.send(Lang.get_locale_string('eden/tz_help', ctx, tz=tz))
             return
 
-        cool_down = self.check_cool_down(ctx.author)
-        if cool_down:
-            v = Utils.to_pretty_time(cool_down)
-            msg = Lang.get_locale_string('eden/cool_it', ctx, author=ctx.author.mention, remain=v)
-            await ctx.send(msg)
-            return
-        else:
-            # start a new cool-down timer
-            self.cool_down[ctx.author.id] = datetime.now().timestamp()
+        # cooldown stuff when not in DMs
+        if ctx.guild:
+            cool_down = self.check_cool_down(ctx.author)
+            if cool_down:
+                v = Utils.to_pretty_time(cool_down)
+                msg = Lang.get_locale_string('eden/cool_it', ctx, author=ctx.author.mention, remain=v)
+                await ctx.send(msg)
+                return
+            else:
+                # start a new cool-down timer
+                self.cool_down[ctx.author.id] = datetime.now().timestamp()
 
         # get a timestamp of today with the correct hour, eden reset is 7am UTC
         dt = datetime.now().astimezone(server_zone).replace(hour=0, minute=0, second=0, microsecond=0)

@@ -585,7 +585,7 @@ class Bugs(BaseCog):
             except (NotFound, HTTPException) as e:
                 await Utils.handle_exception(f"Failed to get message {channel.id}/{event.message_id}", self, e)
                 # TODO: Does anyone need to know about this?
-                #  Consider letter user know why report didn't start?
+                #  Consider letting user know why report didn't start?
                 return
             await self.report_bug(user, channel)
 
