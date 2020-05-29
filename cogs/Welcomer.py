@@ -27,9 +27,9 @@ class Welcomer(BaseCog):
         self.check_cooldown.cancel()
 
     async def startup_cleanup(self):
+        self.join_cooldown = Configuration.get_persistent_var("join_cooldown", dict())
         for guild in self.bot.guilds:
             self.set_verification_mode(guild)
-            self.join_cooldown = Configuration.get_persistent_var("join_cooldown", dict())
             self.mute_minutes_old_account = Configuration.get_persistent_var(f"{guild.id}_mute_minutes_old_account", 10)
             self.mute_minutes_new_account = Configuration.get_persistent_var(f"{guild.id}_mute_minutes_new_account", 20)
             self.welcome_talkers[guild.id] = dict()
@@ -45,6 +45,10 @@ class Welcomer(BaseCog):
         # Otherwise, mute new members UNLESS it's manually overridden
         self.mute_new_members = False if self.discord_verification_flow else \
             Configuration.get_persistent_var(f"{guild.id}_mute_new_members", True)
+
+    def remove_member_from_cooldown(self, guildid, memberid):
+        del self.join_cooldown[str(guildid)][str(memberid)]
+        Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
 
     @tasks.loop(seconds=10.0)
     async def check_cooldown(self):
@@ -73,23 +77,31 @@ class Welcomer(BaseCog):
             for user_id, join_time in my_mutes[str(guild.id)].items():
                 try:
                     member = guild.get_member(int(user_id))
+                    if member is None:
+                        # user left server.
+                        self.remove_member_from_cooldown(guild.id, user_id)
+                        continue
+
                     user_age = now - member.created_at.timestamp()
                     elapsed = int(now - join_time)
-                    cooldown_time = 60 * self.mute_minutes_old_account  # 10 minutes
+                    cooldown_time = 60 * self.mute_minutes_old_account  # 10 minutes default
                     if user_age < 60 * 60 * 24:  # 1 day
-                        cooldown_time = 60 * self.mute_minutes_new_account  # 20 minutes for new users
-                    # Logging.info(f"time remaining for {member.id}: {cooldown_time - elapsed}")
+                        cooldown_time = 60 * self.mute_minutes_new_account  # 20 minutes default for new users
+
                     if elapsed > cooldown_time:
+                        # member has waited long enough
                         if mute_role in member.roles:
                             await member.remove_roles(mute_role)
-                        del self.join_cooldown[str(guild.id)][str(user_id)]
-                        Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
+                        self.remove_member_from_cooldown(guild.id, user_id)
+
                 except Exception as e:
-                    # error retrieving member. they probably left while muted.
-                    # cooldown_done[guild.id].add(user_id)
-                    # Logging.debug(f"failed to unmute {user_id} in guild {guild.id}")
-                    del self.join_cooldown[str(guild.id)][str(user_id)]
-                    Configuration.set_persistent_var("join_cooldown", self.join_cooldown)
+                    # error with member. not sure why. log it and remove from cooldown to prevent repeats
+                    self.remove_member_from_cooldown(guild.id, user_id)
+                    await Utils.handle_exception(f"Failed to unmute new member {user_id} in guild {guild.id}",
+                                                 self.bot, e)
+                    log_channel = self.bot.get_config_channel(guild.id, Utils.log_channel)
+                    if log_channel is not None:
+                        await log_channel.send(f"Failed to unmute <@{user_id}>. Maybe someone should look into that?")
                     continue
 
     async def cog_check(self, ctx):
@@ -110,9 +122,8 @@ class Welcomer(BaseCog):
     def fetch_recent(self, time_delta: int = 1):
         """
         fetch all members who have joined within a certain number of hours
-        :param ctx:
-        :param time_delta: number of hours within which members have joined
-        :return:
+
+        time_delta: number of hours within which members have joined
         """
         now = datetime.now().timestamp()
         then = now - (time_delta * 60 * 60)
@@ -202,14 +213,14 @@ class Welcomer(BaseCog):
             # Send welcome message in configured language. default to english
             if welcome_channel and rules_channel:
                 txt = Lang.get_locale_string("welcome/welcome_msg",
-                                             Configuration.get_var('welcome_locale', 'en_US'),
+                                             Configuration.get_var('broadcast_locale', 'en_US'),
                                              user=member.mention,
                                              rules_channel=rules_channel.mention,
                                              accept_emoji=Emoji.get_chat_emoji('CANDLE'))
                 if self.mute_new_members:
                     # add mute notification if mute for new members is on
                     mute_txt = Lang.get_locale_string("welcome/welcome_mute_msg",
-                                                      Configuration.get_var('welcome_locale', 'en_US'))
+                                                      Configuration.get_var('broadcast_locale', 'en_US'))
                     txt = f"{txt}\n{mute_txt}"
                 await welcome_channel.send(txt)
                 return True
@@ -267,6 +278,72 @@ class Welcomer(BaseCog):
                          value=f"{self.mute_minutes_new_account} minutes",
                          inline=False)
         await ctx.send(embed=status)
+
+    def muted_mode(argument):
+        mode = int(argument)
+        if mode in [0, 1, 2, 3]:
+            return mode
+        raise discord.ext.commands.UserInputError('Bad mode')
+
+    @welcome.command(aliases=["list", "muted"])
+    @commands.guild_only()
+    async def list_muted(self, ctx, mode: muted_mode = 1):
+        """
+        List muted members
+
+        List all members who are muted. Separate join-cooldown members from regular mutes.
+        Also list un-muted members who are somehow still on the cooldown list just in case.
+
+        mode: 1. List muted members on join-cooldown
+              2. List muted members NOT on join-cooldown
+              3. List join-cooldown members who are NOT muted
+              0. List all
+        """
+        muted_role = ctx.guild.get_role(Configuration.get_var("muted_role"))
+        cooling_down = []
+        untracked_mute = []
+        on_cooldown_not_muted = []
+        for member in ctx.guild.members:
+            if str(member.id) in self.join_cooldown[str(ctx.guild.id)]:
+                if muted_role in member.roles:
+                    cooling_down.append(Utils.get_member_log_name(member))
+                else:
+                    on_cooldown_not_muted.append(Utils.get_member_log_name(member))
+            else:
+                if muted_role in member.roles:
+                    untracked_mute.append(Utils.get_member_log_name(member))
+                else:
+                    # not on cooldown, not muted
+                    pass
+        if mode in [0, 1]:
+            if not cooling_down:
+                await ctx.send("No members on join-cooldown")
+                return
+            await ctx.send(f"**Members who are muted for join-cooldown:**")
+            msg = '\n'.join(cooling_down)
+            pages = Utils.paginate(msg)
+            for page in pages:
+                await ctx.send(page)
+        if mode in [0, 2]:
+            if not untracked_mute:
+                await ctx.send("No non-cooldown mutes")
+                return
+            await ctx.send(f"**Members who are muted, but not on join-cooldown:**")
+            msg = '\n'.join(untracked_mute)
+            pages = Utils.paginate(msg)
+            for page in pages:
+                await ctx.send(page)
+        if mode in [0, 3]:
+            if not on_cooldown_not_muted:
+                await ctx.send("No errant unmuted cooldown members")
+                return
+            await ctx.send(f"**Members on the join-cooldown list WITHOUT mute**")
+            msg = '\n'.join(on_cooldown_not_muted)
+            pages = Utils.paginate(msg)
+            for page in pages:
+                await ctx.send(page)
+        if not cooling_down and not untracked_mute and not on_cooldown_not_muted:
+            await ctx.send("There are no mutes and nothing tracked by welcomer.")
 
     @welcome.command(aliases=["count", "cr"])
     @commands.guild_only()
@@ -490,6 +567,13 @@ class Welcomer(BaseCog):
     @commands.command(aliases=['set_rules_message', 'setrulesid'])
     @commands.guild_only()
     async def set_rules_react_message_id(self, ctx, message_id: int):
+        """
+        Set the message ID of the rules react-to-join message
+
+        Setting rules message ID also clears reactions, and may be helpful if discord glitches from too many reacts
+
+        message_id: Message id of rules react message
+        """
         rules_channel = self.bot.get_config_channel(ctx.guild.id, Utils.rules_channel)
         try:
             rules = await rules_channel.fetch_message(message_id)

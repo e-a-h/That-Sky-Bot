@@ -196,9 +196,10 @@ class Bugs(BaseCog):
                 await self.delete_progress(uid)
                 user = self.bot.get_user(uid)
                 await user.send(Lang.get_locale_string('bugs/user_reset',
-                                                       Configuration.get_var('welcome_locale', 'en_US')))
+                                                       Configuration.get_var('broadcast_locale', 'en_US')))
+                await ctx.send(Lang.get_locale_string('bugs/reset_success', uid=uid))
             except Exception as e:
-                await ctx.send(f"can't reset bug report for <@{uid}>")
+                await ctx.send(Lang.get_locale_string('bugs/reset_fail', uid=uid))
         self.in_progress = dict()
         await ctx.send(Lang.get_locale_string('bugs/dead_bugs_cleaned',
                                               ctx,
@@ -585,7 +586,7 @@ class Bugs(BaseCog):
             except (NotFound, HTTPException) as e:
                 await Utils.handle_exception(f"Failed to get message {channel.id}/{event.message_id}", self, e)
                 # TODO: Does anyone need to know about this?
-                #  Consider letter user know why report didn't start?
+                #  Consider letting user know why report didn't start?
                 return
             await self.report_bug(user, channel)
 
