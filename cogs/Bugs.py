@@ -197,8 +197,9 @@ class Bugs(BaseCog):
                 user = self.bot.get_user(uid)
                 await user.send(Lang.get_locale_string('bugs/user_reset',
                                                        Configuration.get_var('broadcast_locale', 'en_US')))
+                await ctx.send(Lang.get_locale_string('bugs/reset_success', uid=uid))
             except Exception as e:
-                await ctx.send(f"can't reset bug report for <@{uid}>")
+                await ctx.send(Lang.get_locale_string('bugs/reset_fail', uid=uid))
         self.in_progress = dict()
         await ctx.send(Lang.get_locale_string('bugs/dead_bugs_cleaned',
                                               ctx,

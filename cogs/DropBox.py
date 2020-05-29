@@ -166,7 +166,7 @@ class DropBox(BaseCog):
             return
 
         #  wait for other bots to act, then check if message deleted (censored)
-        await asyncio.sleep(1)
+        await asyncio.sleep(5)
         try:
             ctx = await self.bot.get_context(message)
             message = await ctx.channel.fetch_message(message.id)

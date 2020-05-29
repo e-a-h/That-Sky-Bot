@@ -28,6 +28,8 @@ bugs:
   sweep_trash:
   user_reset:
   stop_spamming:
+  reset_fail:
+  reset_success:
   start_over:
   start_over_yes:
   start_over_no:

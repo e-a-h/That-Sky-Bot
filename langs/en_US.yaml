@@ -27,6 +27,8 @@ bugs:
   sweep_trash: Sorry to bother you, but you had an in-progress bug report that was idle for too long. I deleted it. If you think you received this message in error, please report me to the proper authorites (a moderator in the Sky server)
   user_reset: Sorry to bother you, but if you had a Sky bug report active, it has been aborted. If you still have a bug to report, please try again later.
   stop_spamming: "{user} stop spamming the bug reaction!"
+  reset_fail: I failed to reset an in-progress bug report for <@{uid}> so I'll just abandon the report. Maybe send them a DM if you want, I don't care either way.
+  reset_success: I reset an in-progress bug report for <@{uid}> and informed them by DM
   start_over: "{user} You are already in the middle of reporting a bug. Do you want to cancel that report to start over?"
   start_over_yes: Cancel my in-progress report and start a new one
   start_over_no: Do not cancel my in-progress report

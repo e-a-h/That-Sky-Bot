@@ -27,6 +27,8 @@ bugs:
   sweep_trash: --jp-- Sorry to bother you, but you had an in-progress bug report that was idle for too long. I deleted it. If you think you received this message in error, please report me to the proper authorites (a moderator in the Sky server)
   user_reset: --jp-- Sorry to bother you, but if you had a Sky bug report active, it has been aborted. If you still have a bug to report, please try again later.
   stop_spamming: "--jp-- {user} stop spamming the bug reaction!"
+  reset_fail: --jp-- I failed to reset an in-progress bug report for <@{uid}>, so I'll just abandon the report. Maybe send them a DM if you want.
+  reset_success: --jp-- I reset an in-progress bug report for <@{uid}> and informed them by DM
   start_over: "--jp-- {user} You are already in the middle of reporting a bug. Do you want to cancel that report to start over?"
   start_over_yes: --jp-- Cancel my in-progress report and start a new one
   start_over_no: --jp-- Do not cancel my in-progress report
