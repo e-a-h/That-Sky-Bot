@@ -57,6 +57,8 @@ class ReactMonitor(BaseCog):
         self.react_watch_servers.remove(guild_id)
 
     async def is_user_event_ignored(self, event):
+        if not event.guild_id:
+            return True
         server_is_listening = event.guild_id in self.react_watch_servers
         is_bot = event.user_id == self.bot.user.id
         is_owner = await self.bot.is_owner(self.bot.get_user(event.user_id))
