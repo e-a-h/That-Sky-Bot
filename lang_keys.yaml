@@ -239,3 +239,12 @@ sweeps:
   entries_sub_command:
   end_sweeps_sub_command:
   help:
+music:
+  dm_unable:
+  text_too_long:
+  abort_song:
+  song_timeout:
+  song_trash:
+  start_over:
+  start_over_yes:
+  start_over_no:

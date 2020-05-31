@@ -29,7 +29,7 @@ class MusicCogPlayer:
 
     def __init__(self, cog, locale='en_US'):
         self.cog = cog
-        self.name = 'music-cog'  # Must be defined before instanciating communicator
+        self.name = 'music-cog'  # Must be defined before instantiating communicator
         self.locale = locale
         self.communicator = Communicator(owner=self, locale=locale)
 
@@ -45,14 +45,14 @@ class MusicCogPlayer:
     def max_length(self, length):
         def real_check(text):
             if len(text) > length:
-                return Lang.get_string("music/text_too_long", max=length)  # TODO: check that this string exists
+                return Lang.get_locale_string("music/text_too_long", self.locale, max=length)
+                # TODO: check that this string exists
             return True
-
         return real_check
 
     async def async_execute_queries(self, channel, user, queries=None):
 
-        question_timeout = 5 * 60
+        question_timeout = 5 * 60  # TODO: config?
 
         if queries is None:
             self.communicator.memory.clean()
@@ -64,7 +64,6 @@ class MusicCogPlayer:
         for q in queries:
             reply_valid = False
             while not reply_valid:
-
                 async def answer_number(first_number, i):
                     nonlocal answer_number
                     if isinstance(i, int):
@@ -73,23 +72,22 @@ class MusicCogPlayer:
                         answer_number = i
                 
                 query_dict = self.communicator.query_to_discord(q)
-
-                options = [Questions.Option("QUESTION_MARK", 'Help', handler=answer_number, args=(None,'?'))]
+                options = [Questions.Option("QUESTION_MARK", 'Help', handler=answer_number, args=(None, '?'))]
 
                 if 'options' in query_dict:
-                    
-                    if len(query_dict['options']) > 0 and len(query_dict['options']) <= 10:
-
+                    if 0 < len(query_dict['options']) <= 10:
                         reaction_choices = True
                         question_text = query_dict['question']
                         first_number = query_dict['options'][0]['number']
-                        options = options + [Questions.Option("NUMBER_%d" % i, option['text'], handler=answer_number, args=(first_number,i))
-                                   for i, option in enumerate(query_dict['options'])]
+                        option = [Questions.Option("NUMBER_%d" % i,
+                                                   option['text'],
+                                                   handler=answer_number,
+                                                   args=(first_number, i))
+                                  for i, option in enumerate(query_dict['options'])]
+                        options = options + option
                     else:
-
                         reaction_choices = False
                         question_text = query_dict['result']
-
                 else:
                     reaction_choices = False
                     question_text = query_dict['result']
@@ -120,12 +118,18 @@ class MusicCogPlayer:
                     if message is not None:
                         q.reply_to('ok')
                         reply_valid = q.get_reply_validity()
-
         return True
 
     async def send_song_to_channel(self, channel, user, song_bundle, song_title='Untitled'):
+        """
+        A song bundle is an objcet returning a dictionary of song meta data and a dict of IOString or IOBytes buffers,
+        as lists indexed by their RenderMode
 
-        # A song bundle is an objcet returning a dictionary of song meta data and a dict of IOString or IOBytes buffers, as lists indexed by their RenderMode
+        channel:
+        user:
+        song_bundle:
+        song_title:
+        """
         await channel.trigger_typing()
         message = "Here are your song files(s)"
         
@@ -161,7 +165,7 @@ class Music(BaseCog):
         await asyncio.sleep(delete_timeout)
         if user.id in self.in_progress:
             if not self.in_progress[user.id].done() or not self.in_progress[user.id].cancelled():
-                await user.send(Lang.get_string("music/song_trash"))
+                await user.send(Lang.get_locale_string("music/song_trash", self.locale))
 
             await self.delete_progress(user.id)
 
@@ -171,14 +175,12 @@ class Music(BaseCog):
 
     @commands.command(aliases=['song'])
     async def transcribe_song(self, ctx: Context):
-
         if ctx.guild is not None:
             await ctx.message.delete()  # remove command to not flood chat (unless we are in a DM already)
 
         user = ctx.author
 
         if user.id in self.in_progress:
-
             starting_over = False
 
             async def start_over():
@@ -187,11 +189,11 @@ class Music(BaseCog):
 
             # ask if user wants to start over
             await Questions.ask(bot=self.bot, channel=ctx.channel, author=user,
-                                text=Lang.get_string("music/start_over", user=user.mention),
+                                text=Lang.get_locale_string("music/start_over", ctx, user=user.mention),
                                 options=[
-                                    Questions.Option("YES", Lang.get_string("music/start_over_yes"),
+                                    Questions.Option("YES", Lang.get_locale_string("music/start_over_yes", ctx),
                                                      handler=start_over),
-                                    Questions.Option("NO", Lang.get_string("music/start_over_no"))
+                                    Questions.Option("NO", Lang.get_locale_string("music/start_over_no", ctx))
                                 ],
                                 show_embed=True, delete_after=True)
 
@@ -218,6 +220,25 @@ class Music(BaseCog):
             channel = await user.create_dm()
             asking = True
             locale = Lang.get_defaulted_locale(ctx)[0]
+
+            # start global report timer and question timer
+            song_start_time = question_start_time = time.time()
+            # TODO: m.music_songs_started.inc()
+
+            def update_metrics():
+                nonlocal active_question
+                nonlocal question_start_time
+
+                now = time.time()
+                question_duration = now - question_start_time
+                question_start_time = now
+
+                # Record the time taken to answer the previous question
+                # TODO: update prom mon with music_ metrics
+                # gauge = getattr(m, f"music_question_{active_question}_duration")
+                # gauge.set(question_duration)
+
+                active_question = active_question + 1
 
             if not asking:
                 return
@@ -322,10 +343,10 @@ class Music(BaseCog):
 
         except Forbidden as ex:
             await ctx.send(
-                Lang.get_string("music/dm_unable", user=user.mention),
+                Lang.get_locale_string("music/dm_unable", ctx, user=user.mention),
                 delete_after=30)
         except asyncio.TimeoutError as ex:
-            await channel.send(Lang.get_string("music/song_timeout"))
+            await channel.send(Lang.get_locale_string("music/song_timeout", ctx))
             self.bot.loop.create_task(self.delete_progress(user))
         except CancelledError as ex:
             raise ex
@@ -353,7 +374,7 @@ class Music(BaseCog):
 
             async def abort():
                 nonlocal asking
-                await ctx.author.send(Lang.get_string("bugs/abort_report"))
+                await ctx.author.send(Lang.get_locale_string("bugs/abort_report", ctx))
                 asking = False
                 m.reports_abort_count.inc()
                 m.reports_exit_question.observe(active_question)
