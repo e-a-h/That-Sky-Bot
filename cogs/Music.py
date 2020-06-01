@@ -4,7 +4,10 @@ from concurrent.futures import CancelledError
 import sys
 import time
 # from datetime import datetime
+from io import BytesIO
+from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
 
+import discord
 from discord import Forbidden, File, Reaction
 from discord.ext import commands, tasks
 from discord.ext.commands import Context, command
@@ -51,7 +54,6 @@ class MusicCogPlayer:
         return real_check
 
     async def async_execute_queries(self, channel, user, queries=None):
-
         question_timeout = 5 * 60  # TODO: config?
 
         if queries is None:
@@ -132,17 +134,37 @@ class MusicCogPlayer:
         """
         await channel.trigger_typing()
         message = "Here are your song files(s)"
-        
         song_renders = song_bundle.get_all_renders()
-                
-        for render_mode, buffers in song_renders.items():
 
-            my_files = [File(buffer, filename='%s_%d%s' % (song_title, i, render_mode.extension))
+        for render_mode, buffers in song_renders.items():
+            my_files = [File(buffer, filename=f"{song_title}_{i:03d}{render_mode.extension}")
                         for (i, buffer) in enumerate(buffers)]
-            if len(my_files) > 10:
-                my_files = my_files[:9]
-                message += ". Sorry, I wasn't allowed to send you more than 10 files."
-            await channel.send(content=message, files=my_files)
+
+            if len(my_files) < 1:
+                channel.send("whoops, no files to send...")
+                continue
+            elif len(my_files) < 4:
+                # send images 3 or fewer images to channel
+                await channel.send(content=message, files=my_files)
+                continue
+
+            # 4+ files get zipped
+            try:
+                stream = BytesIO()
+                zip_file = ZipFile(stream, mode="w", compression=ZIP_DEFLATED)
+
+                with zip_file:
+                    # Add sheets to zip file
+                    for sheet in my_files:
+                        sheet.fp.seek(0)
+                        zip_file.writestr(sheet.filename, sheet.fp.getvalue())
+
+                stream.seek(0)
+                await channel.send(content="Yo, your music files got zipped",
+                                   file=discord.File(stream, f"{song_title}_sheets.zip"))
+            except Exception as e:
+                await Utils.handle_exception("bad zip!", self.cog.bot, e)
+                await channel.send("oops, zip file borked... contact the authorities!")
 
 
 class Music(BaseCog):
