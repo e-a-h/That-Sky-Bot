@@ -17,12 +17,14 @@ from cogs.BaseCog import BaseCog
 from utils import Lang, Emoji, Questions, Utils, Configuration
 
 try:
-    music_maker_path = os.path.normpath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), '../sky-python-music-sheet-maker'))
+    music_maker_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../sky-python-music-sheet-maker'))
+    if not os.path.isdir(music_maker_path):
+        music_maker_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../sky-python-music-sheet-maker'))        
     if music_maker_path not in sys.path:
         sys.path.append(music_maker_path)
     from src.skymusic.communicator import Communicator, QueriesExecutionAbort
     from src.skymusic.music_sheet_maker import MusicSheetMaker
+    from src.skymusic.resources import Resources as skymusic_resources
 except ImportError as e:
     print('*** IMPORT ERROR of one or several Music-Maker modules')
     print(e)
@@ -32,7 +34,7 @@ class MusicCogPlayer:
 
     def __init__(self, cog, locale='en_US'):
         self.cog = cog
-        self.name = 'music-cog'  # Must be defined before instantiating communicator
+        self.name = skymusic_resources.MUSIC_COG_NAME  # Must be defined before instantiating communicator
         self.locale = locale
         self.communicator = Communicator(owner=self, locale=locale)
 
@@ -273,7 +275,7 @@ class Music(BaseCog):
 
                 # 1. Sets Song Parser
                 maker.set_song_parser()
-
+                
                 # 2. Displays instructions
                 i_instr, _ = maker.ask_instructions(recipient=player, execute=False)
                 answered = await player.async_execute_queries(channel, user, i_instr)
@@ -308,9 +310,10 @@ class Music(BaseCog):
                 active_question += 1
 
                 # 6. Asks for octave shift
-                q_shift, _ = maker.ask_octave_shift(recipient=player, execute=False)
+                q_shift, octave_shift = maker.ask_octave_shift(recipient=player, input_mode=input_mode, execute=False)
                 answered = await player.async_execute_queries(channel, user, q_shift)
-                octave_shift = q_shift.get_reply().get_result()
+                if octave_shift is None:
+                    octave_shift = q_shift.get_reply().get_result()
                 active_question += 1
 
                 # 7. Parses song
