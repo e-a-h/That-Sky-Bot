@@ -10,11 +10,12 @@ from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
 import discord
 from discord import Forbidden, File, Reaction
 from discord.ext import commands, tasks
-from discord.ext.commands import Context, command
+from discord.ext.commands import Context, command, UserConverter
 
 from cogs.BaseCog import BaseCog
 
-from utils import Lang, Emoji, Questions, Utils, Configuration
+from utils import Lang, Emoji, Questions, Utils, Configuration, Converters
+from utils.Utils import MENTION_MATCHER, ID_MATCHER, NUMBER_MATCHER
 
 try:
     music_maker_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../sky-python-music-sheet-maker'))
@@ -145,7 +146,8 @@ class MusicCogPlayer:
             if len(my_files) < 1:
                 channel.send("whoops, no files to send...")
                 continue
-            elif len(my_files) < 4:
+
+            if len(my_files) < 4:
                 # send images 3 or fewer images to channel
                 await channel.send(content=message, files=my_files)
                 continue
@@ -183,6 +185,24 @@ class Music(BaseCog):
             self.in_progress[uid].cancel()
             del self.in_progress[uid]
 
+    async def convert_mention(self, ctx, name):
+        out_name = ''
+        if MENTION_MATCHER.match(name) or ID_MATCHER.match(name) or NUMBER_MATCHER.match(name):
+            try:
+                my_user = await UserConverter().convert(ctx, name)
+                my_user = self.bot.get_user(my_user.id)
+                out_name = f"{my_user.display_name}#{my_user.discriminator}"
+            except Exception as e:
+                pass
+        out_name = await Utils.clean(name) if not out_name else out_name
+        return out_name
+
+    # @commands.is_owner()
+    @commands.command(aliases=['nn'])
+    async def name_test(self, ctx, *, name):
+        name = await self.convert_mention(ctx, name)
+        await ctx.send(f"your name is: {name}")
+
     '''
     async def delete_progress_delayed(self, user):
         delete_timeout = 10*60
@@ -197,10 +217,13 @@ class Music(BaseCog):
 
     # @commands.group(name='song', invoke_without_command=True)
 
+    @commands.max_concurrency(1, wait=False)
     @commands.command(aliases=['song'])
     async def transcribe_song(self, ctx: Context):
         if ctx.guild is not None:
             await ctx.message.delete()  # remove command to not flood chat (unless we are in a DM already)
+            # TODO: ask for locale in all available languages
+            # TODO: track concurrency and change wait to True so waiting user can be informed of progress
 
         user = ctx.author
 
@@ -329,10 +352,16 @@ class Music(BaseCog):
                 # 9. Asks for song metadata
                 qs_meta, _ = maker.ask_song_metadata(recipient=player, execute=False)
                 answered = await player.async_execute_queries(channel, user, qs_meta)
-                (title, artist, transcript) = [q.get_reply().get_result() for q in qs_meta]
+                # TODO: convert_mention only converts IDs here, maybe because mentions are escaped before here.
+                #  fix or maybe add an unescape or something
+                (title, artist, transcript) = [await self.convert_mention(ctx, q.get_reply().get_result()) for q in qs_meta]
                 
                 # 9.b Sets song metadata
-                maker.set_song_metadata(recipient=player, meta=(title, artist, transcript), song_key=song_key)
+                maker.set_song_metadata(recipient=player,
+                                        meta=(title,
+                                              artist,
+                                              transcript),
+                                        song_key=song_key)
                 active_question += 1
 
                 # 10 Asks for render modes

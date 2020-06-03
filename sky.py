@@ -88,6 +88,8 @@ class Skybot(Bot):
                 # commands in this list have custom cooldown handler
                 return
             await ctx.send(error)
+        elif isinstance(error, commands.MaxConcurrencyReached):
+            await ctx.send(f"Too many people are using the `{ctx.invoked_with}` command right now. Try again later")
         elif isinstance(error, commands.MissingRequiredArgument):
             param = list(ctx.command.params.values())[min(len(ctx.args) + len(ctx.kwargs), len(ctx.command.params))]
             bot.help_command.context = ctx
