@@ -1,4 +1,6 @@
 test:
+guild_config:
+  info_title:
 common:
   nope:
 questions:
@@ -84,6 +86,7 @@ bugs:
   no_live_android:
   dm_unable:
 eden:
+  dm_prompt:
   reset:
   tz_help:
   tz_mention:

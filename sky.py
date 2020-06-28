@@ -1,5 +1,10 @@
 import asyncio
+import glob
+import importlib
+import os
+import re
 import signal
+import sys
 
 import sentry_sdk
 from discord.ext import commands
@@ -10,8 +15,8 @@ from prometheus_client import CollectorRegistry
 from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 
 from utils import Logging, Configuration, Utils, Emoji, Database
-
 from utils.PrometheusMon import PrometheusMon
+
 
 class Skybot(Bot):
     loaded = False
@@ -23,6 +28,10 @@ class Skybot(Bot):
         self.metrics = PrometheusMon(self)
         self.config_channels = dict()
         self.db_keepalive = None
+        sys.path.append(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "sky-python-music-sheet-maker",
+                         "python"))
 
     async def on_ready(self):
         if self.loaded:
@@ -81,6 +90,8 @@ class Skybot(Bot):
                 # commands in this list have custom cooldown handler
                 return
             await ctx.send(error)
+        elif isinstance(error, commands.MaxConcurrencyReached):
+            await ctx.send(f"Too many people are using the `{ctx.invoked_with}` command right now. Try again later")
         elif isinstance(error, commands.MissingRequiredArgument):
             param = list(ctx.command.params.values())[min(len(ctx.args) + len(ctx.kwargs), len(ctx.command.params))]
             bot.help_command.context = ctx
@@ -108,6 +119,28 @@ class Skybot(Bot):
             await asyncio.sleep(3600)
 
 
+def run_db_migrations():
+    dbv = int(Configuration.get_persistent_var('db_version', 0))
+    dbv_list = [f for f in glob.glob("db_migrations/db_migrate_*.py")]
+    dbv_pattern = re.compile(r'db_migrations/db_migrate_(\d+)\.py', re.IGNORECASE)
+    migration_count = 0
+    for filename in sorted(dbv_list):
+        # get the int version number from filename
+        version = int(re.match(dbv_pattern, filename)[1])
+        if version > dbv:
+            try:
+                print(f"--- running db migration version number {version}")
+                spec = importlib.util.spec_from_file_location(f"migrator_{version}", filename)
+                dbm = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(dbm)
+                Configuration.set_persistent_var('db_version', version)
+                migration_count = migration_count + 1
+            except Exception as e:
+                # throw a fit if it doesn't work
+                raise e
+    print(f"--- {migration_count if migration_count else 'no'} db migration{'' if migration_count == 1 else 's'} run")
+
+
 def before_send(event, hint):
     if event['level'] == "error" and 'logger' in event.keys() and event['logger'] == 'gearbot':
         return None  # we send errors manually, in a much cleaner way
@@ -132,18 +165,22 @@ if __name__ == '__main__':
     if dsn != '':
         sentry_sdk.init(dsn, before_send=before_send, environment=dsn_env, integrations=[AioHttpIntegration()])
 
+    run_db_migrations()
     Database.init()
 
     loop = asyncio.get_event_loop()
-
-    skybot = Skybot(command_prefix=Configuration.get_var("bot_prefix"), case_insensitive=True, loop=loop)
+    prefix = Configuration.get_var("bot_prefix")
+    skybot = Skybot(
+        command_prefix=commands.when_mentioned_or(prefix),
+        case_insensitive=True,
+        loop=loop)
     skybot.help_command = commands.DefaultHelpCommand(command_attrs=dict(name='snelp', checks=[can_help]))
 
     Utils.BOT = skybot
 
     try:
         for signame in ('SIGINT', 'SIGTERM'):
-           loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(skybot.close()))
+            loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(skybot.close()))
     except NotImplementedError:
         pass
 

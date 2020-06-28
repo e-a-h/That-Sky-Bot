@@ -1,3 +1,5 @@
+guild_config:
+  info_title: --jp-- Guild base configuration for {server_name}
 questions:
   text_only: --jp-- I can't accept files yet. That step comes later. Just use your words
   confirm_prompt: --jp-- Are you sure {backticks}{message}{backticks} is correct?
@@ -164,6 +166,7 @@ bugs:
   no_live_android: --jp-- There is no live version available on Android yet, only beta. Go back to the bug report channel any time to start a new report!
   dm_unable: --jp-- '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
 eden:
+  dm_prompt: --jp-- Did you know you can use the `!edenreset` or `!er` command in my DMs? Shorter cooldown there too.
   reset: |
     --jp-- The Eye of Eden resets once per week.
     Next reset is on {date} at {time} (In {countdown})
@@ -297,7 +300,7 @@ krill:
   no_such_channel: |
     --jp-- No such channel: `{channel_id}`
 react_monitor:
-  info_title: --jp-- Emoji reaction monitor settings
+  info_title: --jp-- Emoji reaction monitor settings for {server_name}
 art:
   list_channels: --jp-- Art channels for {server_name}.
   no_channels: --jp-- No channels set for art collection. No art will be colelcted

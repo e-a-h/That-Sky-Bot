@@ -93,6 +93,7 @@ class CustomCommand(Model):
     serverid = BigIntegerField()
     trigger = CharField(max_length=20, collation="utf8mb4_general_ci")
     response = CharField(max_length=2000, collation="utf8mb4_general_ci")
+    delete = BooleanField(default=False)
 
     class Meta:
         database = connection
@@ -136,6 +137,18 @@ class ReactWatch(Model):
         database = connection
 
 
+class WatchedEmoji(Model):
+    id = PrimaryKeyField()
+    watcher = ForeignKeyField(ReactWatch, backref='emoji')
+    emoji = CharField(max_length=50, collation="utf8mb4_general_ci", default="")
+    log = BooleanField(default=False)
+    remove = BooleanField(default=False)
+    mute = BooleanField(default=False)
+
+    class Meta:
+        database = connection
+
+
 class ArtChannel(Model):
     id = PrimaryKeyField()
     serverid = BigIntegerField()
@@ -153,6 +166,7 @@ class DropboxChannel(Model):
     serverid = BigIntegerField()
     sourcechannelid = BigIntegerField()
     targetchannelid = BigIntegerField(default=0)
+    deletedelayms = SmallIntegerField(default=5000)
 
     class Meta:
         database = connection
@@ -202,6 +216,7 @@ def init():
         KrillChannel,
         Repros,
         ReactWatch,
+        WatchedEmoji,
         Localization,
         AdminRole,
         ModRole

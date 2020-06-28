@@ -42,8 +42,16 @@ def get_chat_emoji(name):
     return str(get_emoji(name))
 
 
+def is_emoji_defined(name):
+    if name not in EMOJI and name not in BACKUPS:
+        return False
+    return True
+
+
 def get_emoji(name):
-    if name in EMOJI:
-        return EMOJI[name]
-    else:
-        return BACKUPS[name]
+    if is_emoji_defined(name):
+        if name in EMOJI:
+            return EMOJI[name]
+        if name in BACKUPS:
+            return BACKUPS[name]
+    return f"[emoji:{name}]"
