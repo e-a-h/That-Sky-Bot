@@ -127,10 +127,7 @@ class ReactWatch(Model):
     id = PrimaryKeyField()
     serverid = BigIntegerField()
     # guild = ForeignKeyField(Guild, backref='watchemoji')
-    logtochannel = BigIntegerField(default=0)
-    watchlist = CharField(max_length=2000, collation="utf8mb4_general_ci", default="")
-    banlist = CharField(max_length=2000, collation="utf8mb4_general_ci", default="")
-    mutebanned = BooleanField(default=True)
+    muteduration = SmallIntegerField(default=600)
     watchremoves = BooleanField(default=False)
 
     class Meta:

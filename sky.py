@@ -52,7 +52,33 @@ class Skybot(Bot):
 
         await Logging.bot_log("Skybot soaring through the skies!")
 
+    def get_guild_log_channel(self, guild_id):
+        return self.get_guild_config_channel(guild_id, 'log')
+
+    def get_guild_rules_channel(self, guild_id):
+        return self.get_guild_config_channel(guild_id, 'rules')
+
+    def get_guild_welcome_channel(self, guild_id):
+        return self.get_guild_config_channel(guild_id, 'welcome')
+
+    def get_guild_entry_channel(self, guild_id):
+        return self.get_guild_config_channel(guild_id, 'entry')
+
+    def get_guild_config_channel(self, guild_id, name):
+        config = self.get_config(guild_id)
+        if config:
+            return self.get_channel(getattr(config, f'{name}channelid'))
+        return None
+
+    def get_config(self, guild_id):
+        try:
+            return self.get_cog('GuildConfig').get_config(guild_id)
+        except Exception as e:
+            Utils.handle_exception("Failed to get config", self, e)
+            return None
+
     def get_config_channel(self, guild_id: int, channel_name: str):
+        # TODO: replace usage with get_guild_*_channel above
         if Utils.validate_channel_name(channel_name):
             try:
                 this_channel_id = self.config_channels[guild_id][channel_name]

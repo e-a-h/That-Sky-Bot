@@ -29,6 +29,11 @@ class GuildConfig(BaseCog):
             return False
         return ctx.author.guild_permissions.ban_members
 
+    def get_config(self, guild_id):
+        if guild_id in self.guilds:
+            return self.guilds[guild_id]
+        return None
+
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
         self.init_guild(guild)
