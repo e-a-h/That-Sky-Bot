@@ -1,9 +1,10 @@
 import asyncio
 import io
+from datetime import datetime
 
 import discord
 from discord import Embed
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from cogs.BaseCog import BaseCog
 from utils import Lang, Questions, Utils
@@ -11,10 +12,10 @@ from utils.Database import DropboxChannel
 
 
 class DropBox(BaseCog):
-
     def __init__(self, bot):
         super().__init__(bot)
         self.dropboxes = dict()
+        self.responses = dict()
         self.loaded = False
         bot.loop.create_task(self.startup_cleanup())
 
@@ -23,13 +24,37 @@ class DropBox(BaseCog):
             # fetch dropbox channels per server
             self.dropboxes[guild.id] = dict()
             for row in DropboxChannel.select().where(DropboxChannel.serverid == guild.id):
-                self.dropboxes[guild.id][row.sourcechannelid] = row.targetchannelid
+                self.dropboxes[guild.id][row.sourcechannelid] = row
         self.loaded = True
+        self.clean_channels.start()
+
+    def cog_unload(self):
+        self.clean_channels.cancel()
 
     async def cog_check(self, ctx):
         if not hasattr(ctx.author, 'guild'):
             return False
         return ctx.author.guild_permissions.ban_members
+
+    @tasks.loop(seconds=1.0)
+    async def clean_channels(self):
+        for guild in self.bot.guilds:
+            for channel_id, drop in dict(self.dropboxes[guild.id]).items():
+                if drop.deletedelayms == 0:
+                    # do not clear from dropbox channels with no delay set.
+                    continue
+                now = datetime.utcnow()
+                channel = self.bot.get_channel(channel_id)
+                async for message in channel.history(limit=20):
+                    age = (now-message.created_at).seconds
+                    expired = age > drop.deletedelayms / 1000
+                    # periodically clear out expired messages sent by bot and non-mod
+                    if expired and (message.author.bot or not message.author.guild_permissions.ban_members):
+                        try:
+                            await message.delete()
+                        except Exception as e:
+                            # ignore delete failure. we'll try again next time
+                            pass
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
@@ -49,14 +74,17 @@ class DropBox(BaseCog):
             timestamp=ctx.message.created_at,
             color=0x663399,
             title=Lang.get_locale_string("dropbox/list", ctx, server_name=ctx.guild.name))
-        for source, target in self.dropboxes[ctx.guild.id].items():
+        for source, dropbox in self.dropboxes[ctx.guild.id].items():
             source_channel = self.bot.get_channel(source)
-            target_channel = self.bot.get_channel(target)
+            target_channel = self.bot.get_channel(dropbox.targetchannelid)
             embed.add_field(name=f"From",
                             value=Utils.get_channel_description(self.bot, source_channel.id),
                             inline=True)
             embed.add_field(name=f"To",
                             value=Utils.get_channel_description(self.bot, target_channel.id),
+                            inline=True)
+            embed.add_field(name=f"Delete After",
+                            value=Utils.to_pretty_time(dropbox.deletedelayms/1000) or "off",
                             inline=True)
             embed.add_field(name="__                                             __",
                             value="__                                             __",
@@ -93,7 +121,9 @@ class DropBox(BaseCog):
 
         if sourceid in self.dropboxes[ctx.guild.id]:
             # existing source channel. ask user to confirm
-            old_target_description = Utils.get_channel_description(self.bot, self.dropboxes[ctx.guild.id][sourceid])
+            old_target_description = Utils.get_channel_description(
+                self.bot,
+                self.dropboxes[ctx.guild.id][sourceid].targetchannelid)
             await Questions.ask(
                 self.bot,
                 ctx.channel,
@@ -128,10 +158,10 @@ class DropBox(BaseCog):
                                          target=new_target_description)
 
         # update local mapping and save to db
-        self.dropboxes[ctx.guild.id][sourceid] = targetid
         db_row = DropboxChannel.get_or_create(serverid=ctx.guild.id, sourcechannelid=sourceid)[0]
         db_row.targetchannelid = targetid
         db_row.save()
+        self.dropboxes[ctx.guild.id][sourceid] = db_row
 
         # message success to user
         await ctx.send(msg)
@@ -153,6 +183,24 @@ class DropBox(BaseCog):
             raise e
         await ctx.send(Lang.get_locale_string('dropbox/removed', ctx, source=source_description))
 
+    @dropbox.command(aliases=['delay', 'delete_delay'])
+    @commands.guild_only()
+    async def set_delay(self, ctx, channel: discord.TextChannel, delay: int):
+        """
+        Set the lifespan for response messages in the channel
+
+        Also applies to any non-mod messages, so the delay time must be greater than the initial wait for message drops.
+        delay: Time until responses expire (milliseconds)
+        """
+        if channel.id in self.dropboxes[ctx.guild.id]:
+            drop = self.dropboxes[ctx.guild.id][channel.id]
+            drop.deletedelayms = delay
+            drop.save()
+            t = Utils.to_pretty_time(delay/1000)
+            await ctx.send(f'Confirmation messages in dropbox channel {channel.mention} will be deleted after {t}')
+        else:
+            await ctx.send(f'Failed to set dropbox delete delay time in {channel.mention}')
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.message):
         not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
@@ -166,7 +214,7 @@ class DropBox(BaseCog):
             return
 
         #  wait for other bots to act, then check if message deleted (censored)
-        await asyncio.sleep(5)
+        await asyncio.sleep(1)
         try:
             ctx = await self.bot.get_context(message)
             message = await ctx.channel.fetch_message(message.id)
@@ -184,7 +232,8 @@ class DropBox(BaseCog):
             embed.add_field(name="Author link", value=ctx.author.mention)
             try:
                 # send embed and message to dropbox channel
-                drop_channel = self.bot.get_channel(self.dropboxes[message.channel.guild.id][message.channel.id])
+                drop_channel = self.bot.get_channel(
+                    self.dropboxes[message.channel.guild.id][message.channel.id].targetchannelid)
 
                 for attachment in message.attachments:
                     buffer = io.BytesIO()
@@ -193,11 +242,9 @@ class DropBox(BaseCog):
                 await drop_channel.send(embed=embed, content=message.content)
 
                 # TODO: try/ignore: add reaction for "claim" "flag" "followup" "delete"
-                # TODO: if delivery confirmation
                 msg = Lang.get_locale_string('dropbox/msg_delivered', ctx, author=ctx.author.mention)
                 await ctx.send(msg)
             except Exception as e:
-                # TODO: if delivery confirmation
                 msg = Lang.get_locale_string('dropbox/msg_not_delivered', ctx, author=ctx.author.mention)
                 await ctx.send(msg)
                 await Utils.handle_exception("dropbox delivery failure", self.bot, e)

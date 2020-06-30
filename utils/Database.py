@@ -163,7 +163,7 @@ class DropboxChannel(Model):
     serverid = BigIntegerField()
     sourcechannelid = BigIntegerField()
     targetchannelid = BigIntegerField(default=0)
-    deletedelayms = SmallIntegerField(default=5000)
+    deletedelayms = SmallIntegerField(default=0)
 
     class Meta:
         database = connection
