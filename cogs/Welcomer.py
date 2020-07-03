@@ -564,7 +564,7 @@ class Welcomer(BaseCog):
         #  if configured, DM member informing them about impersonating, ask them to change, refer them to mods
         pass
 
-    @commands.command(aliases=['set_rules_message', 'setrulesid'])
+    @commands.command(aliases=['set_rules_id', 'setrulesid'])
     @commands.guild_only()
     async def set_rules_react_message_id(self, ctx, message_id: int):
         """
@@ -582,6 +582,9 @@ class Welcomer(BaseCog):
             roles = Configuration.get_var("roles")
             await rules.clear_reactions()
             for emoji, role_id in roles.items():
+                if not Emoji.is_emoji_defined(emoji):
+                    continue
+                emoji = Emoji.get_chat_emoji(emoji)
                 await rules.add_reaction(emoji)
             await ctx.send(f"Rules message set to {message_id} in channel {rules_channel.mention}")
         except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:

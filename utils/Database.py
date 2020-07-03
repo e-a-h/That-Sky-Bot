@@ -93,6 +93,7 @@ class CustomCommand(Model):
     serverid = BigIntegerField()
     trigger = CharField(max_length=20, collation="utf8mb4_general_ci")
     response = CharField(max_length=2000, collation="utf8mb4_general_ci")
+    delete = BooleanField(default=False)
 
     class Meta:
         database = connection
@@ -126,11 +127,20 @@ class ReactWatch(Model):
     id = PrimaryKeyField()
     serverid = BigIntegerField()
     # guild = ForeignKeyField(Guild, backref='watchemoji')
-    logtochannel = BigIntegerField(default=0)
-    watchlist = CharField(max_length=2000, collation="utf8mb4_general_ci", default="")
-    banlist = CharField(max_length=2000, collation="utf8mb4_general_ci", default="")
-    mutebanned = BooleanField(default=True)
+    muteduration = SmallIntegerField(default=600)
     watchremoves = BooleanField(default=False)
+
+    class Meta:
+        database = connection
+
+
+class WatchedEmoji(Model):
+    id = PrimaryKeyField()
+    watcher = ForeignKeyField(ReactWatch, backref='emoji')
+    emoji = CharField(max_length=50, collation="utf8mb4_general_ci", default="")
+    log = BooleanField(default=False)
+    remove = BooleanField(default=False)
+    mute = BooleanField(default=False)
 
     class Meta:
         database = connection
@@ -153,6 +163,7 @@ class DropboxChannel(Model):
     serverid = BigIntegerField()
     sourcechannelid = BigIntegerField()
     targetchannelid = BigIntegerField(default=0)
+    deletedelayms = SmallIntegerField(default=0)
 
     class Meta:
         database = connection
@@ -202,6 +213,7 @@ def init():
         KrillChannel,
         Repros,
         ReactWatch,
+        WatchedEmoji,
         Localization,
         AdminRole,
         ModRole

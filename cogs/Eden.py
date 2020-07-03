@@ -103,11 +103,14 @@ class Eden(BaseCog):
         pretty_date = reset_time_local.strftime("%A %B %d")
         pretty_time = reset_time_local.strftime("%H:%M %Z")
 
-        response = await ctx.send(Lang.get_locale_string("eden/reset",
-                                                         ctx,
-                                                         date=pretty_date,
-                                                         time=pretty_time,
-                                                         countdown=pretty_countdown))
+        dm_prompt = '' if is_dm else Lang.get_locale_string("eden/dm_prompt", ctx)
+        er_response = Lang.get_locale_string("eden/reset",
+                                             ctx,
+                                             date=pretty_date,
+                                             time=pretty_time,
+                                             countdown=pretty_countdown)
+        msg = f"{er_response} {dm_prompt}"
+        response = await ctx.send(msg)
         self.responses[cid] = response.id
 
 

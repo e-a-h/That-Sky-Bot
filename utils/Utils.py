@@ -32,6 +32,7 @@ log_channel = "log_channel"
 ro_art_channel = "ro_art_channel"
 entry_channel = "entry_channel"
 
+COLOR_LIME = 0xbefc03
 
 def validate_channel_name(channel_name):
     return channel_name in (welcome_channel, rules_channel, log_channel, ro_art_channel, entry_channel)
