@@ -187,10 +187,19 @@ class Music(BaseCog):
 
     async def convert_mention(self, ctx, name):
         out_name = ''
-        if MENTION_MATCHER.match(name) or ID_MATCHER.match(name) or NUMBER_MATCHER.match(name):
+        m = MENTION_MATCHER.match(name)
+        n = NUMBER_MATCHER.match(name)
+        i = ID_MATCHER.match(name)
+        name_id = ''
+        if i:
+            name_id = i[1]
+        elif m:
+            name_id = m[2]
+        elif n:
+            name_id = n[0]
+        if name_id:
             try:
-                my_user = await UserConverter().convert(ctx, name)
-                my_user = self.bot.get_user(my_user.id)
+                my_user = self.bot.get_user(int(name_id))
                 out_name = f"{my_user.display_name}#{my_user.discriminator}"
             except Exception as e:
                 pass
