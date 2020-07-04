@@ -40,21 +40,25 @@ class DropBox(BaseCog):
     async def clean_channels(self):
         for guild in self.bot.guilds:
             for channel_id, drop in dict(self.dropboxes[guild.id]).items():
-                if drop.deletedelayms == 0:
-                    # do not clear from dropbox channels with no delay set.
-                    continue
-                now = datetime.utcnow()
-                channel = self.bot.get_channel(channel_id)
-                async for message in channel.history(limit=20):
-                    age = (now-message.created_at).seconds
-                    expired = age > drop.deletedelayms / 1000
-                    # periodically clear out expired messages sent by bot and non-mod
-                    if expired and (message.author.bot or not message.author.guild_permissions.ban_members):
-                        try:
-                            await message.delete()
-                        except Exception as e:
-                            # ignore delete failure. we'll try again next time
-                            pass
+                try:
+                    if drop.deletedelayms == 0:
+                        # do not clear from dropbox channels with no delay set.
+                        continue
+                    now = datetime.utcnow()
+                    channel = self.bot.get_channel(channel_id)
+                    async for message in channel.history(limit=20):
+                        age = (now-message.created_at).seconds
+                        expired = age > drop.deletedelayms / 1000
+                        # periodically clear out expired messages sent by bot and non-mod
+                        if expired and (message.author.bot or not message.author.guild_permissions.ban_members):
+                            try:
+                                await message.delete()
+                            except Exception as e:
+                                # ignore delete failure. we'll try again next time
+                                pass
+                except Exception as e:
+                    await Utils.handle_exception('Dropox clean_channels exception', self.bot, e)
+                    await asyncio.sleep(60)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
