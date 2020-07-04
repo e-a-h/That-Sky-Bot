@@ -93,7 +93,8 @@ class AutoResponders(BaseCog):
                 # use JSON object to require each of several triggers in any order
                 try:
                     # TODO: enforce structure and depth limit. Currently written to accept 1D and 2D array of strings
-                    match_list = json.loads(responder.trigger)
+                    match_list = json.loads(responder.trigger.replace("'", '"'))
+
                     # 1D Array means a matching string will have each word in the list, in any order
                     # A list in any index of the list means any *one* word in the 2nd level list will match
                     # e.g. ["one", ["two", "three"]] will match a string that has "one" AND ("two" OR "three")
@@ -263,11 +264,11 @@ class AutoResponders(BaseCog):
         Flags are unset when initialized, so newly created responders will not be active.
         Use `autoresponder setflag` to activate
 
-        trigger: The trigger to respond to. Must be quoted if spaces, and «[['ULTRA-QUOTED']]» for lists
-            «['one', 'two']» will match a message with one OR two
-            «[['one', 'two']]» will only match a message with one **and** two
-            «[['one', 'two'],['three', 'four']]» will match "one three" or "one four" or "two three" or "two four"
-        reply: string or ['group'] that may include tokens {author}, {channel}, and {link}
+        trigger: The trigger to respond to. Must be quoted if spaces, and «[["ULTRA-QUOTED"]]» for lists
+            «["one", "two"]» will match a message with one **AND** two
+            «[["one", "two"]]» will match a message with one **OR** two
+            «[["one", "two"],["three", "four"]]» will match "one three" or "one four" or "two three" or "two four"
+        reply: string or ["group"] that may include tokens {author}, {channel}, and {link}
             Grouped string indicates random responses.
             All auto-responses can include these tokens (include curly braces):
             {author} mentions the user who triggered
@@ -422,7 +423,12 @@ class AutoResponders(BaseCog):
     @autor.command(aliases=["edittrigger", "settrigger", "trigger", "st"])
     @commands.guild_only()
     async def updatetrigger(self, ctx: commands.Context, trigger: str = None, *, new_trigger: str = None):
-        """ar_update_help"""
+        """
+        Update tan autoresponder trigger
+
+        trigger: The trigger to edit (must be quoted string if spaces)
+        new_trigger: The new trigger to replace the old (no need for quotes)
+        """
         if trigger is None:
             try:
                 trigger = await self.choose_trigger(ctx)
@@ -591,11 +597,6 @@ class AutoResponders(BaseCog):
         Set an on/off option for a trigger/response
 
         trigger: Optionally name the trigger to select. If trigger is omitted, bot dialog will request it.
-        reply: The new response you want to save for the selected trigger.
-            All auto-responses can include these tokens (include curly braces):
-            {author} mentions the user who triggered
-            {channel} mentions the channel in which response was triggered
-            {link} links to the message that triggered response
         flag: Flag number. Available flags:
             0: Active/Inactive
             1: Full Match
