@@ -577,6 +577,7 @@ class Welcomer(BaseCog):
         rules_channel = self.bot.get_config_channel(ctx.guild.id, Utils.rules_channel)
         try:
             rules = await rules_channel.fetch_message(message_id)
+            # TODO: make this guild-specific
             Configuration.MASTER_CONFIG['rules_react_message_id'] = message_id
             Configuration.save()
             roles = Configuration.get_var("roles")
