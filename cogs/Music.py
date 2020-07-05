@@ -1,26 +1,26 @@
 import asyncio
 import os
-from concurrent.futures import CancelledError
 import sys
 import time
-# from datetime import datetime
+from concurrent.futures import CancelledError
 from io import BytesIO
-from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
+from zipfile import ZipFile, ZIP_DEFLATED
 
 import discord
-from discord import Forbidden, File, Reaction
-from discord.ext import commands, tasks
-from discord.ext.commands import Context, command, UserConverter
+from discord import Forbidden, File
+from discord.ext import commands
+from discord.ext.commands import Context
 
 from cogs.BaseCog import BaseCog
-
-from utils import Lang, Emoji, Questions, Utils, Configuration, Converters
+from utils import Lang, Questions, Utils
 from utils.Utils import MENTION_MATCHER, ID_MATCHER, NUMBER_MATCHER
 
 try:
-    music_maker_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../sky-python-music-sheet-maker'))
+    music_maker_path = os.path.normpath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), '../sky-python-music-sheet-maker'))
     if not os.path.isdir(music_maker_path):
-        music_maker_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../sky-python-music-sheet-maker'))        
+        music_maker_path = os.path.normpath(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../sky-python-music-sheet-maker'))
     if music_maker_path not in sys.path:
         sys.path.append(music_maker_path)
     from src.skymusic.communicator import Communicator, QueriesExecutionAbort
@@ -174,16 +174,26 @@ class MusicCogPlayer:
 class Music(BaseCog):
 
     def __init__(self, bot):
+        bot.music_rendering = False
         super().__init__(bot)
         self.in_progress = dict()  # {user_id: asyncio_task}
+        self.is_rendering = None
 
     # TODO: create methods to update the bot metrics and in_progress, etc
 
     async def delete_progress(self, user):
         uid = user.id
         if uid in self.in_progress:
-            self.in_progress[uid].cancel()
+            try:
+                self.in_progress[uid].cancel()
+            except Exception as e:
+                # ignore task cancel failures
+                pass
             del self.in_progress[uid]
+            # if deleted task is recorded as active renderer, remove block
+            if self.is_rendering == uid:
+                self.is_rendering = None
+                self.bot.music_rendering = False
 
     async def convert_mention(self, ctx, name):
         out_name = ''
@@ -206,12 +216,6 @@ class Music(BaseCog):
         out_name = await Utils.clean(name) if not out_name else out_name
         return out_name
 
-    # @commands.is_owner()
-    @commands.command(aliases=['nn'])
-    async def name_test(self, ctx, *, name):
-        name = await self.convert_mention(ctx, name)
-        await ctx.send(f"your name is: {name}")
-
     '''
     async def delete_progress_delayed(self, user):
         delete_timeout = 10*60
@@ -226,13 +230,14 @@ class Music(BaseCog):
 
     # @commands.group(name='song', invoke_without_command=True)
 
-    @commands.max_concurrency(1, wait=False)
+    @commands.max_concurrency(10, wait=False)
     @commands.command(aliases=['song'])
     async def transcribe_song(self, ctx: Context):
         if ctx.guild is not None:
             await ctx.message.delete()  # remove command to not flood chat (unless we are in a DM already)
             # TODO: ask for locale in all available languages
-            # TODO: track concurrency and change wait to True so waiting user can be informed of progress
+            # TODO: track concurrency?
+            #   change wait to True, use on_command so waiting user can be informed of progress?
 
         user = ctx.author
 
@@ -270,6 +275,7 @@ class Music(BaseCog):
     async def actual_transcribe_song(self, user, ctx):
 
         active_question = None
+        self_rendering = False
 
         try:
             # starts a dm
@@ -395,31 +401,35 @@ class Music(BaseCog):
                 #    song_bpm = q_song_bpm.get_reply().get_result()
                 #active_question += 1
 
+                while self.bot.music_rendering:
+                    # Wait for in-progress renders to finish.
+                    await asyncio.sleep(1)
+
+                # Block concurrent renders
+                self.bot.music_rendering = True
+                self.is_rendering = user.id
 
                 # 13. Renders Song
                 song_bundle = await asyncio.get_event_loop().run_in_executor(None, maker.render_song, player, None, aspect_ratio, 120)
 
+                # Unblock concurrent renders
+                self.bot.music_rendering = False
+                self.is_rendering = None
+
                 await player.send_song_to_channel(channel, user, song_bundle, title)
                 active_question += 1
-
-                self.bot.loop.create_task(self.delete_progress(user))
-
         except Forbidden as ex:
             await ctx.send(
                 Lang.get_locale_string("music/dm_unable", ctx, user=user.mention),
                 delete_after=30)
         except asyncio.TimeoutError as ex:
             await channel.send(Lang.get_locale_string("music/song_timeout", ctx))
-            self.bot.loop.create_task(self.delete_progress(user))
         except CancelledError as ex:
             raise ex
         except Exception as ex:
-            self.bot.loop.create_task(self.delete_progress(user))
             await Utils.handle_exception("song creation", self.bot, ex)
-        else:
+        finally:
             self.bot.loop.create_task(self.delete_progress(user))
-
-        return
 
 
 """
