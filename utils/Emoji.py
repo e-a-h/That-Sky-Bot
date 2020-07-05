@@ -29,7 +29,8 @@ BACKUPS = {
     "NUMBER_6": "6\u20e3",
     "NUMBER_7": "7\u20e3",
     "NUMBER_8": "8\u20e3",
-    "NUMBER_9": "9\u20e3"
+    "NUMBER_9": "9\u20e3",
+    "QUESTION_MARK": "❓"
 }
 
 
