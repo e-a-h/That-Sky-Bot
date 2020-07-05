@@ -1,15 +1,12 @@
 import asyncio
-import copy
 import re
 import time
 from concurrent.futures import CancelledError
 from datetime import datetime
 
-from discord import Forbidden, Embed, NotFound, HTTPException, PermissionOverwrite
+from discord import Forbidden, Embed, NotFound, HTTPException
 from discord.ext import commands, tasks
-from discord.ext.commands import Context, command
-
-import prometheus_client as prom
+from discord.ext.commands import Context
 
 from cogs.BaseCog import BaseCog
 from utils import Questions, Emoji, Utils, Configuration, Lang, Logging
@@ -561,7 +558,6 @@ class Bugs(BaseCog):
             await channel.send(Lang.get_locale_string("bugs/report_timeout", ctx))
             if active_question is not None:
                 m.reports_exit_question.observe(active_question)
-            self.bot.loop.create_task(self.delete_progress(user.id))
         except CancelledError as ex:
             m.report_incomplete_count.inc()
             if active_question is not None:
@@ -569,10 +565,9 @@ class Bugs(BaseCog):
             if not restarting:
                 raise ex
         except Exception as ex:
-            self.bot.loop.create_task(self.delete_progress(user.id))
             await Utils.handle_exception("bug reporting", self.bot, ex)
             raise ex
-        else:
+        finally:
             self.bot.loop.create_task(self.delete_progress(user.id))
 
     @commands.Cog.listener()
