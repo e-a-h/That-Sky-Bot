@@ -136,7 +136,6 @@ class MusicCogPlayer:
         song_title:
         """
         await channel.trigger_typing()
-        message = "Here are your song files(s)"
         song_renders = song_bundle.get_all_renders()
 
         for render_mode, buffers in song_renders.items():
@@ -149,7 +148,7 @@ class MusicCogPlayer:
 
             if len(my_files) < 4:
                 # send images 3 or fewer images to channel
-                await channel.send(content=message, files=my_files)
+                await channel.send(content="Here are your visual sheet(s). Visit <https://sky-music.github.io> for more!", files=my_files)
                 continue
 
             # 4+ files get zipped
@@ -164,7 +163,7 @@ class MusicCogPlayer:
                         zip_file.writestr(sheet.filename, sheet.fp.getvalue())
 
                 stream.seek(0)
-                await channel.send(content="Yo, your music files got zipped",
+                await channel.send(content="Your visual sheets got zipped. Visit <https://sky-music.github.io> for more!",
                                    file=discord.File(stream, f"{song_title}_sheets.zip"))
             except Exception as e:
                 await Utils.handle_exception("bad zip!", self.cog.bot, e)
