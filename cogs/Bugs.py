@@ -61,6 +61,9 @@ class Bugs(BaseCog):
             Configuration.set_persistent_var(f"{name}_shutdown", message.id)
 
     async def startup_cleanup(self):
+        await self.bot.wait_until_ready()
+        Logging.info("starting bugs")
+
         for name, cid in Configuration.get_var("channels").items():
             channel = self.bot.get_channel(cid)
             shutdown_id = Configuration.get_persistent_var(f"{name}_shutdown")
@@ -85,6 +88,8 @@ class Bugs(BaseCog):
             # Keep looking for channel history until we have it.
             # this API call fails on startup because connection is not made yet.
             # TODO: properly wait for connection to be initialized
+            Logging.info(f"Bugs channel {channel.id}")
+
             try:
                 last_message = await channel.history(limit=1).flatten()
                 last_message = last_message[0]
