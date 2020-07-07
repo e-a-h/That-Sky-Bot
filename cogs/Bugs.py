@@ -17,7 +17,6 @@ class Bugs(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        bot.loop.create_task(self.startup_cleanup())
         self.bug_messages = set()
         self.in_progress = dict()
         self.sweeps = dict()
@@ -26,6 +25,7 @@ class Bugs(BaseCog):
         self.maint_check_count = 0
         m = self.bot.metrics
         m.reports_in_progress.set_function(lambda: len(self.in_progress))
+        bot.loop.create_task(self.startup_cleanup())
 
     def cog_unload(self):
         self.verify_empty_bug_queue.cancel()
@@ -74,15 +74,25 @@ class Bugs(BaseCog):
             try:
                 await self.send_bug_info(name)
             except Exception as e:
-                await Logging.bot_log(f'Bug message failed in {channel.mention}')
+                await Logging.bot_log(f'Bug message failed in {name}:{cid}')
 
     async def send_bug_info(self, key):
         channel = self.bot.get_channel(Configuration.get_var("channels")[key])
         bug_info_id = Configuration.get_persistent_var(f"{key}_message")
 
-        last_message = await channel.history(limit=1).flatten()
-        last_message = last_message[0]
-        ctx = await self.bot.get_context(last_message)
+        ctx = None
+        while not ctx:
+            # Keep looking for channel history until we have it.
+            # this API call fails on startup because connection is not made yet.
+            # TODO: properly wait for connection to be initialized
+            try:
+                last_message = await channel.history(limit=1).flatten()
+                last_message = last_message[0]
+                ctx = await self.bot.get_context(last_message)
+            except Exception as e:
+                # Ignore
+                Logging.info("send_bug_info failed... trying again")
+                await asyncio.sleep(1)
 
         if bug_info_id is not None:
             try:
