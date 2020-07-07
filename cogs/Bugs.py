@@ -88,32 +88,33 @@ class Bugs(BaseCog):
             # Keep looking for channel history until we have it.
             # this API call fails on startup because connection is not made yet.
             # TODO: properly wait for connection to be initialized
-            Logging.info(f"Bugs channel {channel.id}")
+            Logging.info(f"Bugs channel {channel.id}...")
 
             try:
                 last_message = await channel.history(limit=1).flatten()
                 last_message = last_message[0]
                 ctx = await self.bot.get_context(last_message)
+
+                if bug_info_id is not None:
+                    try:
+                        message = await channel.fetch_message(bug_info_id)
+                    except (NotFound, HTTPException):
+                        pass
+                    else:
+                        await message.delete()
+                        if message.id in self.bug_messages:
+                            self.bug_messages.remove(message.id)
+
+                bugemoji = Emoji.get_emoji('BUG')
+                message = await channel.send(Lang.get_locale_string("bugs/bug_info", ctx, bug_emoji=bugemoji))
+                await message.add_reaction(bugemoji)
+                self.bug_messages.add(message.id)
+                Configuration.set_persistent_var(f"{key}_message", message.id)
+                Logging.info(f"... bug info sent")
             except Exception as e:
                 # Ignore
                 Logging.info("send_bug_info failed... trying again")
                 await asyncio.sleep(1)
-
-        if bug_info_id is not None:
-            try:
-                message = await channel.fetch_message(bug_info_id)
-            except (NotFound, HTTPException):
-                pass
-            else:
-                await message.delete()
-                if message.id in self.bug_messages:
-                    self.bug_messages.remove(message.id)
-
-        bugemoji = Emoji.get_emoji('BUG')
-        message = await channel.send(Lang.get_locale_string("bugs/bug_info", ctx, bug_emoji=bugemoji))
-        await message.add_reaction(bugemoji)
-        self.bug_messages.add(message.id)
-        Configuration.set_persistent_var(f"{key}_message", message.id)
 
     @tasks.loop(seconds=30.0)
     async def verify_empty_bug_queue(self, ctx):

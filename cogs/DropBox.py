@@ -47,12 +47,8 @@ class DropBox(BaseCog):
                 while not channel:
                     # Keep looking for channel history until we have it.
                     # this API call fails on startup because connection is not made yet.
-                    # TODO: properly wait for connection to be initialized
-                    Logging.info(f"dropbox channel {channel_id}")
-
                     try:
                         if drop.deletedelayms == 0:
-                            Logging.info(f"no clean for {channel_id}")
                             # do not clear from dropbox channels with no delay set.
                             break
                         now = datetime.utcnow()
@@ -68,8 +64,9 @@ class DropBox(BaseCog):
                                     # ignore delete failure. we'll try again next time
                                     pass
                     except Exception as e:
-                        await Utils.handle_exception('Dropox clean_channels exception', self.bot, e)
-                        await asyncio.sleep(30)
+                        # try again soon
+                        Logging.info(f"DropBox failed to clean {channel_id}")
+                        await asyncio.sleep(10)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
