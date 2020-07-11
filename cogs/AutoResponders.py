@@ -73,7 +73,8 @@ class AutoResponders(BaseCog):
         guilds = self.bot.guilds if ctx is None else [ctx.guild]
         for guild in guilds:
             self.triggers[guild.id] = dict()
-            for responder in AutoResponder.select().where(AutoResponder.serverid == guild.id):
+            for responder in AutoResponder.select().where(
+                    AutoResponder.serverid == guild.id).order_by(AutoResponder.id.asc()):
                 # interpret flags bitmask and store for reference
                 flags = dict()
                 for index in self.flags.values():
@@ -93,7 +94,7 @@ class AutoResponders(BaseCog):
                 # use JSON object to require each of several triggers in any order
                 try:
                     # TODO: enforce structure and depth limit. Currently written to accept 1D and 2D array of strings
-                    match_list = json.loads(responder.trigger.replace("'", '"'))
+                    match_list = json.loads(responder.trigger)
 
                     # 1D Array means a matching string will have each word in the list, in any order
                     # A list in any index of the list means any *one* word in the 2nd level list will match
@@ -109,6 +110,7 @@ class AutoResponders(BaseCog):
                 chance = responder.chance / 10000  # chance is 0-10,000. make it look more like a percentage
 
                 self.triggers[guild.id][trigger] = {
+                    'id': responder.id,
                     'match_list': match_list,
                     'response': response,
                     'flags': flags,
@@ -134,17 +136,33 @@ class AutoResponders(BaseCog):
                     flags_description += f"\n**\u200b \u200b **Respond in Channel: <#{trigger_obj['responsechannelid']}>"
                 if trigger_obj['listenchannelid']:
                     flags_description += f"\n**\u200b \u200b **Listen in Channel: <#{trigger_obj['listenchannelid']}>"
-                embed.add_field(name=f"**__trigger:__** {get_trigger_description(trigger)}", value=flags_description, inline=False)
+                embed.add_field(name=f"**[{trigger_obj['id']}]** {get_trigger_description(trigger)}", value=flags_description, inline=False)
             await ctx.send(embed=embed)
         else:
             await ctx.send(Lang.get_locale_string("autoresponder/none_set", ctx))
 
-    async def choose_trigger(self, ctx):
+    async def choose_trigger(self, ctx, trigger):
+        if trigger is not None:
+            try:
+                # check for trigger by db id
+                my_id = int(trigger)
+                trigger_by_id = self.find_trigger_by_id(ctx.guild.id, my_id)
+                if trigger_by_id is not None:
+                    # TODO: detect trigger that matches id and offer a choice
+                    return trigger_by_id
+            except ValueError:
+                if trigger in self.triggers[ctx.guild.id].keys():
+                    return trigger
+                msg = Lang.get_locale_string('autoresponder/not_found', ctx, trigger=get_trigger_description(trigger))
+                await ctx.send(f"{Emoji.get_chat_emoji('NO')} {msg}")
+                raise
+
         options = []
-        keys = []
-        for i in self.triggers[ctx.guild.id].keys():
-            options.append(f"{len(options)} ) {get_trigger_description(await Utils.clean(i))}")
-            keys.append(i)
+        keys = dict()
+        for i, data in self.triggers[ctx.guild.id].items():
+            # i is trigger string
+            options.append(f"{data['id']} ) {get_trigger_description(await Utils.clean(i))}")
+            keys[data['id']] = i
         options = '\n'.join(options)
         prompt = f"{Lang.get_locale_string('autoresponder/which_trigger', ctx)}\n{options}"
 
@@ -154,7 +172,7 @@ class AutoResponders(BaseCog):
                                                         ctx.author,
                                                         prompt,
                                                         locale=ctx))
-            if len(keys) > return_value >= 0:
+            if return_value in keys.keys():
                 return_value = keys[return_value]
                 chosen = get_trigger_description(await Utils.clean(return_value))
                 await ctx.send(Lang.get_locale_string('autoresponder/you_chose', ctx, value=chosen))
@@ -165,6 +183,12 @@ class AutoResponders(BaseCog):
             raise
 
     async def validate_trigger(self, ctx, trigger):
+        """
+        Tranform trigger into validated JSON string
+
+        :param trigger: the trigger to evaluate
+        return: JSON string on success, False on failure
+        """
         if len(trigger) == 0:
             msg = Lang.get_locale_string('autoresponder/empty_trigger', ctx)
             await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {msg}")
@@ -172,7 +196,15 @@ class AutoResponders(BaseCog):
             msg = Lang.get_locale_string('autoresponder/trigger_too_long', ctx)
             await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {msg}")
         else:
-            return True
+            p1 = re.compile(r"(\[|, )'")
+            p2 = re.compile(r"'(, |\])")
+            fixed = p1.sub(r'\1"', trigger)
+            fixed = p2.sub(r'"\1', fixed)
+            try:
+                trigger_obj = json.loads(fixed)
+                return fixed
+            except json.decoder.JSONDecodeError as e:
+                return trigger
         return False
 
     async def validate_reply(self, ctx, reply):
@@ -275,7 +307,8 @@ class AutoResponders(BaseCog):
             {channel} mentions the channel in which response was triggered
             {link} links to the message that triggered response
         """
-        if await self.validate_trigger(ctx, trigger) and await self.validate_reply(ctx, reply):
+        trigger = await self.validate_trigger(ctx, trigger)
+        if trigger is not False and await self.validate_reply(ctx, reply):
             db_trigger = await get_db_trigger(ctx.guild.id, trigger)
             if db_trigger is None:
                 AutoResponder.create(serverid=ctx.guild.id, trigger=trigger, response=reply)
@@ -303,6 +336,12 @@ class AutoResponders(BaseCog):
                 except asyncio.TimeoutError:
                     pass
 
+    def find_trigger_by_id(self, guild_id, trigger_id):
+        for trigger, data in self.triggers[guild_id].items():
+            if data['id'] == trigger_id:
+                return trigger
+        return None
+
     @autor.command(aliases=["del", "delete"])
     @commands.guild_only()
     async def remove(self, ctx: commands.Context, trigger: str = None):
@@ -311,25 +350,17 @@ class AutoResponders(BaseCog):
 
         trigger: Optionally name the trigger to select. If trigger is omitted, bot dialog will request it.
         """
-        if trigger is None:
-            try:
-                trigger = await self.choose_trigger(ctx)
-            except ValueError:
-                return
+        try:
+            trigger = await self.choose_trigger(ctx, trigger)
+        except ValueError:
+            return
 
         trigger = await Utils.clean(trigger, links=False)
-        if len(trigger) > self.trigger_length_max:
-            msg = Lang.get_locale_string('autoresponder/trigger_too_long', ctx)
-            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {msg}")
-        elif trigger in self.triggers[ctx.guild.id]:
-            AutoResponder.get(serverid=ctx.guild.id, trigger=trigger).delete_instance()
-            del self.triggers[ctx.guild.id][trigger]
-            msg = Lang.get_locale_string('autoresponder/removed', ctx, trigger=get_trigger_description(trigger))
-            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {msg}")
-            await self.reload_triggers(ctx)
-        else:
-            msg = Lang.get_locale_string('autoresponder/not_found', ctx, trigger=get_trigger_description(trigger))
-            await ctx.send(f"{Emoji.get_chat_emoji('NO')} {msg}")
+        AutoResponder.get(serverid=ctx.guild.id, trigger=trigger).delete_instance()
+        del self.triggers[ctx.guild.id][trigger]
+        msg = Lang.get_locale_string('autoresponder/removed', ctx, trigger=get_trigger_description(trigger))
+        await ctx.send(f"{Emoji.get_chat_emoji('YES')} {msg}")
+        await self.reload_triggers(ctx)
 
     @autor.command(aliases=["raw"])
     @commands.guild_only()
@@ -339,11 +370,10 @@ class AutoResponders(BaseCog):
 
         trigger: Optionally name the trigger to select. If trigger is omitted, bot dialog will request it.
         """
-        if trigger is None:
-            try:
-                trigger = await self.choose_trigger(ctx)
-            except ValueError:
-                return
+        try:
+            trigger = await self.choose_trigger(ctx, trigger)
+        except ValueError:
+            return
 
         row = AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
         if trigger is None or row is None:
@@ -387,11 +417,10 @@ class AutoResponders(BaseCog):
             {link} links to the message that triggered response
         """
         try:
-            if trigger is None:
-                try:
-                    trigger = await self.choose_trigger(ctx)
-                except ValueError:
-                    return
+            try:
+                trigger = await self.choose_trigger(ctx, trigger)
+            except ValueError:
+                return
 
             trigger = await Utils.clean(trigger, links=False)
             if reply is None:
@@ -429,11 +458,10 @@ class AutoResponders(BaseCog):
         trigger: The trigger to edit (must be quoted string if spaces)
         new_trigger: The new trigger to replace the old (no need for quotes)
         """
-        if trigger is None:
-            try:
-                trigger = await self.choose_trigger(ctx)
-            except ValueError:
-                return
+        try:
+            trigger = await self.choose_trigger(ctx, trigger)
+        except ValueError:
+            return
 
         trigger = await Utils.clean(trigger, links=False)
         if new_trigger is None:
@@ -444,7 +472,8 @@ class AutoResponders(BaseCog):
                                                    escape=False,
                                                    locale=ctx)
 
-        if self.validate_trigger(ctx, new_trigger):
+        new_trigger = await self.validate_trigger(ctx, new_trigger)
+        if new_trigger is not False:
             trigger = AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
             if trigger is None:
                 await nope(ctx)
@@ -454,7 +483,7 @@ class AutoResponders(BaseCog):
                 await self.reload_triggers(ctx)
 
                 await ctx.send(
-                    f"{Emoji.get_chat_emoji('YES')} {Lang.get_locale_string('autoresponder/updated', ctx, trigger=trigger)}"
+                    f"{Emoji.get_chat_emoji('YES')} {Lang.get_locale_string('autoresponder/updated', ctx, trigger=new_trigger)}"
                 )
         else:
             await nope(ctx)
@@ -467,11 +496,10 @@ class AutoResponders(BaseCog):
 
         trigger: Optionally name the trigger to select. If trigger is omitted, bot dialog will request it.
         """
-        if trigger is None:
-            try:
-                trigger = await self.choose_trigger(ctx)
-            except ValueError:
-                return
+        try:
+            trigger = await self.choose_trigger(ctx, trigger)
+        except ValueError:
+            return
 
         trigger_obj = self.triggers[ctx.guild.id][trigger]
         trigger = await Utils.clean(trigger)
@@ -485,11 +513,10 @@ class AutoResponders(BaseCog):
         trigger: Trigger text
         chance: Probability
         """
-        if trigger is None:
-            try:
-                trigger = await self.choose_trigger(ctx)
-            except ValueError:
-                return
+        try:
+            trigger = await self.choose_trigger(ctx, trigger)
+        except ValueError:
+            return
 
         if chance is None:
             chance = float(await Questions.ask_text(self.bot,
@@ -550,11 +577,10 @@ class AutoResponders(BaseCog):
             except (ValueError, asyncio.TimeoutError) as e:
                 return
 
-        if trigger is None:
-            try:
-                trigger = await self.choose_trigger(ctx)
-            except ValueError:
-                return
+        try:
+            trigger = await self.choose_trigger(ctx, trigger)
+        except ValueError:
+            return
 
         db_trigger = await get_db_trigger(ctx.guild.id, trigger)
 
@@ -608,11 +634,10 @@ class AutoResponders(BaseCog):
         """
         db_trigger = None
         while db_trigger is None:
-            if trigger is None:
-                try:
-                    trigger = await self.choose_trigger(ctx)
-                except ValueError:
-                    return
+            try:
+                trigger = await self.choose_trigger(ctx, trigger)
+            except ValueError:
+                return
 
             # get db trigger based on raw trigger
             db_trigger = await get_db_trigger(ctx.guild.id, trigger)
