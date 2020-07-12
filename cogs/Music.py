@@ -224,7 +224,7 @@ class Music(BaseCog):
     @commands.guild_only()
     @commands.check(can_admin)
     async def songs_in_progress(self, ctx):
-        ctx.send(f"There are  {len(self.in_progress)} songs in progress")
+        await ctx.send(f"There are  {len(self.in_progress)} songs in progress")
 
     @commands.max_concurrency(10, wait=False)
     @commands.command(aliases=['song'])
