@@ -178,8 +178,9 @@ class Music(BaseCog):
         super().__init__(bot)
         self.in_progress = dict()  # {user_id: asyncio_task}
         self.is_rendering = None
-
-    # TODO: create methods to update the bot metrics and in_progress, etc
+        m = self.bot.metrics
+        m.songs_in_progress.set_function(lambda: len(self.in_progress))
+        # TODO: create methods to update the bot metrics and in_progress, etc
 
     async def delete_progress(self, user):
         uid = user.id
@@ -216,19 +217,14 @@ class Music(BaseCog):
         out_name = await Utils.clean(name) if not out_name else out_name
         return out_name
 
-    '''
-    async def delete_progress_delayed(self, user):
-        delete_timeout = 10*60
-        await asyncio.sleep(delete_timeout)
-        if user.id in self.in_progress:
-            if not self.in_progress[user.id].done() or not self.in_progress[user.id].cancelled():
-                await user.send(Lang.get_locale_string("music/song_trash", self.locale))
+    def can_admin(ctx):
+        return ctx.author.guild_permissions.manage_channels
 
-            await self.delete_progress(user.id)
-
-    '''
-
-    # @commands.group(name='song', invoke_without_command=True)
+    @commands.command(aliases=['songs'])
+    @commands.guild_only()
+    @commands.check(can_admin)
+    async def songs_in_progress(self, ctx):
+        ctx.send(f"There are  {len(self.in_progress)} songs in progress")
 
     @commands.max_concurrency(10, wait=False)
     @commands.command(aliases=['song'])
