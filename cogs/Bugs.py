@@ -25,9 +25,6 @@ class Bugs(BaseCog):
         self.maint_check_count = 0
         m = self.bot.metrics
         m.reports_in_progress.set_function(lambda: len(self.in_progress))
-
-        # TODO: find out what the condition is we need to wait for instead of just sleep
-        await asyncio.sleep(20)
         bot.loop.create_task(self.startup_cleanup())
 
     def cog_unload(self):
@@ -65,6 +62,8 @@ class Bugs(BaseCog):
 
     async def startup_cleanup(self):
         Logging.info("starting bugs")
+        # TODO: find out what the condition is we need to wait for instead of just sleep
+        await asyncio.sleep(20)
 
         for name, cid in Configuration.get_var("channels").items():
             Logging.info(f"{name}:{cid}")
