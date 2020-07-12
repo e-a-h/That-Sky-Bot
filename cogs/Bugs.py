@@ -25,6 +25,9 @@ class Bugs(BaseCog):
         self.maint_check_count = 0
         m = self.bot.metrics
         m.reports_in_progress.set_function(lambda: len(self.in_progress))
+
+        # TODO: find out what the condition is we need to wait for instead of just sleep
+        await asyncio.sleep(20)
         bot.loop.create_task(self.startup_cleanup())
 
     def cog_unload(self):
@@ -61,10 +64,10 @@ class Bugs(BaseCog):
             Configuration.set_persistent_var(f"{name}_shutdown", message.id)
 
     async def startup_cleanup(self):
-        await self.bot.wait_until_ready()
         Logging.info("starting bugs")
 
         for name, cid in Configuration.get_var("channels").items():
+            Logging.info(f"{name}:{cid}")
             channel = self.bot.get_channel(cid)
             shutdown_id = Configuration.get_persistent_var(f"{name}_shutdown")
             if shutdown_id is not None:
@@ -77,6 +80,7 @@ class Bugs(BaseCog):
             try:
                 await self.send_bug_info(name)
             except Exception as e:
+                await Utils.handle_exception("bug startup failure", self.bot, e)
                 await Logging.bot_log(f'Bug message failed in {name}:{cid}')
 
     async def send_bug_info(self, key):

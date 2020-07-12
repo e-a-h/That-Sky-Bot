@@ -20,7 +20,6 @@ class DropBox(BaseCog):
         bot.loop.create_task(self.startup_cleanup())
 
     async def startup_cleanup(self):
-        await self.bot.wait_until_ready()
         Logging.info("starting DropBox")
 
         for guild in self.bot.guilds:
@@ -29,6 +28,9 @@ class DropBox(BaseCog):
             for row in DropboxChannel.select().where(DropboxChannel.serverid == guild.id):
                 self.dropboxes[guild.id][row.sourcechannelid] = row
         self.loaded = True
+
+        # TODO: find out what the condition is we need to wait for instead of just sleep
+        await asyncio.sleep(20)
         self.clean_channels.start()
 
     def cog_unload(self):
