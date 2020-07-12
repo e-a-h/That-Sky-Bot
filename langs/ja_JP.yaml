@@ -250,7 +250,7 @@ autoresponder:
   no_channel: --jp-- No channel set.
   updating: --jp-- Updating...
   not_updating: --jp-- Keeping the old one.
-  not_found: --jp-- Unable to remove `{trigger}` as it doesn't seem to exist.
+  not_found: --jp-- Unable to find trigger `{trigger}`.
   creating: --jp-- This auto-responder does not exist, making it for you instead.
   which_flag: |
     --jp-- Which flag do you want? (type a number)

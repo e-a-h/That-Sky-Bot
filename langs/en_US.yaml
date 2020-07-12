@@ -250,7 +250,7 @@ autoresponder:
   no_channel: No channel set.
   updating: Updating...
   not_updating: Keeping the old one.
-  not_found: Unable to remove `{trigger}` as it doesn't seem to exist.
+  not_found: Unable to find trigger `{trigger}`.
   creating: This auto-responder does not exist, making it for you instead.
   which_flag: |
     Which flag do you want? (type a number)
