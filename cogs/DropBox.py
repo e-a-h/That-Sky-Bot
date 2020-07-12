@@ -7,7 +7,7 @@ from discord import Embed
 from discord.ext import commands, tasks
 
 from cogs.BaseCog import BaseCog
-from utils import Lang, Questions, Utils
+from utils import Lang, Questions, Utils, Logging
 from utils.Database import DropboxChannel
 
 
@@ -20,12 +20,17 @@ class DropBox(BaseCog):
         bot.loop.create_task(self.startup_cleanup())
 
     async def startup_cleanup(self):
+        Logging.info("starting DropBox")
+
         for guild in self.bot.guilds:
             # fetch dropbox channels per server
             self.dropboxes[guild.id] = dict()
             for row in DropboxChannel.select().where(DropboxChannel.serverid == guild.id):
                 self.dropboxes[guild.id][row.sourcechannelid] = row
         self.loaded = True
+
+        # TODO: find out what the condition is we need to wait for instead of just sleep
+        await asyncio.sleep(20)
         self.clean_channels.start()
 
     def cog_unload(self):
@@ -40,25 +45,30 @@ class DropBox(BaseCog):
     async def clean_channels(self):
         for guild in self.bot.guilds:
             for channel_id, drop in dict(self.dropboxes[guild.id]).items():
-                try:
-                    if drop.deletedelayms == 0:
-                        # do not clear from dropbox channels with no delay set.
-                        continue
-                    now = datetime.utcnow()
-                    channel = self.bot.get_channel(channel_id)
-                    async for message in channel.history(limit=20):
-                        age = (now-message.created_at).seconds
-                        expired = age > drop.deletedelayms / 1000
-                        # periodically clear out expired messages sent by bot and non-mod
-                        if expired and (message.author.bot or not message.author.guild_permissions.ban_members):
-                            try:
-                                await message.delete()
-                            except Exception as e:
-                                # ignore delete failure. we'll try again next time
-                                pass
-                except Exception as e:
-                    await Utils.handle_exception('Dropox clean_channels exception', self.bot, e)
-                    await asyncio.sleep(60)
+                channel = None
+                while not channel:
+                    # Keep looking for channel history until we have it.
+                    # this API call fails on startup because connection is not made yet.
+                    try:
+                        if drop.deletedelayms == 0:
+                            # do not clear from dropbox channels with no delay set.
+                            break
+                        now = datetime.utcnow()
+                        channel = self.bot.get_channel(channel_id)
+                        async for message in channel.history(limit=20):
+                            age = (now-message.created_at).seconds
+                            expired = age > drop.deletedelayms / 1000
+                            # periodically clear out expired messages sent by bot and non-mod
+                            if expired and (message.author.bot or not message.author.guild_permissions.ban_members):
+                                try:
+                                    await message.delete()
+                                except Exception as e:
+                                    # ignore delete failure. we'll try again next time
+                                    pass
+                    except Exception as e:
+                        # try again soon
+                        Logging.info(f"DropBox failed to clean {channel_id}")
+                        await asyncio.sleep(10)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):

@@ -93,7 +93,7 @@ class CustomCommand(Model):
     serverid = BigIntegerField()
     trigger = CharField(max_length=20, collation="utf8mb4_general_ci")
     response = CharField(max_length=2000, collation="utf8mb4_general_ci")
-    delete = BooleanField(default=False)
+    deletetrigger = BooleanField(default=False)
 
     class Meta:
         database = connection

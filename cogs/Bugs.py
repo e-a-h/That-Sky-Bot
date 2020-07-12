@@ -17,7 +17,6 @@ class Bugs(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        bot.loop.create_task(self.startup_cleanup())
         self.bug_messages = set()
         self.in_progress = dict()
         self.sweeps = dict()
@@ -26,6 +25,7 @@ class Bugs(BaseCog):
         self.maint_check_count = 0
         m = self.bot.metrics
         m.reports_in_progress.set_function(lambda: len(self.in_progress))
+        bot.loop.create_task(self.startup_cleanup())
 
     def cog_unload(self):
         self.verify_empty_bug_queue.cancel()
@@ -61,7 +61,12 @@ class Bugs(BaseCog):
             Configuration.set_persistent_var(f"{name}_shutdown", message.id)
 
     async def startup_cleanup(self):
+        Logging.info("starting bugs")
+        # TODO: find out what the condition is we need to wait for instead of just sleep
+        await asyncio.sleep(20)
+
         for name, cid in Configuration.get_var("channels").items():
+            Logging.info(f"{name}:{cid}")
             channel = self.bot.get_channel(cid)
             shutdown_id = Configuration.get_persistent_var(f"{name}_shutdown")
             if shutdown_id is not None:
@@ -74,31 +79,45 @@ class Bugs(BaseCog):
             try:
                 await self.send_bug_info(name)
             except Exception as e:
-                await Logging.bot_log(f'Bug message failed in {channel.mention}')
+                await Utils.handle_exception("bug startup failure", self.bot, e)
+                await Logging.bot_log(f'Bug message failed in {name}:{cid}')
 
     async def send_bug_info(self, key):
         channel = self.bot.get_channel(Configuration.get_var("channels")[key])
         bug_info_id = Configuration.get_persistent_var(f"{key}_message")
 
-        last_message = await channel.history(limit=1).flatten()
-        last_message = last_message[0]
-        ctx = await self.bot.get_context(last_message)
+        ctx = None
+        while not ctx:
+            # Keep looking for channel history until we have it.
+            # this API call fails on startup because connection is not made yet.
+            # TODO: properly wait for connection to be initialized
+            Logging.info(f"Bugs channel {channel.id}...")
 
-        if bug_info_id is not None:
             try:
-                message = await channel.fetch_message(bug_info_id)
-            except (NotFound, HTTPException):
-                pass
-            else:
-                await message.delete()
-                if message.id in self.bug_messages:
-                    self.bug_messages.remove(message.id)
+                last_message = await channel.history(limit=1).flatten()
+                last_message = last_message[0]
+                ctx = await self.bot.get_context(last_message)
 
-        bugemoji = Emoji.get_emoji('BUG')
-        message = await channel.send(Lang.get_locale_string("bugs/bug_info", ctx, bug_emoji=bugemoji))
-        await message.add_reaction(bugemoji)
-        self.bug_messages.add(message.id)
-        Configuration.set_persistent_var(f"{key}_message", message.id)
+                if bug_info_id is not None:
+                    try:
+                        message = await channel.fetch_message(bug_info_id)
+                    except (NotFound, HTTPException):
+                        pass
+                    else:
+                        await message.delete()
+                        if message.id in self.bug_messages:
+                            self.bug_messages.remove(message.id)
+
+                bugemoji = Emoji.get_emoji('BUG')
+                message = await channel.send(Lang.get_locale_string("bugs/bug_info", ctx, bug_emoji=bugemoji))
+                await message.add_reaction(bugemoji)
+                self.bug_messages.add(message.id)
+                Configuration.set_persistent_var(f"{key}_message", message.id)
+                Logging.info(f"... bug info sent")
+            except Exception as e:
+                # Ignore
+                Logging.info("send_bug_info failed... trying again")
+                await asyncio.sleep(1)
 
     @tasks.loop(seconds=30.0)
     async def verify_empty_bug_queue(self, ctx):
