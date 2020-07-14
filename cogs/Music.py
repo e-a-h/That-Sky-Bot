@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 import time
+import json
 from concurrent.futures import CancelledError
 from io import BytesIO
 from zipfile import ZipFile, ZIP_DEFLATED
@@ -26,6 +27,7 @@ try:
     from src.skymusic.communicator import Communicator, QueriesExecutionAbort
     from src.skymusic.music_sheet_maker import MusicSheetMaker
     from src.skymusic.resources import Resources as skymusic_resources
+    from src.skymusic.modes import RenderMode
 except ImportError as e:
     print('*** IMPORT ERROR of one or several Music-Maker modules')
     print(e)
@@ -127,7 +129,7 @@ class MusicCogPlayer:
 
     async def send_song_to_channel(self, channel, user, song_bundle, song_title='Untitled'):
         """
-        A song bundle is an objcet returning a dictionary of song meta data and a dict of IOString or IOBytes buffers,
+        A song bundle is an object returning a dictionary of song meta data and a dict of IOString or IOBytes buffers,
         as lists indexed by their RenderMode
 
         channel:
@@ -137,6 +139,11 @@ class MusicCogPlayer:
         """
         await channel.trigger_typing()
         song_renders = song_bundle.get_all_renders()
+        
+        try:
+            json_buffer = song_renders.pop(RenderMode.SKYJSON)
+        except KeyError:
+            json_buffer = None
 
         for render_mode, buffers in song_renders.items():
             my_files = [File(buffer, filename=f"{song_title}_{i:03d}{render_mode.extension}")
@@ -169,6 +176,15 @@ class MusicCogPlayer:
                 await Utils.handle_exception("bad zip!", self.cog.bot, e)
                 await channel.send("oops, zip file borked... contact the authorities!")
 
+        if json_buffer:
+            song_dict = json.loads(json_buffer.getvalue())
+            
+            json_post_data = {'API_KEY':"The private key that I will share", 'song': song_dict}
+            json_post_data = json.dump(json_post_data)
+            
+            #TODO: generate post data
+            
+            await channel.send("A JSON file with tempo was intercepted. Soon you will be able to play it online!")
 
 class Music(BaseCog):
 
