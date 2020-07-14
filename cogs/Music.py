@@ -1,8 +1,6 @@
 import asyncio
-import os
-import sys
-import time
-import json
+import os, sys, time, json
+from urllib import parse, request
 from concurrent.futures import CancelledError
 from io import BytesIO
 from zipfile import ZipFile, ZIP_DEFLATED
@@ -170,21 +168,28 @@ class MusicCogPlayer:
                         zip_file.writestr(sheet.filename, sheet.fp.getvalue())
 
                 stream.seek(0)
-                await channel.send(content="Your visual sheets got zipped. Visit <https://sky-music.github.io> for more!",
+                await channel.send(content="Your visual sheets got zipped. Visit <https://sky-music.github.io> to see songs published by other players!",
                                    file=discord.File(stream, f"{song_title}_sheets.zip"))
             except Exception as e:
                 await Utils.handle_exception("bad zip!", self.cog.bot, e)
                 await channel.send("oops, zip file borked... contact the authorities!")
 
         if json_buffer:
-            song_dict = json.loads(json_buffer.getvalue())
             
-            json_post_data = {'API_KEY':"The private key that I will share", 'song': song_dict}
-            json_post_data = json.dump(json_post_data)
+            await channel.trigger_typing()
             
-            #TODO: generate post data
+            #song_dict = json.loads(json_buffer.getvalue())
             
-            await channel.send("A JSON file with tempo was intercepted. Soon you will be able to play it online!")
+            json_post_data = {'API_KEY':"The private key that I will share", 'song': json_buffer.getvalue()}
+            
+            params = parse.urlencode(json_post_data)
+            headers = {"Content-type": "application/x-www-form-urlencoded", "Accept": "text/plain"}
+            req = request.Request("https://sky-music.herokuapp.com/api/generateTempSong", params.encode('ascii'), headers, method='POST')
+            response = request.urlopen(req)
+            url = response.get_url()
+            #Encode to ascii or bytes???
+            
+            await channel.send("You can hear your song being played at "+url)
 
 class Music(BaseCog):
 
