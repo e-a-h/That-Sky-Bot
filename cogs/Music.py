@@ -125,6 +125,25 @@ class MusicCogPlayer:
                         reply_valid = q.get_reply_validity()
         return True
 
+
+    async def generate_json_url(self, channel, user):
+            
+        #song_dict = json.loads(json_buffer.getvalue())
+        
+        json_post_data = {'API_KEY':"The private key that I will share", 'song': json_buffer.getvalue()}
+        
+        params = parse.urlencode(json_post_data)
+        headers = {"Content-type": "application/x-www-form-urlencoded", "Accept": "text/plain"}
+        
+        # Request, POST by default if data is provided
+        req = await asyncio.get_event_loop().run_in_executor(None, request.Request, "https://sky-music.herokuapp.com/api/generateTempSong", params.encode('ascii'), headers)
+        
+        response = request.urlopen(req)
+        url = response.get_url()
+        
+        return url
+        
+
     async def send_song_to_channel(self, channel, user, song_bundle, song_title='Untitled'):
         """
         A song bundle is an object returning a dictionary of song meta data and a dict of IOString or IOBytes buffers,
@@ -177,19 +196,9 @@ class MusicCogPlayer:
         if json_buffer:
             
             await channel.trigger_typing()
-            
-            #song_dict = json.loads(json_buffer.getvalue())
-            
-            json_post_data = {'API_KEY':"The private key that I will share", 'song': json_buffer.getvalue()}
-            
-            params = parse.urlencode(json_post_data)
-            headers = {"Content-type": "application/x-www-form-urlencoded", "Accept": "text/plain"}
-            req = request.Request("https://sky-music.herokuapp.com/api/generateTempSong", params.encode('ascii'), headers, method='POST')
-            response = request.urlopen(req)
-            url = response.get_url()
-            #Encode to ascii or bytes???
-            
+            url = await send_json_url(channel, user)
             await channel.send("You can hear your song being played at "+url)
+
 
 class Music(BaseCog):
 
