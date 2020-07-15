@@ -25,6 +25,7 @@ URL_MATCHER = re.compile(r'((?:https?://)[a-z0-9]+(?:[-._][a-z0-9]+)*\.[a-z]{2,5
                          re.IGNORECASE)
 EMOJI_MATCHER = re.compile('<(a?):([^: \n]+):([0-9]+)>')
 NUMBER_MATCHER = re.compile(r"\d+")
+INVITE_MATCHER = re.compile(r"(?:https?://)?(?:www\.)?(?:discord(?:\.| |\[?\(?\"?'?dot'?\"?\)?\]?)?(?:gg|io|me|li)|discord(?:app)?\.com/invite)/+((?:(?!https?)[\w\d-])+)", flags=re.IGNORECASE)
 
 welcome_channel = "welcome_channel"
 rules_channel = "rules_channel"
