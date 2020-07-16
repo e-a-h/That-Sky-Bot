@@ -34,6 +34,7 @@ class PrometheusMon:
         self.bot_latency.set_function(lambda: bot.latency)
 
         self.songs_in_progress = prom.Gauge("songs_in_progress", "Number of songs currently in progress")
+        self.songs_completed = prom.Counter("songs_completed", "Number of songs completed")
 
         # self.reports_completed = prom.Counter("", "")  # already handled by mysql report count
         self.bot_cannot_dm_member = prom.Counter("bot_cannot_dm_member", "Bot tried and failed to send DM to member")
@@ -108,6 +109,7 @@ class PrometheusMon:
         # bot.metrics_reg.register(self.bot_event_counts)
 
         bot.metrics_reg.register(self.songs_in_progress)
+        bot.metrics_reg.register(self.songs_completed)
 
         bot.metrics_reg.register(self.bot_cannot_dm_member)
         bot.metrics_reg.register(self.reports_in_progress)

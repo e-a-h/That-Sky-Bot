@@ -269,7 +269,7 @@ class Music(BaseCog):
 
     # @commands.command(aliases=['song'])
     async def actual_transcribe_song(self, user, ctx):
-
+        m = self.bot.metrics
         active_question = None
         self_rendering = False
 
@@ -413,6 +413,7 @@ class Music(BaseCog):
                 self.is_rendering = None
 
                 await player.send_song_to_channel(channel, user, song_bundle, title)
+                m.songs_completed.inc()
                 active_question += 1
         except Forbidden as ex:
             await ctx.send(
