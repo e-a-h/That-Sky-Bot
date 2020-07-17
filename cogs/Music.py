@@ -126,7 +126,7 @@ class MusicCogPlayer:
         return True
 
 
-    async def generate_json_url(self, channel, user):
+    async def generate_json_url(self, json_buffer):
             
         #song_dict = json.loads(json_buffer.getvalue())
         
@@ -158,8 +158,8 @@ class MusicCogPlayer:
         song_renders = song_bundle.get_all_renders()
         
         try:
-            json_buffer = song_renders.pop(RenderMode.SKYJSON)
-        except KeyError:
+            json_buffer = song_renders.pop(RenderMode.SKYJSON)[0]
+        except (KeyError, TypeError):
             json_buffer = None
 
         for render_mode, buffers in song_renders.items():
@@ -196,7 +196,7 @@ class MusicCogPlayer:
         if json_buffer:
             
             await channel.trigger_typing()
-            url = await send_json_url(channel, user)
+            url = await generate_json_url(json_buffer)
             await channel.send("You can hear your song being played at "+url)
 
 
