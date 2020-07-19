@@ -1,6 +1,5 @@
 import asyncio
-import os, sys, time, json
-from urllib import parse, request
+import os, sys, time
 from concurrent.futures import CancelledError
 from io import BytesIO
 from zipfile import ZipFile, ZIP_DEFLATED
@@ -126,24 +125,6 @@ class MusicCogPlayer:
         return True
 
 
-    async def generate_json_url(self, json_buffer):
-            
-        #song_dict = json.loads(json_buffer.getvalue())
-        
-        json_post_data = {'API_KEY':"The private key that I will share", 'song': json_buffer.getvalue()}
-        
-        params = parse.urlencode(json_post_data)
-        headers = {"Content-type": "application/x-www-form-urlencoded", "Accept": "text/plain"}
-        
-        # Request, POST by default if data is provided
-        req = await asyncio.get_event_loop().run_in_executor(None, request.Request, "https://sky-music.herokuapp.com/api/generateTempSong", params.encode('ascii'), headers)
-        
-        response = request.urlopen(req)
-        url = response.get_url()
-        
-        return url
-        
-
     async def send_song_to_channel(self, channel, user, song_bundle, song_title='Untitled'):
         """
         A song bundle is an object returning a dictionary of song meta data and a dict of IOString or IOBytes buffers,
@@ -155,13 +136,8 @@ class MusicCogPlayer:
         song_title:
         """
         await channel.trigger_typing()
-        song_renders = song_bundle.get_all_renders()
+        song_renders = song_bundle.get_renders([RenderMode.PNG])
         
-        try:
-            json_buffer = song_renders.pop(RenderMode.SKYJSON)[0]
-        except (KeyError, TypeError):
-            json_buffer = None
-
         for render_mode, buffers in song_renders.items():
             my_files = [File(buffer, filename=f"{song_title}_{i:03d}{render_mode.extension}")
                         for (i, buffer) in enumerate(buffers)]
@@ -192,12 +168,6 @@ class MusicCogPlayer:
             except Exception as e:
                 await Utils.handle_exception("bad zip!", self.cog.bot, e)
                 await channel.send("oops, zip file borked... contact the authorities!")
-
-        if json_buffer:
-            
-            await channel.trigger_typing()
-            url = await generate_json_url(json_buffer)
-            await channel.send("You can hear your song being played at "+url)
 
 
 class Music(BaseCog):
@@ -334,7 +304,7 @@ class Music(BaseCog):
                 active_question = 0
 
                 player = MusicCogPlayer(cog=self, locale=locale)
-                maker = MusicSheetMaker(locale=locale)
+                maker = MusicSheetMaker(locale=locale, enable_skyjson_url=True)
 
                 # 1. Sets Song Parser
                 maker.set_song_parser()
@@ -405,13 +375,14 @@ class Music(BaseCog):
                 active_question += 1
 
                 # 10 Asks for render modes
+                # Disabled because only PNG is authorized at the moment
                 #q_render, _ = self.ask_render_modes(recipient=recipient)
                 #if q_render is not None:
                 #    answered = await player.async_execute_queries(channel, user, q_render)
                 #    render_modes = q_render.get_reply().get_result()
                 #active_question += 1
                 
-                # 11 Asks render mode
+                # 11 Asks aspect ratio
                 q_aspect, aspect_ratio = maker.ask_aspect_ratio(recipient=player, execute=False)
                 if aspect_ratio is None:
                     answered = await player.async_execute_queries(channel, user, q_aspect)
@@ -419,8 +390,8 @@ class Music(BaseCog):
                 active_question += 1
 
                 # 12. Ask beats per minutes
-                #q_song_bpm, _ = self.ask_song_bpm(recipient=player, execute=False)
-                #(q_song_bpm, song_bpm) = self.ask_song_bpm(recipient=recipient, prerequisites=[q_render])  # EXPERIMENTAL       
+                # To enable for MIDI and SKYJSON only
+                #q_song_bpm, _ = self.ask_song_bpm(recipient=player, execute=False)  
                 #if q_song_bpm is not None:
                 #    answered = await player.async_execute_queries(channel, user, q_song_bpm)
                 #    song_bpm = q_song_bpm.get_reply().get_result()
@@ -443,6 +414,15 @@ class Music(BaseCog):
 
                 await player.send_song_to_channel(channel, user, song_bundle, title)
                 active_question += 1
+                
+                # 14. Displays external link to sky-music.herokuapp.com
+                await channel.trigger_typing()
+                i_url, _ = maker.send_json_url(recipient=player, song_bundle=song_bundle, prerequisites=[q_notes, q_mode, q_shift],
+                                                       execute=False)
+                answered = await player.async_execute_queries(channel, user, i_url)
+                active_question += 1                
+                
+                
         except Forbidden as ex:
             await ctx.send(
                 Lang.get_locale_string("music/dm_unable", ctx, user=user.mention),
