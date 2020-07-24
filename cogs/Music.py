@@ -10,7 +10,7 @@ from discord.ext import commands
 from discord.ext.commands import Context
 
 from cogs.BaseCog import BaseCog
-from utils import Lang, Questions, Utils
+from utils import Lang, Questions, Utils, Configuration
 from utils.Utils import MENTION_MATCHER, ID_MATCHER, NUMBER_MATCHER
 
 try:
@@ -417,7 +417,8 @@ class Music(BaseCog):
                 
                 # 14. Displays external link to sky-music.herokuapp.com
                 await channel.trigger_typing()
-                i_url, _ = maker.send_json_url(recipient=player, song_bundle=song_bundle, prerequisites=[q_notes, q_mode, q_shift],
+                SKYJSON_API_KEY = Configuration.get_var('SKYJSON_API_KEY')
+                i_url, _ = maker.send_json_url(recipient=player, song_bundle=song_bundle, skyjson_api_key=SKYJSON_API_KEY, prerequisites=[q_notes, q_mode, q_shift],
                                                        execute=False)
                 answered = await player.async_execute_queries(channel, user, i_url)
                 active_question += 1                
