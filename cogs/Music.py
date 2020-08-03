@@ -1,7 +1,5 @@
 import asyncio
-import os
-import sys
-import time
+import os, sys, time
 from concurrent.futures import CancelledError
 from io import BytesIO
 from zipfile import ZipFile, ZIP_DEFLATED
@@ -12,7 +10,7 @@ from discord.ext import commands
 from discord.ext.commands import Context
 
 from cogs.BaseCog import BaseCog
-from utils import Lang, Questions, Utils
+from utils import Lang, Questions, Utils, Configuration
 from utils.Utils import MENTION_MATCHER, ID_MATCHER, NUMBER_MATCHER
 
 try:
@@ -26,6 +24,7 @@ try:
     from src.skymusic.communicator import Communicator, QueriesExecutionAbort
     from src.skymusic.music_sheet_maker import MusicSheetMaker
     from src.skymusic.resources import Resources as skymusic_resources
+    from src.skymusic.modes import RenderMode
 except ImportError as e:
     print('*** IMPORT ERROR of one or several Music-Maker modules')
     print(e)
@@ -125,9 +124,10 @@ class MusicCogPlayer:
                         reply_valid = q.get_reply_validity()
         return True
 
+
     async def send_song_to_channel(self, channel, user, song_bundle, song_title='Untitled'):
         """
-        A song bundle is an objcet returning a dictionary of song meta data and a dict of IOString or IOBytes buffers,
+        A song bundle is an object returning a dictionary of song meta data and a dict of IOString or IOBytes buffers,
         as lists indexed by their RenderMode
 
         channel:
@@ -136,9 +136,8 @@ class MusicCogPlayer:
         song_title:
         """
         await channel.trigger_typing()
-        message = "Here are your song files(s)"
-        song_renders = song_bundle.get_all_renders()
-
+        song_renders = song_bundle.get_renders([RenderMode.PNG])
+        
         for render_mode, buffers in song_renders.items():
             my_files = [File(buffer, filename=f"{song_title}_{i:03d}{render_mode.extension}")
                         for (i, buffer) in enumerate(buffers)]
@@ -149,7 +148,7 @@ class MusicCogPlayer:
 
             if len(my_files) < 4:
                 # send images 3 or fewer images to channel
-                await channel.send(content=message, files=my_files)
+                await channel.send(content="Here are your visual sheet(s). Visit <https://sky-music.github.io> for more!", files=my_files)
                 continue
 
             # 4+ files get zipped
@@ -164,7 +163,7 @@ class MusicCogPlayer:
                         zip_file.writestr(sheet.filename, sheet.fp.getvalue())
 
                 stream.seek(0)
-                await channel.send(content="Yo, your music files got zipped",
+                await channel.send(content="Your visual sheets got zipped. Visit <https://sky-music.github.io> to see songs published by other players!",
                                    file=discord.File(stream, f"{song_title}_sheets.zip"))
             except Exception as e:
                 await Utils.handle_exception("bad zip!", self.cog.bot, e)
@@ -305,7 +304,7 @@ class Music(BaseCog):
                 active_question = 0
 
                 player = MusicCogPlayer(cog=self, locale=locale)
-                maker = MusicSheetMaker(locale=locale)
+                maker = MusicSheetMaker(locale=locale, enable_skyjson_url=True)
 
                 # 1. Sets Song Parser
                 maker.set_song_parser()
@@ -315,9 +314,11 @@ class Music(BaseCog):
                 answered = await player.async_execute_queries(channel, user, i_instr)
                 # result = i_instr.get_reply().get_result()
                 active_question += 1
-
+                
+                await channel.trigger_typing()
+                await asyncio.sleep(1)
+                
                 # 3. Asks for notes
-                # TODO: allow the player to enter the notes using several messages??? or maybe not
                 q_notes, _ = maker.ask_notes(recipient=player, prerequisites=[i_instr], execute=False)
                 answered = await player.async_execute_queries(channel, user, q_notes)
                 notes = q_notes.get_reply().get_result()
@@ -376,13 +377,14 @@ class Music(BaseCog):
                 active_question += 1
 
                 # 10 Asks for render modes
+                # Disabled because only PNG is authorized at the moment
                 #q_render, _ = self.ask_render_modes(recipient=recipient)
                 #if q_render is not None:
                 #    answered = await player.async_execute_queries(channel, user, q_render)
                 #    render_modes = q_render.get_reply().get_result()
                 #active_question += 1
                 
-                # 11 Asks render mode
+                # 11 Asks aspect ratio
                 q_aspect, aspect_ratio = maker.ask_aspect_ratio(recipient=player, execute=False)
                 if aspect_ratio is None:
                     answered = await player.async_execute_queries(channel, user, q_aspect)
@@ -390,8 +392,8 @@ class Music(BaseCog):
                 active_question += 1
 
                 # 12. Ask beats per minutes
-                #q_song_bpm, _ = self.ask_song_bpm(recipient=player, execute=False)
-                #(q_song_bpm, song_bpm) = self.ask_song_bpm(recipient=recipient, prerequisites=[q_render])  # EXPERIMENTAL       
+                # To enable for MIDI and SKYJSON only
+                #q_song_bpm, _ = self.ask_song_bpm(recipient=player, execute=False)  
                 #if q_song_bpm is not None:
                 #    answered = await player.async_execute_queries(channel, user, q_song_bpm)
                 #    song_bpm = q_song_bpm.get_reply().get_result()
@@ -415,6 +417,16 @@ class Music(BaseCog):
                 await player.send_song_to_channel(channel, user, song_bundle, title)
                 m.songs_completed.inc()
                 active_question += 1
+                
+                # 14. Displays external link to sky-music.herokuapp.com
+                await channel.trigger_typing()
+                SKYJSON_API_KEY = Configuration.get_var('SKYJSON_API_KEY')
+                i_url, _ = maker.send_json_url(recipient=player, song_bundle=song_bundle, skyjson_api_key=SKYJSON_API_KEY, prerequisites=[q_notes, q_mode, q_shift],
+                                                       execute=False)
+                answered = await player.async_execute_queries(channel, user, i_url)
+                active_question += 1                
+                
+                
         except Forbidden as ex:
             await ctx.send(
                 Lang.get_locale_string("music/dm_unable", ctx, user=user.mention),
