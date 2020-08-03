@@ -314,9 +314,11 @@ class Music(BaseCog):
                 answered = await player.async_execute_queries(channel, user, i_instr)
                 # result = i_instr.get_reply().get_result()
                 active_question += 1
-
+                
+                await channel.trigger_typing()
+                await asyncio.sleep(1)
+                
                 # 3. Asks for notes
-                # TODO: allow the player to enter the notes using several messages??? or maybe not
                 q_notes, _ = maker.ask_notes(recipient=player, prerequisites=[i_instr], execute=False)
                 answered = await player.async_execute_queries(channel, user, q_notes)
                 notes = q_notes.get_reply().get_result()
