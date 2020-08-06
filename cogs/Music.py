@@ -78,7 +78,15 @@ class MusicCogPlayer:
                 query_dict = self.communicator.query_to_discord(q)
                 options = [Questions.Option("QUESTION_MARK", 'Help', handler=answer_number, args=(None, '?'))]
 
-                if 'options' in query_dict:
+                if 'yesnos' in query_dict:
+                    reaction_choices = True
+                    question_text = query_dict['question']
+                    first_number = 0
+                    option = [Questions.Option("YES", query_dict['yesnos'][0]['text'], handler=answer_number, args=(first_number, 0)),
+                              Questions.Option("NO", query_dict['yesnos'][1]['text'], handler=answer_number, args=(first_number, 1))]
+
+                    options = options + option               
+                elif 'options' in query_dict:
                     if 0 < len(query_dict['options']) <= 10:
                         reaction_choices = True
                         question_text = query_dict['question']
@@ -362,19 +370,28 @@ class Music(BaseCog):
                 active_question += 1
 
                 # 9. Asks for song metadata
-                qs_meta, _ = maker.ask_song_metadata(recipient=player, execute=False)
-                answered = await player.async_execute_queries(channel, user, qs_meta)
-                # TODO: convert_mention only converts IDs here, maybe because mentions are escaped before here.
-                #  fix or maybe add an unescape or something
-                (title, artist, transcript) = [await self.convert_mention(ctx, q.get_reply().get_result()) for q in qs_meta]
-                
-                # 9.b Sets song metadata
-                maker.set_song_metadata(recipient=player,
-                                        meta=(title,
-                                              artist,
-                                              transcript),
-                                        song_key=song_key)
-                active_question += 1
+                if maker.get_song().get_meta_changed():
+                    q_keep_meta, _ = maker.ask_song_keep_metadata(recipient=player, prerequisites=[q_notes], execute=False)
+                    answered = await player.async_execute_queries(channel, user, q_keep_meta)
+                    active_question += 1
+                    keep_meta = q_keep_meta.get_reply().get_result()
+                else:
+                    keep_meta = False
+                        
+                if not keep_meta:
+                    qs_meta, _ = maker.ask_song_metadata(recipient=player, execute=False)
+                    answered = await player.async_execute_queries(channel, user, qs_meta)
+                    # TODO: convert_mention only converts IDs here, maybe because mentions are escaped before here.
+                    #  fix or maybe add an unescape or something
+                    (title, artist, transcript) = [await self.convert_mention(ctx, q.get_reply().get_result()) for q in qs_meta]
+                    
+                    # 9.b Sets song metadata
+                    maker.set_song_metadata(recipient=player,
+                                            meta=(title,
+                                                  artist,
+                                                  transcript),
+                                            song_key=song_key)
+                    active_question += 1
 
                 # 10 Asks for render modes
                 # Disabled because only PNG is authorized at the moment
@@ -414,7 +431,7 @@ class Music(BaseCog):
                 self.bot.music_rendering = False
                 self.is_rendering = None
 
-                await player.send_song_to_channel(channel, user, song_bundle, title)
+                await player.send_song_to_channel(channel, user, song_bundle, song_bundle.get_sanitized_song_title())
                 active_question += 1
                 
                 # 14. Displays external link to sky-music.herokuapp.com
