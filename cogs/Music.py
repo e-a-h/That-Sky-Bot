@@ -15,16 +15,16 @@ from utils.Utils import MENTION_MATCHER, ID_MATCHER, NUMBER_MATCHER
 
 try:
     music_maker_path = os.path.normpath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), '../sky-python-music-sheet-maker'))
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), '../sky-python-music-sheet-maker/src'))
     if not os.path.isdir(music_maker_path):
         music_maker_path = os.path.normpath(
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../sky-python-music-sheet-maker'))
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../sky-python-music-sheet-maker/src'))
     if music_maker_path not in sys.path:
         sys.path.append(music_maker_path)
-    from src.skymusic.communicator import Communicator, QueriesExecutionAbort
-    from src.skymusic.music_sheet_maker import MusicSheetMaker
-    from src.skymusic.resources import Resources as skymusic_resources
-    from src.skymusic.modes import RenderMode
+    from skymusic.communicator import Communicator, QueriesExecutionAbort
+    from skymusic.music_sheet_maker import MusicSheetMaker
+    from skymusic.resources import Resources as skymusic_resources
+    from skymusic.modes import RenderMode
 except ImportError as e:
     print('*** IMPORT ERROR of one or several Music-Maker modules')
     print(e)
