@@ -44,7 +44,7 @@ class GuildConfig(BaseCog):
         Guild.get(serverid=guild.id).delete_instance()
 
     @commands.group(name="guildconfig",
-                    aliases=['guild', 'config', 'guildconf'],
+                    aliases=['guild', 'guildconf'],
                     invoke_without_command=True)
     @commands.guild_only()
     @commands.bot_has_permissions(embed_links=True)

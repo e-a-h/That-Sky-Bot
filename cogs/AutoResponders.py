@@ -796,13 +796,14 @@ class AutoResponders(BaseCog):
     async def on_raw_reaction_add(self, event):
         try:
             channel = self.bot.get_channel(event.channel_id)
-            message = await channel.fetch_message(event.message_id)
-            member = message.channel.guild.get_member(event.user_id)
+            my_guild = self.bot.get_guild(channel.guild.id)
+            member = my_guild.get_member(event.user_id)
             user_is_bot = event.user_id == self.bot.user.id
             has_permission = member.guild_permissions.mute_members  # TODO: change to role-based?
             if user_is_bot or not has_permission:
                 return
             action: mod_action = self.mod_actions.pop(event.message_id)
+            message = await channel.fetch_message(event.message_id)
         except (NotFound, KeyError, AttributeError, HTTPException) as e:
             # couldn't find channel, message, member, or action
             return
