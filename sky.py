@@ -10,7 +10,7 @@ import sentry_sdk
 from discord.ext import commands
 from discord.ext.commands import Bot
 from aiohttp import ClientOSError, ServerDisconnectedError
-from discord import ConnectionClosed, Embed, Colour
+from discord import ConnectionClosed, Intents, Embed, Colour
 from prometheus_client import CollectorRegistry
 from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 
@@ -21,6 +21,7 @@ from utils.PrometheusMon import PrometheusMon
 class Skybot(Bot):
     loaded = False
     metrics_reg = CollectorRegistry()
+    data = dict()
 
     def __init__(self, *args, loop=None, **kwargs):
         super().__init__(*args, loop=loop, **kwargs)
@@ -194,11 +195,13 @@ if __name__ == '__main__':
     run_db_migrations()
     Database.init()
 
+    intents = Intents(members=True, messages=True, guilds=True, bans=True, emojis=True, presences=True, reactions=True)
     loop = asyncio.get_event_loop()
     prefix = Configuration.get_var("bot_prefix")
     skybot = Skybot(
         command_prefix=commands.when_mentioned_or(prefix),
         case_insensitive=True,
+        intents=intents,
         loop=loop)
     skybot.help_command = commands.DefaultHelpCommand(command_attrs=dict(name='snelp', checks=[can_help]))
 

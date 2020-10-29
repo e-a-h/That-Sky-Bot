@@ -224,10 +224,14 @@ class DropBox(BaseCog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.message):
-        guild_id = message.channel.guild.id
-        message_not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
-        author_not_in_guild = not hasattr(message.author, "guild")
-        channel_not_in_dropboxes = message.channel.id not in self.dropboxes[guild_id]
+        try:
+            guild_id = message.channel.guild.id
+            message_not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
+            author_not_in_guild = not hasattr(message.author, "guild")
+            channel_not_in_dropboxes = message.channel.id not in self.dropboxes[guild_id]
+        except Exception as e:
+            return
+
         if message.author.bot or message_not_in_guild or author_not_in_guild or channel_not_in_dropboxes:
             # check for dropbox matching channel id
             # ignore bots and mods/admins
