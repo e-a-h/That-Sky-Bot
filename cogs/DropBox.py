@@ -16,6 +16,7 @@ class DropBox(BaseCog):
         super().__init__(bot)
         self.dropboxes = dict()
         self.responses = dict()
+        self.drop_messages = dict()
         self.loaded = False
         bot.loop.create_task(self.startup_cleanup())
 
@@ -24,7 +25,7 @@ class DropBox(BaseCog):
 
         for guild in self.bot.guilds:
             # fetch dropbox channels per server
-            self.dropboxes[guild.id] = dict()
+            self.init_guild(guild.id)
             for row in DropboxChannel.select().where(DropboxChannel.serverid == guild.id):
                 self.dropboxes[guild.id][row.sourcechannelid] = row
         self.loaded = True
@@ -32,6 +33,10 @@ class DropBox(BaseCog):
         # TODO: find out what the condition is we need to wait for instead of just sleep
         await asyncio.sleep(20)
         self.clean_channels.start()
+
+    def init_guild(self, guild_id):
+        self.dropboxes[guild_id] = dict()
+        self.drop_messages[guild_id] = dict()
 
     def cog_unload(self):
         self.clean_channels.cancel()
@@ -41,7 +46,7 @@ class DropBox(BaseCog):
             return False
         return ctx.author.guild_permissions.ban_members
 
-    @tasks.loop(seconds=1.0)
+    @tasks.loop(seconds=10.0)
     async def clean_channels(self):
         for guild in self.bot.guilds:
             for channel_id, drop in dict(self.dropboxes[guild.id]).items():
@@ -62,6 +67,7 @@ class DropBox(BaseCog):
                             if expired and (message.author.bot or not message.author.guild_permissions.ban_members):
                                 try:
                                     await message.delete()
+                                    # todo: send to dropbox and confirm.
                                 except Exception as e:
                                     # ignore delete failure. we'll try again next time
                                     pass
@@ -72,11 +78,12 @@ class DropBox(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        self.dropboxes[guild.id] = dict()
+        self.init_guild(guild.id)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
         del self.dropboxes[guild.id]
+        del self.drop_messages[guild.id]
         for row in DropboxChannel.select().where(DropboxChannel.serverid == guild.id):
             row.delete_instance()
 
@@ -217,18 +224,21 @@ class DropBox(BaseCog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.message):
-        not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
-        if not_in_guild or \
-                message.channel.id not in self.dropboxes[message.channel.guild.id] or \
-                not hasattr(message.author, "guild") or \
-                message.author.guild_permissions.ban_members or \
-                message.author.bot:
+        guild_id = message.channel.guild.id
+        message_not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
+        author_not_in_guild = not hasattr(message.author, "guild")
+        channel_not_in_dropboxes = message.channel.id not in self.dropboxes[guild_id]
+        if message.author.bot or message_not_in_guild or author_not_in_guild or channel_not_in_dropboxes:
             # check for dropbox matching channel id
             # ignore bots and mods/admins
             return
 
         #  wait for other bots to act, then check if message deleted (censored)
-        await asyncio.sleep(1)
+        #  await asyncio.sleep(1)
+
+        # TODO: queue this message id for delivery/deletion
+        self.drop_messages[guild_id]
+
         try:
             ctx = await self.bot.get_context(message)
             message = await ctx.channel.fetch_message(message.id)
@@ -247,7 +257,7 @@ class DropBox(BaseCog):
             try:
                 # send embed and message to dropbox channel
                 drop_channel = self.bot.get_channel(
-                    self.dropboxes[message.channel.guild.id][message.channel.id].targetchannelid)
+                    self.dropboxes[guild_id][message.channel.id].targetchannelid)
 
                 for attachment in message.attachments:
                     buffer = io.BytesIO()
@@ -263,7 +273,11 @@ class DropBox(BaseCog):
                 await ctx.send(msg)
                 await Utils.handle_exception("dropbox delivery failure", self.bot, e)
 
-            await message.delete()
+            try:
+                await message.delete()
+            except discord.errors.NotFound as e:
+                # ignore missing message
+                pass
 
 
 def setup(bot):

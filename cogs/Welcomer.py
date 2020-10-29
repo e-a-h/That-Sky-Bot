@@ -583,9 +583,9 @@ class Welcomer(BaseCog):
             roles = Configuration.get_var("roles")
             await rules.clear_reactions()
             for emoji, role_id in roles.items():
-                if not Emoji.is_emoji_defined(emoji):
-                    continue
-                emoji = Emoji.get_chat_emoji(emoji)
+                # if not Emoji.is_emoji_defined(emoji):
+                #     continue
+                # emoji = Emoji.get_chat_emoji(emoji)
                 await rules.add_reaction(emoji)
             await ctx.send(f"Rules message set to {message_id} in channel {rules_channel.mention}")
         except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
