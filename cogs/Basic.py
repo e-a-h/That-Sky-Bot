@@ -6,8 +6,16 @@ from cogs.BaseCog import BaseCog
 
 
 class Basic(BaseCog):
+
+    async def cog_check(self, ctx):
+        return ctx.author.guild_permissions.mute_members
+
     @command(hidden=True)
     async def ping(self, ctx: Context):
+        # if hasattr(ctx, 'locale'):
+        #     print(ctx.locale)
+        # else:
+        #     print('no locale')
         """show ping times"""
         t1 = time.perf_counter()
         message = await ctx.send(":ping_pong:")

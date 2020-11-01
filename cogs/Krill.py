@@ -9,7 +9,7 @@ from discord.ext import commands
 from discord.ext.commands import command, UserConverter, BucketType, Command
 
 from cogs.BaseCog import BaseCog
-from utils import Configuration, Utils, Lang, Emoji
+from utils import Configuration, Utils, Lang, Emoji, Logging
 from utils.Database import KrillChannel
 from utils.Utils import CHANNEL_ID_MATCHER
 
@@ -379,6 +379,7 @@ class Krill(BaseCog):
             return
 
         # Initial validation passed. Delete command message and check or start
+        Logging.info(f"krill by {Utils.get_member_log_name(ctx.author)} - args: {arg}")
         await ctx.message.delete()
 
         # EMOJI hard coded because... it must be exactly these

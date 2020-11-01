@@ -17,14 +17,15 @@ from discord.abc import PrivateChannel
 from utils import Logging, Configuration
 
 BOT = None
-ID_MATCHER = re.compile("<@!?([0-9]+)>")
+ID_MATCHER = re.compile("<@!?([0-9]+)[\\\\]*>")
 ROLE_ID_MATCHER = re.compile("<@&([0-9]+)>")
 CHANNEL_ID_MATCHER = re.compile("<#([0-9]+)>")
-MENTION_MATCHER = re.compile("<@[!&]?\\d+>")
+MENTION_MATCHER = re.compile("(<@[\u200b]?[!&]?)(\\d+)[\\\\]*(>)")
 URL_MATCHER = re.compile(r'((?:https?://)[a-z0-9]+(?:[-._][a-z0-9]+)*\.[a-z]{2,5}(?::[0-9]{1,5})?(?:/[^ \n<>]*)?)',
                          re.IGNORECASE)
 EMOJI_MATCHER = re.compile('<(a?):([^: \n]+):([0-9]+)>')
 NUMBER_MATCHER = re.compile(r"\d+")
+INVITE_MATCHER = re.compile(r"(?:https?://)?(?:www\.)?(?:discord(?:\.| |\[?\(?\"?'?dot'?\"?\)?\]?)?(?:gg|io|me|li)|discord(?:app)?\.com/invite)/+((?:(?!https?)[\w\d-])+)", flags=re.IGNORECASE)
 
 welcome_channel = "welcome_channel"
 rules_channel = "rules_channel"
@@ -32,6 +33,7 @@ log_channel = "log_channel"
 ro_art_channel = "ro_art_channel"
 entry_channel = "entry_channel"
 
+COLOR_LIME = 0xbefc03
 
 def validate_channel_name(channel_name):
     return channel_name in (welcome_channel, rules_channel, log_channel, ro_art_channel, entry_channel)

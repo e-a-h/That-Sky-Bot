@@ -235,20 +235,27 @@ class ArtCollector(BaseCog):
         Clears reactions and on "no" reaction, removes post from collection
         """
         try:
-            channel = self.bot.get_channel(event.channel_id)
-            message = await channel.fetch_message(event.message_id)
+            m_id = event.message_id
+            u_id = event.user_id
+            g_id = event.guild_id
+            c_id = event.channel_id
+            my_emoji = event.emoji
+            my_member = event.member
 
-            if event.channel_id not in self.collection_channels[message.channel.guild.id]:
+            my_channel = self.bot.get_channel(c_id)
+            my_guild = self.bot.get_guild(g_id)
+
+            if c_id not in self.collection_channels[my_guild.id]:
                 return
 
-            member = message.channel.guild.get_member(event.user_id)
-            user_is_bot = event.user_id == self.bot.user.id
-            has_permission = member.guild_permissions.mute_members  # TODO: change to role-based?
+            user_is_bot = u_id == self.bot.user.id
+            has_permission = my_member.guild_permissions.mute_members  # TODO: change to role-based?
             if user_is_bot or not has_permission:
                 return
 
+            message = await my_channel.fetch_message(m_id)
             await message.clear_reactions()  # any reaction will remove the bot reacts
-            if str(event.emoji) == str(Emoji.get_emoji("NO")):
+            if str(my_emoji) == str(Emoji.get_emoji("NO")):
                 # delete message
                 await message.delete()
                 return

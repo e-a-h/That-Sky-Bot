@@ -1,21 +1,27 @@
 import asyncio
+import glob
+import importlib
+import os
+import re
 import signal
+import sys
 
 import sentry_sdk
 from discord.ext import commands
 from discord.ext.commands import Bot
 from aiohttp import ClientOSError, ServerDisconnectedError
-from discord import ConnectionClosed, Embed, Colour
+from discord import ConnectionClosed, Intents, Embed, Colour
 from prometheus_client import CollectorRegistry
 from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 
 from utils import Logging, Configuration, Utils, Emoji, Database
-
 from utils.PrometheusMon import PrometheusMon
+
 
 class Skybot(Bot):
     loaded = False
     metrics_reg = CollectorRegistry()
+    data = dict()
 
     def __init__(self, *args, loop=None, **kwargs):
         super().__init__(*args, loop=loop, **kwargs)
@@ -23,6 +29,10 @@ class Skybot(Bot):
         self.metrics = PrometheusMon(self)
         self.config_channels = dict()
         self.db_keepalive = None
+        sys.path.append(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "sky-python-music-sheet-maker",
+                         "python"))
 
     async def on_ready(self):
         if self.loaded:
@@ -43,7 +53,33 @@ class Skybot(Bot):
 
         await Logging.bot_log("Skybot soaring through the skies!")
 
+    def get_guild_log_channel(self, guild_id):
+        return self.get_guild_config_channel(guild_id, 'log')
+
+    def get_guild_rules_channel(self, guild_id):
+        return self.get_guild_config_channel(guild_id, 'rules')
+
+    def get_guild_welcome_channel(self, guild_id):
+        return self.get_guild_config_channel(guild_id, 'welcome')
+
+    def get_guild_entry_channel(self, guild_id):
+        return self.get_guild_config_channel(guild_id, 'entry')
+
+    def get_guild_config_channel(self, guild_id, name):
+        config = self.get_config(guild_id)
+        if config:
+            return self.get_channel(getattr(config, f'{name}channelid'))
+        return None
+
+    def get_config(self, guild_id):
+        try:
+            return self.get_cog('GuildConfig').get_config(guild_id)
+        except Exception as e:
+            Utils.handle_exception("Failed to get config", self, e)
+            return None
+
     def get_config_channel(self, guild_id: int, channel_name: str):
+        # TODO: replace usage with get_guild_*_channel above
         if Utils.validate_channel_name(channel_name):
             try:
                 this_channel_id = self.config_channels[guild_id][channel_name]
@@ -81,6 +117,8 @@ class Skybot(Bot):
                 # commands in this list have custom cooldown handler
                 return
             await ctx.send(error)
+        elif isinstance(error, commands.MaxConcurrencyReached):
+            await ctx.send(f"Too many people are using the `{ctx.invoked_with}` command right now. Try again later")
         elif isinstance(error, commands.MissingRequiredArgument):
             param = list(ctx.command.params.values())[min(len(ctx.args) + len(ctx.kwargs), len(ctx.command.params))]
             bot.help_command.context = ctx
@@ -108,6 +146,28 @@ class Skybot(Bot):
             await asyncio.sleep(3600)
 
 
+def run_db_migrations():
+    dbv = int(Configuration.get_persistent_var('db_version', 0))
+    dbv_list = [f for f in glob.glob("db_migrations/db_migrate_*.py")]
+    dbv_pattern = re.compile(r'db_migrations/db_migrate_(\d+)\.py', re.IGNORECASE)
+    migration_count = 0
+    for filename in sorted(dbv_list):
+        # get the int version number from filename
+        version = int(re.match(dbv_pattern, filename)[1])
+        if version > dbv:
+            try:
+                print(f"--- running db migration version number {version}")
+                spec = importlib.util.spec_from_file_location(f"migrator_{version}", filename)
+                dbm = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(dbm)
+                Configuration.set_persistent_var('db_version', version)
+                migration_count = migration_count + 1
+            except Exception as e:
+                # throw a fit if it doesn't work
+                raise e
+    print(f"--- {migration_count if migration_count else 'no'} db migration{'' if migration_count == 1 else 's'} run")
+
+
 def before_send(event, hint):
     if event['level'] == "error" and 'logger' in event.keys() and event['logger'] == 'gearbot':
         return None  # we send errors manually, in a much cleaner way
@@ -132,18 +192,24 @@ if __name__ == '__main__':
     if dsn != '':
         sentry_sdk.init(dsn, before_send=before_send, environment=dsn_env, integrations=[AioHttpIntegration()])
 
+    run_db_migrations()
     Database.init()
 
+    intents = Intents(members=True, messages=True, guilds=True, bans=True, emojis=True, presences=True, reactions=True)
     loop = asyncio.get_event_loop()
-
-    skybot = Skybot(command_prefix=Configuration.get_var("bot_prefix"), case_insensitive=True, loop=loop)
+    prefix = Configuration.get_var("bot_prefix")
+    skybot = Skybot(
+        command_prefix=commands.when_mentioned_or(prefix),
+        case_insensitive=True,
+        intents=intents,
+        loop=loop)
     skybot.help_command = commands.DefaultHelpCommand(command_attrs=dict(name='snelp', checks=[can_help]))
 
     Utils.BOT = skybot
 
     try:
         for signame in ('SIGINT', 'SIGTERM'):
-           loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(skybot.close()))
+            loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(skybot.close()))
     except NotImplementedError:
         pass
 

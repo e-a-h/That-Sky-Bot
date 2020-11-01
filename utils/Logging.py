@@ -42,7 +42,7 @@ async def bot_log(message=None, embed=None):
 
 
 async def guild_log(ctx: Context, message=None, embed=None):
-    channel = ctx.bot.get_config_channel(ctx.guild.id, Utils.log_channel)
+    channel = ctx.bot.get_guild_log_channel(ctx.guild.id)
     if channel and (message or embed):
         return await channel.send(content=message, embed=embed)
 
