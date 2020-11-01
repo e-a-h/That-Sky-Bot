@@ -18,9 +18,9 @@ class Eden(BaseCog):
         self.responses = dict()
         self.cooldown_responses = dict()
 
-    def check_cool_down(self, user):
+    def check_cool_down(self, user, is_dm):
         if user.id in self.cool_down:
-            min_time = 600
+            min_time = 10 if is_dm else 600
             start_time = self.cool_down[user.id]
             elapsed = datetime.now().timestamp() - start_time
             remaining = max(0, min_time - elapsed)
@@ -39,27 +39,31 @@ class Eden(BaseCog):
         # TODO: channel cooldown
         channel_cooldown = False
         response_cooldown = False
+        is_dm = not ctx.guild
 
-        # create cooldown response trackers if none
-        if cid not in self.cooldown_responses:
-            self.cooldown_responses[cid] = 0
-        if cid not in self.responses:
-            self.responses[cid] = 0
+        # channel cooldown stuff when not in DMs
+        if not is_dm:
+            # create cooldown response trackers if none
+            if cid not in self.cooldown_responses:
+                self.cooldown_responses[cid] = 0
+            if cid not in self.responses:
+                self.responses[cid] = 0
 
-        async for message in ctx.channel.history(limit=10):
-            if message.id == self.responses[cid]:
-                channel_cooldown = True
-            if message.id == self.cooldown_responses[cid]:
-                response_cooldown = True
+            # Give some snark if this command was called within 10 messages
+            async for message in ctx.channel.history(limit=10):
+                if message.id == self.responses[cid]:
+                    channel_cooldown = True
+                if message.id == self.cooldown_responses[cid]:
+                    response_cooldown = True
 
-        if channel_cooldown:
-            await ctx.message.delete()
-            if not response_cooldown:
-                # send channel cooldown message
-                msg = Lang.get_locale_string('eden/channel_cooldown', ctx, author=ctx.author.mention)
-                cooldown_msg = await ctx.send(msg)
-                self.cooldown_responses[cid] = cooldown_msg.id
-            return
+            if channel_cooldown:
+                await ctx.message.delete()
+                if not response_cooldown:
+                    # send channel cooldown message
+                    msg = Lang.get_locale_string('eden/channel_cooldown', ctx, author=ctx.author.mention)
+                    cooldown_msg = await ctx.send(msg)
+                    self.cooldown_responses[cid] = cooldown_msg.id
+                return
 
         server_zone = pytz.timezone("America/Los_Angeles")
         try:
@@ -74,7 +78,7 @@ class Eden(BaseCog):
             await ctx.send(Lang.get_locale_string('eden/tz_help', ctx, tz=tz))
             return
 
-        cool_down = self.check_cool_down(ctx.author)
+        cool_down = self.check_cool_down(ctx.author, is_dm)
         if cool_down:
             v = Utils.to_pretty_time(cool_down)
             msg = Lang.get_locale_string('eden/cool_it', ctx, author=ctx.author.mention, remain=v)
@@ -99,11 +103,14 @@ class Eden(BaseCog):
         pretty_date = reset_time_local.strftime("%A %B %d")
         pretty_time = reset_time_local.strftime("%H:%M %Z")
 
-        response = await ctx.send(Lang.get_locale_string("eden/reset",
-                                                         ctx,
-                                                         date=pretty_date,
-                                                         time=pretty_time,
-                                                         countdown=pretty_countdown))
+        dm_prompt = '' if is_dm else Lang.get_locale_string("eden/dm_prompt", ctx)
+        er_response = Lang.get_locale_string("eden/reset",
+                                             ctx,
+                                             date=pretty_date,
+                                             time=pretty_time,
+                                             countdown=pretty_countdown)
+        msg = f"{er_response} {dm_prompt}"
+        response = await ctx.send(msg)
         self.responses[cid] = response.id
 
 

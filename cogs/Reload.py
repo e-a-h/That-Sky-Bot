@@ -12,8 +12,14 @@ class Reload(BaseCog):
     async def cog_check(self, ctx):
         return await ctx.bot.is_owner(ctx.author) or ctx.author.id in Configuration.get_var("ADMINS", [])
 
-    @commands.command(hidden=True)
+    @commands.command()
     async def reload(self, ctx, *, cog: str):
+        """
+        Reload a cog
+
+        Be sure that cog has no unsaved data, in-progress uses, etc. or is just so borked that it needs to be kicked
+        cog: The name of the cog to reload
+        """
         cogs = []
         for c in ctx.bot.cogs:
             cogs.append(c.replace('Cog', ''))
@@ -26,18 +32,29 @@ class Reload(BaseCog):
         else:
             await ctx.send(f"{Emoji.get_chat_emoji('NO')} I can't find that cog.")
 
-    @commands.command(hidden=True)
+    @commands.command()
     async def reload_lang(self, ctx):
+        """
+        Reload localization files
+        """
         Lang.load()
         await ctx.send("Language file reloaded")
 
-    @commands.command(hidden=True)
+    @commands.command()
     async def reload_config(self, ctx):
+        """
+        Reload configuration from disk
+        """
         Configuration.load()
         await ctx.send("Config file reloaded")
 
-    @commands.command(hidden=True)
+    @commands.command()
     async def load(self, ctx, cog: str):
+        """
+        Load a cog
+
+        cog: Name of the cog to load
+        """
         if os.path.isfile(f"cogs/{cog}.py"):
             self.bot.load_extension(f"cogs.{cog}")
             if cog not in Configuration.MASTER_CONFIG["cogs"]:
@@ -49,8 +66,13 @@ class Reload(BaseCog):
         else:
             await ctx.send(f"{Emoji.get_chat_emoji('NO')} I can't find that cog.")
 
-    @commands.command(hidden=True)
+    @commands.command()
     async def unload(self, ctx, cog: str):
+        """
+        Unload a cog
+
+        cog: Name of the cog to unload
+        """
         if cog in ctx.bot.cogs:
             self.bot.unload_extension(f"cogs.{cog}")
             if cog in Configuration.MASTER_CONFIG["cogs"]:
@@ -62,8 +84,11 @@ class Reload(BaseCog):
         else:
             await ctx.send(f"{Emoji.get_chat_emoji('NO')} I can't find that cog.")
 
-    @commands.command(hidden=True)
+    @commands.command()
     async def hotreload(self, ctx):
+        """
+        Reload all cogs
+        """
         message = await ctx.send("Hot reloading...")
         importlib.reload(Reloader)
         for c in Reloader.components:
@@ -80,10 +105,9 @@ class Reload(BaseCog):
             Logging.info(f'{cog} has been loaded.')
         await message.edit(content="Hot reload complete")
 
-
-    @commands.command(hidden=True)
+    @commands.command()
     async def restart(self, ctx):
-        """Restarts the bot"""
+        """Restart the bot"""
         await ctx.send("Restarting...")
         await self.bot.close()
 
