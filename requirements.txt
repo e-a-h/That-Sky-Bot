@@ -1,8 +1,8 @@
 discord.py==1.5.1
-peewee==3.13.3
+peewee==3.14.0
 PyMySQL==0.10.1
-pytz==2020.1
-sentry-sdk==0.19.1
+pytz==2020.4
+sentry-sdk==0.19.4
 pyyaml==5.3.1
 pillow==8.0.1
 prometheus_client==0.7.1

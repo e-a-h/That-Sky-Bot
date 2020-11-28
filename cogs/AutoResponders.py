@@ -543,9 +543,9 @@ class AutoResponders(BaseCog):
                             trigger=get_trigger_description(trigger)))
         await self.reload_triggers(ctx)
 
-    @autor.command(aliases=["channel", "sc"])
+    @autor.command(aliases=["channel", "sc", "listen_in", "respond_in", "li", "ri"])
     @commands.guild_only()
-    async def setchannel(self, ctx: commands.Context, mode: str = None, trigger: str = None, channel_id: int = None):
+    async def setchannel(self, ctx: commands.Context, trigger: str = None, channel_id: int = None, mode: str = None):
         """
         Set a response channel for a trigger
 
@@ -553,7 +553,14 @@ class AutoResponders(BaseCog):
         trigger: Trigger text
         channel_id: Channel ID to listen/respond in
         """
-        if mode is None or mode not in ['respond', 'listen']:
+        respond = 'respond'
+        listen = 'listen'
+        # check aliases for mode
+        if ctx.invoked_with in ('listen_in', 'li'):
+            mode = listen
+        elif ctx.invoked_with in ('respond_in', 'ri'):
+            mode = respond
+        if mode is None or mode not in [respond, listen]:
             def choose(val):
                 nonlocal mode
                 mode = val
@@ -567,11 +574,11 @@ class AutoResponders(BaseCog):
                                         Questions.Option(f"NUMBER_1",
                                                          'Response Channel',
                                                          handler=choose,
-                                                         args=['respond']),
+                                                         args=[respond]),
                                         Questions.Option(f"NUMBER_2",
                                                          'Listen Channel',
                                                          handler=choose,
-                                                         args=['listen'])
+                                                         args=[listen])
                                     ],
                                     delete_after=True, show_embed=True, locale=ctx)
             except (ValueError, asyncio.TimeoutError) as e:
@@ -584,34 +591,34 @@ class AutoResponders(BaseCog):
 
         db_trigger = await get_db_trigger(ctx.guild.id, trigger)
 
-        if not channel_id:
+        if channel_id is None:
             channel_id = await Questions.ask_text(self.bot,
                                                   ctx.channel,
                                                   ctx.author,
                                                   Lang.get_locale_string("autoresponder/prompt_channel_id", ctx, mode=mode),
                                                   locale=ctx)
 
-        channel_id = re.sub(r'[^\d]', '', channel_id)
+        channel_id = re.sub(r'[^\d]', '', str(channel_id))
         if db_trigger is None or not re.match(r'^\d+$', channel_id):
             await nope(ctx)
             return
 
         channel = self.bot.get_channel(int(channel_id))
-        if channel_id == "0":
+        if channel_id == '0':
             await ctx.send(Lang.get_locale_string("autoresponder/channel_unset", ctx,
-                                           mode=mode,
-                                           trigger=get_trigger_description(trigger)))
+                                                  mode=mode,
+                                                  trigger=get_trigger_description(trigger)))
         elif channel is not None:
             await ctx.send(Lang.get_locale_string("autoresponder/channel_set", ctx,
-                                           channel=channel.mention,
-                                           mode=mode,
-                                           trigger=get_trigger_description(trigger)))
+                                                  channel=channel.mention,
+                                                  mode=mode,
+                                                  trigger=get_trigger_description(trigger)))
         else:
             await ctx.send(Lang.get_locale_string("autoresponder/no_channel", ctx, mode=mode))
             return
-        if mode == "respond":
+        if mode == respond:
             db_trigger.responsechannelid = channel_id
-        elif mode == "listen":
+        elif mode == listen:
             db_trigger.listenchannelid = channel_id
         db_trigger.save()
         await self.reload_triggers(ctx)
