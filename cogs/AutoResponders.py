@@ -31,7 +31,7 @@ async def get_db_trigger(guild_id: int, trigger: str):
 
 
 def get_trigger_description(trigger) -> str:
-    if len(trigger) > 30:
+    if (len(trigger) + 5) > 30:
         part_a = trigger[0:15]
         part_b = trigger[-15:]
         return f"`{part_a} ... {part_b}`"
@@ -39,14 +39,17 @@ def get_trigger_description(trigger) -> str:
 
 
 class AutoResponders(BaseCog):
-
     flags = {
         'active': 0,
         'full_match': 1,
         'delete': 2,
         'match_case': 3,
         'ignore_mod': 4,
-        'mod_action': 5
+        'mod_action': 5  # ,
+        # 'log_only': 6,
+        # 'dm_response': 7,
+        # 'delete_when_trigger_deleted': 8,
+        # 'delete_on_mod_respond': 9
     }
 
     trigger_length_max = 300
@@ -109,6 +112,12 @@ class AutoResponders(BaseCog):
                 trigger = responder.trigger
                 chance = responder.chance / 10000  # chance is 0-10,000. make it look more like a percentage
 
+                try:
+                    if self.triggers[guild.id][trigger]:
+                        await Logging.bot_log(f"Duplicate trigger: {responder.id}) {trigger}")
+                except KeyError as e:
+                    pass
+
                 self.triggers[guild.id][trigger] = {
                     'id': responder.id,
                     'match_list': match_list,
@@ -121,22 +130,75 @@ class AutoResponders(BaseCog):
         self.loaded = True
 
     async def list_auto_responders(self, ctx):
+        """
+        Embed Limits
+
+        Total Characters In Embed: 6000
+        Total Fields: 25
+        Field Name: 256
+        Field Value: 1024
+        Footer Text: 2048
+        Author Name: 256
+        Title: 256
+        Description: 2048
+        Embeds Per Message: 10
+
+        General Limits
+
+        Username: 80
+        Message Content: 2000
+        Message Files: 10
+        """
+
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=0x663399,
             title=Lang.get_locale_string("autoresponder/list", ctx, server_name=ctx.guild.name))
+
+        embed_count = 1  # must be <= 10
+        embeds = list()
+
         if len(self.triggers[ctx.guild.id].keys()) > 0:
             guild_triggers = self.triggers[ctx.guild.id]
+
             for trigger in guild_triggers.keys():
+
+                # Limit of embed count per message. Requires new message
+                if (len(embed.fields) == 25) or (len(embed) > 5500):  # 5500 in case next embed is close to 500 len
+                    # TODO: see below and use: if embed_count == 10:
+                    if len(embed) <= 6000:
+                        await ctx.send(embed=embed)
+                    else:
+                        await ctx.send(f"embed was too long ({len(embed)})... trying to log the error")
+                        Logging.info(f'Bad AR embed:')
+                        Logging.info(embed)
+                    embed = discord.Embed(
+                        color=0x663399,
+                        title='...')
+                    embed_count = embed_count + 1
+                    # embed_count = 0
+                # Limits for this embed. Requires new embed
+                # TODO: multiple embeds not supported by d.py. revisit this
+                # if (len(embed.fields) == 25) or (len(embed) > 5500):  # 5500 in case next embed is close to 500 len
+                #     embeds.append(embed)
+                #     # create a new embed
+                #     embed = discord.Embed(
+                #         color=0x663399,
+                #         title='...')
+                #     embed_count = embed_count + 1
+
                 trigger_obj = guild_triggers[trigger]
-                flags_description = self.get_flags_description(trigger_obj)
+                flags_description = self.get_flags_description(trigger_obj)  # 148
                 if trigger_obj['chance'] < 1:
-                    flags_description += f"\n**\u200b \u200b **Chance of response: {trigger_obj['chance']*100}%"
+                    flags_description += f"\n**\u200b \u200b **Chance of response: {trigger_obj['chance']*100}%"  # 33
                 if trigger_obj['responsechannelid']:
-                    flags_description += f"\n**\u200b \u200b **Respond in Channel: <#{trigger_obj['responsechannelid']}>"
+                    flags_description += f"\n**\u200b \u200b **Respond in Channel: <#{trigger_obj['responsechannelid']}>"  # 51
                 if trigger_obj['listenchannelid']:
-                    flags_description += f"\n**\u200b \u200b **Listen in Channel: <#{trigger_obj['listenchannelid']}>"
-                embed.add_field(name=f"**[{trigger_obj['id']}]** {get_trigger_description(trigger)}", value=flags_description, inline=False)
+                    flags_description += f"\n**\u200b \u200b **Listen in Channel: <#{trigger_obj['listenchannelid']}>"  # 50
+                embed.add_field(name=f"**[{trigger_obj['id']}]** {get_trigger_description(trigger)}",  # 47
+                                value=flags_description,  # 282
+                                inline=False)  # total length 329 max
+            # embeds.append(embed)
             await ctx.send(embed=embed)
         else:
             await ctx.send(Lang.get_locale_string("autoresponder/none_set", ctx))
@@ -159,27 +221,46 @@ class AutoResponders(BaseCog):
 
         options = []
         keys = dict()
-        for i, data in self.triggers[ctx.guild.id].items():
-            # i is trigger string
-            options.append(f"{data['id']} ) {get_trigger_description(await Utils.clean(i))}")
-            keys[data['id']] = i
+        options.append(f"{Lang.get_locale_string('autoresponder/available_triggers', ctx)}")
+        prompt_messages = []
+
+        async def clean_dialog():
+            nonlocal prompt_messages
+            for msg in prompt_messages:
+                try:
+                    await msg.delete()
+                    await asyncio.sleep(0.1)
+                except Exception as e:
+                    pass
+
+        for trigger_string, data in self.triggers[ctx.guild.id].items():
+            available_triggers = '\n'.join(options)
+            option = f"{data['id']} ) {get_trigger_description(await Utils.clean(trigger_string))}"
+            if len(f"{available_triggers}\n{option}") > 500:
+                prompt_messages.append(await ctx.send(available_triggers))  # send current options, save message
+                options = ["**...**"]  # reinitialize w/ "..." continued indicator
+            options.append(option)
+            keys[data['id']] = trigger_string
         options = '\n'.join(options)
-        prompt = f"{Lang.get_locale_string('autoresponder/which_trigger', ctx)}\n{options}"
+        prompt_messages.append(await ctx.send(options))  # send current options, save message
+        prompt = Lang.get_locale_string('autoresponder/which_trigger', ctx)
 
         try:
             return_value = int(await Questions.ask_text(self.bot,
                                                         ctx.channel,
                                                         ctx.author,
                                                         prompt,
-                                                        locale=ctx))
+                                                        locale=ctx,
+                                                        delete_after=True))
             if return_value in keys.keys():
                 return_value = keys[return_value]
                 chosen = get_trigger_description(await Utils.clean(return_value))
                 await ctx.send(Lang.get_locale_string('autoresponder/you_chose', ctx, value=chosen))
+                self.bot.loop.create_task(clean_dialog())
                 return return_value
             raise ValueError
         except ValueError:
-            await nope(ctx, Lang.get_locale_string("autoresponder/expect_integer", ctx, min=0, max=len(keys)-1))
+            await nope(ctx, Lang.get_locale_string("autoresponder/expect_integer", ctx, min=0, max=max(keys, key=int)))
             raise
 
     async def validate_trigger(self, ctx, trigger):
@@ -195,6 +276,8 @@ class AutoResponders(BaseCog):
         elif len(trigger) > self.trigger_length_max:
             msg = Lang.get_locale_string('autoresponder/trigger_too_long', ctx)
             await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {msg}")
+        elif trigger in self.triggers[ctx.guild.id]:
+            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} Trigger exists already. Duplicates not allowed.")
         else:
             p1 = re.compile(r"(\[|, )'")
             p2 = re.compile(r"'(, |\])")
@@ -220,8 +303,8 @@ class AutoResponders(BaseCog):
             flags = []
             for i, v in trigger_obj['flags'].items():
                 if v:
-                    flags.append(f"**{self.get_flag_name(i)}**")
-            return f'{pre} Flags: ' + ', '.join(flags)
+                    flags.append(f"{self.get_flag_name(i)}")
+            return f'{pre} Flags: **' + ', '.join(flags) + '**'
         return f"{pre} ***DISABLED***"
 
     async def add_mod_action(self, trigger, matched, message, response_channel, formatted_response):
@@ -397,7 +480,7 @@ class AutoResponders(BaseCog):
             if len(value) > 1000:
                 embed.add_field(name=header, value=value, inline=False)
                 value = ""
-                i = i+i
+                i = i + 1
         if value:
             embed.add_field(name=header, value=value, inline=False)
 
@@ -485,8 +568,6 @@ class AutoResponders(BaseCog):
                 await ctx.send(
                     f"{Emoji.get_chat_emoji('YES')} {Lang.get_locale_string('autoresponder/updated', ctx, trigger=new_trigger)}"
                 )
-        else:
-            await nope(ctx)
 
     @autor.command(aliases=["flags", "lf"])
     @commands.guild_only()

@@ -257,6 +257,8 @@ autoresponder:
     {options}
   which_mode: --jp-- Set channel to listen in, or channel to respond in?
   which_trigger: --jp-- Which trigger would you like? (type a number)
+  available_triggers: |
+    --jp-- **Available auto-responder triggers**:
   prompt_channel_id: --jp-- Which channel should this trigger {mode} in? (channel id)
   prompt_response: --jp-- How would you like me to respond?
   prompt_trigger: --jp-- What should the new trigger be?

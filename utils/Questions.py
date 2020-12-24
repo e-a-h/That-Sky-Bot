@@ -72,10 +72,11 @@ async def ask_text(
         timeout=Configuration.get_var("question_timeout_seconds"),
         confirm=False,
         escape=True,
+        delete_after=False,
         locale="en_US"):
 
-    def check(message):
-        return user == message.author and message.channel == channel
+    def check(msg):
+        return user == msg.author and msg.channel == channel
 
     ask_again = True
 
@@ -89,12 +90,25 @@ async def ask_text(
         txt = re.sub(r'\n\s*\n', '\n\n', txt)
         return txt
 
+    my_messages = []
+
+    async def clean_dialog():
+        nonlocal delete_after
+        nonlocal my_messages
+        if delete_after:
+            for msg in my_messages:
+                try:
+                    await msg.delete()
+                except Exception as e:
+                    pass
+
     while ask_again:
         message_cleaned = ""
-        await channel.send(text)
+        my_messages.append(await channel.send(text))
         try:
             while True:
                 message = await bot.wait_for('message', timeout=timeout, check=check)
+                my_messages.append(message)
                 if message.content is None or message.content == "":
                     result = Lang.get_locale_string("questions/text_only", locale)
                 else:
@@ -103,8 +117,9 @@ async def ask_text(
                 if result is True:
                     break
                 else:
-                    await channel.send(result)
+                    my_messages.append(await channel.send(result))
         except asyncio.TimeoutError as ex:
+            await clean_dialog()
             await channel.send(
                 # TODO: remove "bug" from lang string. send report cancel language from Bugs.py exception handler
                 Lang.get_locale_string("questions/error_reaction_timeout", locale,
@@ -123,11 +138,12 @@ async def ask_text(
                 await ask(bot, channel, user, message, [
                     Option("YES", handler=confirmed),
                     Option("NO")
-                ])
+                ], delete_after=delete_after)
             else:
                 confirmed()
 
-    return content
+            await clean_dialog()
+            return content
 
 
 async def ask_attachements(
