@@ -255,8 +255,11 @@ class ReactMonitor(BaseCog):
         """
         Turn on monitor for spammy fast-removal of reactions
         """
-        self.activate_react_watch(ctx.guild.id)
-        await ctx.send("I'm on the lookout for reaction spam!")
+        if ctx.guild.id in self.react_watch_servers:
+            await ctx.send("React monitor is already on")
+        else:
+            self.activate_react_watch(ctx.guild.id)
+            await ctx.send("I'm on the lookout for reaction spam!")
 
     @react_monitor.command()
     @commands.guild_only()
@@ -264,8 +267,11 @@ class ReactMonitor(BaseCog):
         """
         Turn off monitor for spammy fast-removal of reactions
         """
-        self.deactivate_react_watch(ctx.guild.id)
-        await ctx.send("OK, I'll stop watching for reaction spams")
+        if ctx.guild.id in self.react_watch_servers:
+            self.deactivate_react_watch(ctx.guild.id)
+            await ctx.send("OK, I'll stop watching for reaction spams")
+        else:
+            await ctx.send("React monitor is already off")
 
     @react_monitor.command(aliases=["time", "reacttime"])
     @commands.guild_only()
