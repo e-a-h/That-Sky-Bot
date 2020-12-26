@@ -236,7 +236,7 @@ class AutoResponders(BaseCog):
         for trigger_string, data in self.triggers[ctx.guild.id].items():
             available_triggers = '\n'.join(options)
             option = f"{data['id']} ) {get_trigger_description(await Utils.clean(trigger_string))}"
-            if len(f"{available_triggers}\n{option}") > 500:
+            if len(f"{available_triggers}\n{option}") > 1000:
                 prompt_messages.append(await ctx.send(available_triggers))  # send current options, save message
                 options = ["**...**"]  # reinitialize w/ "..." continued indicator
             options.append(option)
@@ -260,7 +260,9 @@ class AutoResponders(BaseCog):
                 return return_value
             raise ValueError
         except ValueError:
-            await nope(ctx, Lang.get_locale_string("autoresponder/expect_integer", ctx, min=0, max=max(keys, key=int)))
+            self.bot.loop.create_task(clean_dialog())
+            key_dump = ', '.join(str(x) for x in keys)
+            await nope(ctx, Lang.get_locale_string("autoresponder/expect_integer", ctx, keys=key_dump))
             raise
 
     async def validate_trigger(self, ctx, trigger):

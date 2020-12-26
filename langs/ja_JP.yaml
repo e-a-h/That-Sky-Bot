@@ -265,7 +265,7 @@ autoresponder:
   prompt_chance: --jp-- How often should I respond? (floating point percent e.g. `35.15`)
   on_or_off: |
     --jp-- `{subject}` on or off?
-  expect_integer: --jp-- I was hoping for an integer between {min} and {max}
+  expect_integer: --jp-- I was hoping for one of these values ```{keys}```
 krill:
   list_channels: --jp-- Krill channels for {server_name}.
   list_oreo_filter: --jp-- Oreo filters for {server_name}.

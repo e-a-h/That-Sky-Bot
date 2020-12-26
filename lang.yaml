@@ -249,7 +249,7 @@ autoresponder:
       `link` links to the message that triggered response
   on_or_off: |
     `{subject}` on or off?
-  expect_integer: I was hoping for an integer between {min} and {max}
+  expect_integer: I was hoping for one of these values ```{keys}```
 krill:
   list_channels: Krill channels for {server_name}.
   list_oreo_filter: Oreo filters for {server_name}.
