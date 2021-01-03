@@ -151,7 +151,7 @@ class DropBox(BaseCog):
                                 (message.id in self.drop_messages[guild.id][channel_id]):
                             # don't delete messages that are queued
                             continue
-                        is_mod = False  # message.author.guild_permissions.ban_members
+                        is_mod = message.author.guild_permissions.ban_members
                         age = (now-message.created_at).seconds
                         expired = age > drop.deletedelayms / 1000
                         queued_for_delete = message.id in self.delete_in_progress[guild.id][channel_id]
@@ -327,7 +327,7 @@ class DropBox(BaseCog):
             message_not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
             author_not_in_guild = not hasattr(message.author, "guild")
             channel_not_in_dropboxes = message.channel.id not in self.dropboxes[guild_id]
-            is_mod = False  # message.author.guild_permissions.ban_members
+            is_mod = message.author.guild_permissions.ban_members
         except Exception as e:
             return
 
