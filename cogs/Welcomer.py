@@ -467,8 +467,33 @@ class Welcomer(BaseCog):
         await ctx.send(content)
 
     @commands.Cog.listener()
+    async def on_member_remove(self, member):
+        # clear rules reactions
+        print(f"{member.display_name} left...")
+        roles = Configuration.get_var("roles")
+        guild = self.bot.get_guild(member.guild.id)
+
+        rules_channel = self.bot.get_config_channel(guild.id, Utils.rules_channel)
+        rules_message_id = Configuration.get_var('rules_react_message_id')
+        try:
+            rules = await rules_channel.fetch_message(rules_message_id)
+        except Exception as e:
+            print(f"can't clean rules reactions...")
+            return
+
+        print("got rules")
+        for reaction, role_id in roles.items():
+            try:
+                await rules.remove_reaction(reaction, member)
+                print(f"removed reaction {reaction}")
+            except Exception as e:
+                print(f"can't remove {reaction}")
+                pass
+
+    @commands.Cog.listener()
     async def on_member_join(self, member):
-        self.bot.loop.create_task(self.mute_new_member(member))
+        if self.mute_new_members:
+            self.bot.loop.create_task(self.mute_new_member(member))
 
         if self.discord_verification_flow:
             # do not welcome new members when using discord verification
@@ -664,6 +689,10 @@ class Welcomer(BaseCog):
             member_role = guild.get_role(Configuration.get_var("member_role"))
             nonmember_role = guild.get_role(Configuration.get_var("nonmember_role"))
             member = guild.get_member(user_id)
+
+            if member is None:
+                return
+
             action = getattr(member, f"{t}_roles")
             try:
                 await action(role)

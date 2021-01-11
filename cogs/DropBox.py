@@ -151,7 +151,10 @@ class DropBox(BaseCog):
                                 (message.id in self.drop_messages[guild.id][channel_id]):
                             # don't delete messages that are queued
                             continue
-                        is_mod = message.author.guild_permissions.ban_members
+                        my_member = guild.get_member(message.author.id)
+                        if my_member is None:
+                            continue
+                        is_mod = my_member.guild_permissions.ban_members
                         age = (now-message.created_at).seconds
                         expired = age > drop.deletedelayms / 1000
                         queued_for_delete = message.id in self.delete_in_progress[guild.id][channel_id]

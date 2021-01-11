@@ -106,6 +106,10 @@ class ReactMonitor(BaseCog):
             return True
         is_bot = event.user_id == self.bot.user.id
         member = guild.get_member(event.user_id)
+
+        if member is None:
+            return True  # ignore reaction events from departing members
+
         is_mod = member and member.guild_permissions.ban_members
         is_admin = event.user_id in Configuration.get_var("ADMINS", [])
         has_admin = False
