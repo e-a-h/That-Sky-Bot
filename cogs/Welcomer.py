@@ -494,6 +494,21 @@ class Welcomer(BaseCog):
         await ctx.send(content)
 
     @commands.Cog.listener()
+    async def on_member_update(self, before, after):
+        if before.pending and not after.pending:
+            # member just accepted rules
+
+            # don't add a role or this defeats the cool-down.
+            # wait for member to talk, then add a role.
+
+            # TODO: metrics logging
+
+            # member_role = after.guild.get_role(Configuration.get_var("member_role"))
+            # await after.add_roles(member_role)
+            # print(f"{after.display_name} is a member now")
+            pass
+
+    @commands.Cog.listener()
     async def on_member_remove(self, member):
         # clear rules reactions
         roles = Configuration.get_var("roles")
@@ -623,6 +638,25 @@ class Welcomer(BaseCog):
         message_id: Message id of rules react message
         """
         rules_channel = self.bot.get_config_channel(ctx.guild.id, Utils.rules_channel)
+        if message_id and not rules_channel:
+            ctx.send('Rules channel must be set in order to set rules message. Try `!channel_config set rules_channel [id]`')
+
+        if message_id == 0:
+            rules_message_id = Configuration.get_var('rules_react_message_id')
+            if rules_message_id == 0:
+                await ctx.send(f"Rules message is already unset")
+                return
+            try:
+                # Un-setting rules message. Clear reactions from the old one.
+                rules = await rules_channel.fetch_message(rules_message_id)
+                await rules.clear_reactions()
+                await ctx.send(f"Cleared reactions from:\n{rules.jump_url}")
+                Configuration.MASTER_CONFIG['rules_react_message_id'] = message_id
+                Configuration.save()
+            except Exception as e:
+                await ctx.send(f"Failed to clear existing rules reactions")
+            return
+
         try:
             rules = await rules_channel.fetch_message(message_id)
             # TODO: make this guild-specific
@@ -687,11 +721,15 @@ I won't try to unmute them later.
             # message from regular member. no action for welcomer to take.
             return
 
+        # ignore when channels not configured
         if not welcome_channel or not rules_channel or message.channel.id != welcome_channel.id:
-            # ignore when channels not configured
-            # Only act on messages in welcome channel from here on
+            if member_role not in message.author.roles:
+                # nonmember speaking somewhere other than welcome channel? Maybe we're not using the
+                # welcome channel anymore? or something else went wrong... give them member role.
+                await message.author.add_roles(member_role)
             return
 
+        # Only act on messages in welcome channel from here on
         # Nonmember will only be warned once every 10 minutes that they are speaking in welcome channel
         now = datetime.now().timestamp()
         then = 0
