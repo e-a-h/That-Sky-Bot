@@ -696,6 +696,7 @@ class Welcomer(BaseCog):
         rules_channel = self.bot.get_config_channel(message.guild.id, Utils.rules_channel)
         log_channel = self.bot.get_config_channel(message.guild.id, Utils.log_channel)
         member_role = message.guild.get_role(Configuration.get_var("member_role"))
+        nonmember_role = message.guild.get_role(Configuration.get_var("nonmember_role"))
 
         if message.author.id == 349977940198555660:  # is gearbot
             pattern = re.compile(r'\(``(\d+)``\) has re-joined the server before their mute expired')
@@ -727,6 +728,9 @@ I won't try to unmute them later.
                 # nonmember speaking somewhere other than welcome channel? Maybe we're not using the
                 # welcome channel anymore? or something else went wrong... give them member role.
                 await message.author.add_roles(member_role)
+                if nonmember_role in message.author.roles:
+                    Logging.info(f"{Utils.get_member_log_name(message.author)} - had shadow role when speaking. removing it!")
+                    await message.author.remove_roles(nonmember_role)
             return
 
         # Only act on messages in welcome channel from here on
