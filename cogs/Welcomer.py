@@ -20,7 +20,7 @@ class Welcomer(BaseCog):
         self.mute_new_members = True
         self.mute_minutes_old_account = 10
         self.mute_minutes_new_account = 20
-        self.discord_verification_flow = False
+        self.discord_verification_flow = dict()
         bot.loop.create_task(self.startup_cleanup())
 
     def cog_unload(self):
@@ -40,10 +40,12 @@ class Welcomer(BaseCog):
     def set_verification_mode(self, guild):
         # TODO: enforce channel permissions for entry_channel?
         # verification flow is on if entry channel is set
-        self.discord_verification_flow = bool(self.bot.get_config_channel(guild.id, Utils.entry_channel))
+        ec = self.bot.get_guild_entry_channel(guild.id)
+
+        self.discord_verification_flow[guild.id] = bool(ec)
         # Do not mute new members if verification flow is on.
         # Otherwise, mute new members UNLESS it's manually overridden
-        self.mute_new_members = False if self.discord_verification_flow else \
+        self.mute_new_members = False if self.discord_verification_flow[guild.id] else \
             Configuration.get_persistent_var(f"{guild.id}_mute_new_members", True)
 
     def remove_member_from_cooldown(self, guildid, memberid):
@@ -66,7 +68,7 @@ class Welcomer(BaseCog):
             # set verification periodically since channel setting can be changed in another cog
             self.set_verification_mode(guild)
 
-            if self.discord_verification_flow and not self.join_cooldown[str(guild.id)]:
+            if self.discord_verification_flow[guild.id] and not self.join_cooldown[str(guild.id)]:
                 # verification flow in effect, and nobody left to unmute.
                 continue
 
@@ -124,6 +126,7 @@ class Welcomer(BaseCog):
     async def on_guild_remove(self, guild):
         del self.welcome_talkers[guild.id]
         del self.join_cooldown[str(guild.id)]
+        del self.discord_verification_flow[guild.id]
 
     def fetch_recent(self, time_delta: int = 1):
         """
@@ -253,7 +256,7 @@ class Welcomer(BaseCog):
         mute_minutes_new: how long (minutes) to mute accounts < 1 day old
         """
         self.set_verification_mode(ctx.guild)
-        if self.discord_verification_flow:
+        if self.discord_verification_flow[ctx.guild.id]:
             # discord verification flow precludes new-member muting
             await ctx.send("""
             Discord verification flow is in effect. Mute is configured in discord moderation settings.
@@ -531,16 +534,13 @@ class Welcomer(BaseCog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        if self.mute_new_members:
+        if self.mute_new_members and not self.discord_verification_flow[member.guild.id]:
             self.bot.loop.create_task(self.mute_new_member(member))
 
-        if self.discord_verification_flow:
+        if self.discord_verification_flow[member.guild.id]:
             # do not welcome new members when using discord verification
             # set entry_channel to use discord verification
             return
-
-        # TODO: check for rules reaction here for the case of returning member?
-        #  remove it, *or* automatically reinstate member role
 
         # Only send welcomes for configured guild i.e. sky official
         # TODO: retool to allow any guild to welcome members?
@@ -689,7 +689,7 @@ class Welcomer(BaseCog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if (message.author == self.bot.user) or not message.guild or message.author.guild_permissions.mute_members:
+        if (message.author == self.bot.user) or not hasattr(message.author, "guild") or message.author.guild_permissions.mute_members:
             return
 
         welcome_channel = self.bot.get_config_channel(message.guild.id, Utils.welcome_channel)
