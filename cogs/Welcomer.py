@@ -519,7 +519,6 @@ class Welcomer(BaseCog):
 
         if before.roles != after.roles:
             if (not member_before and not member_after) or (member_before and not member_after):
-                print(f"assigned member role to {after.display_name}")
                 await after.add_roles(member_role)
 
     @commands.Cog.listener()
