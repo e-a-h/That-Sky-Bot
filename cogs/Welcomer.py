@@ -511,6 +511,17 @@ class Welcomer(BaseCog):
             # print(f"{after.display_name} is a member now")
             pass
 
+        # Enforce member role on any role changes - in case other bot assigns a role.
+        # TODO: should this be configurable on|off?
+        member_role = before.guild.get_role(Configuration.get_var("member_role"))
+        member_before = member_role in before.roles
+        member_after = member_role in after.roles
+
+        if before.roles != after.roles:
+            if (not member_before and not member_after) or (member_before and not member_after):
+                print(f"assigned member role to {after.display_name}")
+                await after.add_roles(member_role)
+
     @commands.Cog.listener()
     async def on_member_remove(self, member):
         # clear rules reactions
