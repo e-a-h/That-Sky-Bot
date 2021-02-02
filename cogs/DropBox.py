@@ -112,7 +112,7 @@ class DropBox(BaseCog):
         except Exception as e:
             msg = Lang.get_locale_string('dropbox/msg_not_delivered', ctx, author=source_message.author.mention)
             await ctx.send(msg)
-            await Logging.guild_log(ctx, "broken dropbox...? Call alex, I guess")
+            await self.bot.guild_log(guild_id, "broken dropbox...? Call alex, I guess")
             await Utils.handle_exception("dropbox delivery failure", self.bot, e)
 
         try:
