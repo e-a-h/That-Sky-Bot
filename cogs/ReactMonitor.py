@@ -83,6 +83,22 @@ class ReactMonitor(BaseCog):
     async def on_raw_reaction_remove(self, event):
         self.store_reaction_action(event)
 
+    @commands.Cog.listener()
+    async def on_member_join(self, member):
+        if str(member.id) in self.mutes[member.guild.id]:
+            guild = member.guild
+            guild_config = self.bot.get_config(guild.id)
+            if guild_config and guild_config.mutedrole:
+                try:
+                    mute_role = guild.get_role(guild_config.mutedrole)
+                    await member.add_roles(mute_role)
+                    log_msg = f"{Utils.get_member_log_name(member)} joined while still muted for banned reacts\n--- I **muted** them... **again**"
+                    await self.bot.guild_log(guild.id, log_msg)
+                except Exception as e:
+                    await Utils.handle_exception("reactmon failed to mute member", self.bot, e)
+            else:
+                await self.bot.guild_log(guild.id, "**I can't re-mute for reacts because `!guildconfig` mute role is not set.")
+
     def activate_react_watch(self, guild_id):
         # store setting in db, and add to list of listening servers
         watch = ReactWatch.get(serverid=guild_id)
@@ -124,7 +140,7 @@ class ReactMonitor(BaseCog):
         return False
 
     async def cog_check(self, ctx):
-        if not hasattr(ctx.author, 'guild'):
+        if ctx.guild is None:
             return False
         return ctx.author.guild_permissions.mute_members
 
@@ -289,6 +305,49 @@ class ReactMonitor(BaseCog):
         Configuration.set_persistent_var(f"min_react_lifespan_{ctx.guild.id}", react_time)
         await ctx.send(f"Reactions that are removed before {react_time} seconds have passed will be flagged")
 
+    @react_monitor.command(aliases=["list", "mutes"])
+    @commands.guild_only()
+    async def list_mutes(self, ctx: commands.Context):
+        if self.mutes[ctx.guild.id]:
+            react_muted = list()
+            guild_config = self.bot.get_config(ctx.guild.id)
+            mute_role = ctx.guild.get_role(guild_config.mutedrole)
+
+            for member_id, timestamp in self.mutes[ctx.guild.id].items():
+                member = ctx.guild.get_member(int(member_id))
+                if member is not None:
+                    long_name = Utils.get_member_log_name(member)
+                    if mute_role not in member.roles:
+                        # panic because role is not present when it should be
+                        await ctx.send(f"{long_name} should be muted for banned reacts... but isn't. ***WHY NOT??***")
+                    react_muted.append(long_name)
+
+            names = "\n".join(react_muted)
+            await ctx.send(f"__Members muted for banned reacts:__\n{names}")
+        else:
+            await ctx.send(f"Nobody is muted for banned reacts")
+
+    @react_monitor.command(aliases=["purge", "purgemutes"])
+    @commands.guild_only()
+    async def purge_mutes(self, ctx: commands.Context):
+        if self.mutes[ctx.guild.id]:
+            react_unmuted = list()
+            guild_config = self.bot.get_config(ctx.guild.id)
+            mute_role = ctx.guild.get_role(guild_config.mutedrole)
+
+            for member_id, timestamp in dict(self.mutes[ctx.guild.id]).items():
+                member = ctx.guild.get_member(int(member_id))
+                if member is not None:
+                    await member.remove_roles(mute_role)
+                    del self.mutes[ctx.guild.id][member_id]
+                    long_name = Utils.get_member_log_name(member)
+                    react_unmuted.append(long_name)
+
+            names = "\n".join(react_unmuted)
+            await ctx.send(f"__React mutes purged:__\n{names}")
+        else:
+            await ctx.send(f"Nobody is muted for banned reacts. Can't purge.")
+
     @react_monitor.command(aliases=["mutetime", "mute"])
     @commands.guild_only()
     async def mute_time(self, ctx: commands.Context, mute_time: float):
@@ -362,8 +421,7 @@ class ReactMonitor(BaseCog):
                 except Exception as e:
                     await Utils.handle_exception("reactmon failed to mute member", self.bot, e)
             else:
-                ctx = await self.bot.get_context(message)
-                await Logging.guild_log(ctx, "**I can't mute for reacts because `!guildconfig` mute role is not set.")
+                await self.bot.guild_log(event.guild_id, "**I can't mute for reacts because `!guildconfig` mute role is not set.")
 
         if (e_db.log or e_db.remove or e_db.mute) and log_channel:
             await log_channel.send(log_msg)

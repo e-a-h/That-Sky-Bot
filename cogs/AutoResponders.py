@@ -63,7 +63,7 @@ class AutoResponders(BaseCog):
         self.loaded = False
 
     async def cog_check(self, ctx):
-        if not hasattr(ctx.author, 'guild'):
+        if ctx.guild is None:
             return False
         return ctx.author.guild_permissions.ban_members
 

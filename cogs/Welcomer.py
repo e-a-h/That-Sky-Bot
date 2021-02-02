@@ -113,7 +113,7 @@ class Welcomer(BaseCog):
                     continue
 
     async def cog_check(self, ctx):
-        if not hasattr(ctx.author, 'guild'):
+        if ctx.guild is None:
             return False
         return ctx.author.guild_permissions.ban_members
 
@@ -243,7 +243,8 @@ class Welcomer(BaseCog):
     @commands.guild_only()
     async def welcome(self, ctx):
         """Configure welcome message settings"""
-        await ctx.send(Lang.get_locale_string('welcome/help', ctx))
+        if not ctx.invoked_subcommand:
+            await ctx.send_help(ctx.command)
 
     @welcome.command(aliases=['configmute', 'muteconfig', 'configure_mute', 'mute_configure', 'mute'])
     @commands.guild_only()
@@ -390,6 +391,38 @@ class Welcomer(BaseCog):
         content += f"There are {len(recent['verified'])} verified members"
         await ctx.send(content)
 
+    @welcome.command(aliases=["shadows", "count_nonmembers"])
+    @commands.guild_only()
+    async def count_shadows(self, ctx):
+        """
+        Count members who have shadow role
+        """
+        members = self.bot.get_all_members()
+        nonmember_role = ctx.guild.get_role(Configuration.get_var("nonmember_role"))
+
+        await ctx.send(f"counting members who have the shadow role...")
+        count = 0
+        multi_role_count = 0
+        no_role_count = 0
+        for member in members:
+            if member.bot or member.guild.id != ctx.guild.id:
+                # Don't count bots or members of other guilds
+                continue
+
+            if len(member.roles) == 0:
+                no_role_count = no_role_count + 1
+
+            if nonmember_role in member.roles:
+                count = count + 1
+                if len(member.roles) > 1:
+                    # count members who have shadow role AND other role(s)
+                    multi_role_count = multi_role_count + 1
+
+        content = f"There are {count} members with \"{nonmember_role.name}\" role.\n"
+        content += f"Among them, {multi_role_count} members have \"{nonmember_role.name}\" role *and* 1 or more other roles.\n"
+        content += f"There are {no_role_count} members with no roles assigned."
+        await ctx.send(content)
+
     @welcome.command(aliases=["darken", "darkness", "give_shadows"])
     @commands.guild_only()
     async def give_shadow(self, ctx, time_delta: typing.Optional[int] = 1, add_role: bool = False):
@@ -418,31 +451,6 @@ class Welcomer(BaseCog):
                 await Utils.handle_exception("problem adding shadow role", self, ex)
             string_name = 'welcome/darkened' if count == 1 else 'welcome/darkened_plural'
             await ctx.send(Lang.get_locale_string(string_name, ctx, count=count))
-
-    @welcome.command(aliases=["nonmember", "shadows", "shadow"])
-    @commands.guild_only()
-    async def ping_unverified(self, ctx):
-        guild = self.bot.get_guild(Configuration.get_var("guild_id"))
-        try:
-            nonmember_role = guild.get_role(Configuration.get_var("nonmember_role"))
-            welcome_channel = self.bot.get_config_channel(guild.id, Utils.welcome_channel)
-            rules_channel = self.bot.get_config_channel(guild.id, Utils.rules_channel)
-
-            if welcome_channel and rules_channel:
-                txt = Lang.get_locale_string("welcome/welcome_msg", ctx,
-                                             user=nonmember_role.mention,
-                                             rules_channel=rules_channel.mention,
-                                             accept_emoji=Emoji.get_chat_emoji('CANDLE'))
-
-                await nonmember_role.edit(mentionable=True)
-                await welcome_channel.send(txt)
-                await nonmember_role.edit(mentionable=False)
-                return True
-        except Exception as ex:
-            Logging.info(f"failed to welcome unverified role.")
-            Logging.error(ex)
-            raise ex
-        return False
 
     @welcome.command()
     @commands.guild_only()
@@ -498,28 +506,34 @@ class Welcomer(BaseCog):
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
-        if before.pending and not after.pending:
-            # member just accepted rules
+        try:
+            if before.pending and not after.pending:
+                # member just accepted rules
 
-            # don't add a role or this defeats the cool-down.
-            # wait for member to talk, then add a role.
+                # don't add a role or this defeats the cool-down.
+                # wait for member to talk, then add a role.
 
-            # TODO: metrics logging
+                # TODO: metrics logging
 
-            # member_role = after.guild.get_role(Configuration.get_var("member_role"))
-            # await after.add_roles(member_role)
-            # print(f"{after.display_name} is a member now")
+                # member_role = after.guild.get_role(Configuration.get_var("member_role"))
+                # await after.add_roles(member_role)
+                # print(f"{after.display_name} is a member now")
+                pass
+        except Exception as e:
             pass
 
-        # Enforce member role on any role changes - in case other bot assigns a role.
-        # TODO: should this be configurable on|off?
-        member_role = before.guild.get_role(Configuration.get_var("member_role"))
-        member_before = member_role in before.roles
-        member_after = member_role in after.roles
+        try:
+            # Enforce member role on any role changes - in case other bot assigns a role.
+            # TODO: should this be configurable on|off?
+            member_role = before.guild.get_role(Configuration.get_var("member_role"))
+            member_before = member_role in before.roles
+            member_after = member_role in after.roles
 
-        if before.roles != after.roles:
-            if (not member_before and not member_after) or (member_before and not member_after):
-                await after.add_roles(member_role)
+            if before.roles != after.roles:
+                if (not member_before and not member_after) or (member_before and not member_after):
+                    await after.add_roles(member_role)
+        except Exception as e:
+            pass
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):

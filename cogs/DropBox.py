@@ -49,7 +49,7 @@ class DropBox(BaseCog):
         self.clean_channels.cancel()
 
     async def cog_check(self, ctx):
-        if not hasattr(ctx.author, 'guild'):
+        if ctx.guild is None:
             return False
         return ctx.author.guild_permissions.ban_members
 

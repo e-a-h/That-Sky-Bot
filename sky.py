@@ -89,6 +89,11 @@ class Skybot(Bot):
                 pass
         return None
 
+    async def guild_log(self, guild_id: int, message=None, embed=None):
+        channel = self.get_guild_log_channel(guild_id)
+        if channel and (message or embed):
+            return await channel.send(content=message, embed=embed)
+
     async def close(self):
         Logging.info("Shutting down?")
         if not self.shutting_down:
