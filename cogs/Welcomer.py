@@ -713,7 +713,7 @@ class Welcomer(BaseCog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if (message.author == self.bot.user) or not hasattr(message.author, "guild") or message.author.guild_permissions.mute_members:
+        if message.author.bot or not hasattr(message.author, "guild") or message.author.guild_permissions.mute_members:
             return
 
         welcome_channel = self.bot.get_config_channel(message.guild.id, Utils.welcome_channel)
@@ -733,9 +733,9 @@ class Welcomer(BaseCog):
                 muted_member_name = Utils.get_member_log_name(muted_member)
                 await log_channel.send(
                     f'''
-Gearbot re-applied mute when member re-joined: {muted_member_name}
-I won't try to unmute them later.
-''')
+                    Gearbot re-applied mute when member re-joined: {muted_member_name}
+                    I won't try to unmute them later.
+                    ''')
                 return
 
         if await self.member_verify_action(message):
@@ -751,10 +751,13 @@ I won't try to unmute them later.
             if member_role not in message.author.roles:
                 # nonmember speaking somewhere other than welcome channel? Maybe we're not using the
                 # welcome channel anymore? or something else went wrong... give them member role.
-                await message.author.add_roles(member_role)
-                if nonmember_role in message.author.roles:
-                    Logging.info(f"{Utils.get_member_log_name(message.author)} - had shadow role when speaking. removing it!")
-                    await message.author.remove_roles(nonmember_role)
+                try:
+                    await message.author.add_roles(member_role)
+                    if nonmember_role in message.author.roles:
+                        Logging.info(f"{Utils.get_member_log_name(message.author)} - had shadow role when speaking. removing it!")
+                        await message.author.remove_roles(nonmember_role)
+                except Exception as e:
+                    await Utils.handle_exception("member join exception", self.bot, e)
             return
 
         # Only act on messages in welcome channel from here on

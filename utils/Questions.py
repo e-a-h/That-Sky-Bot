@@ -42,14 +42,17 @@ async def ask(bot, channel, author, text, options, timeout=60, show_embed=False,
     try:
         reaction, user = await bot.wait_for('reaction_add', timeout=timeout, check=check)
     except asyncio.TimeoutError as ex:
-        if delete_after:
-            await message.delete()
-        await channel.send(
-            Lang.get_locale_string("questions/error_reaction_timeout", locale,
-                            error_emoji=Emoji.get_emoji("WARNING"),
-                            timeout=timeout_format(timeout)),
-            delete_after=10 if delete_after else None)
-        raise ex
+        try:
+            if delete_after:
+                await message.delete()
+            await channel.send(
+                Lang.get_locale_string("questions/error_reaction_timeout", locale,
+                                error_emoji=Emoji.get_emoji("WARNING"),
+                                timeout=timeout_format(timeout)),
+                delete_after=10 if delete_after else None)
+        except Exception as e:
+            # ignore all failures at this point
+            pass
     else:
         if delete_after:
             await message.delete()

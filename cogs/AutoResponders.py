@@ -9,7 +9,7 @@ from json import JSONDecodeError
 
 import discord
 from discord.ext import commands
-from discord.errors import NotFound, HTTPException
+from discord.errors import NotFound, HTTPException, Forbidden
 
 from cogs.BaseCog import BaseCog
 from utils import Lang, Utils, Questions, Emoji, Configuration, Logging
@@ -323,7 +323,7 @@ class AutoResponders(BaseCog):
         embed.add_field(name='Message Author', value=message.author.mention, inline=True)
         embed.add_field(name='Channel', value=message.channel.mention, inline=True)
         embed.add_field(name='Jump link', value=f"[Go to message]({message.jump_url})", inline=True)
-        contents = Utils.paginate(message.content, max_chars=1024)
+        contents = Utils.paginate(message.content, max_chars=1000)
         i = 0
         for chunk in contents:
             i = i + 1
@@ -336,14 +336,33 @@ class AutoResponders(BaseCog):
         """)
 
         # message add reactions
-        sent_response = await response_channel.send(embed=embed)
-        await sent_response.add_reaction(Emoji.get_emoji("YES"))
-        await sent_response.add_reaction(Emoji.get_emoji("CANDLE"))
-        await sent_response.add_reaction(Emoji.get_emoji("WARNING"))
-        await sent_response.add_reaction(Emoji.get_emoji("NO"))
+        # try a few times to send message if it fails
+        tries = 0
+        max_tries = 10
+        sent_response = None
+        while tries < max_tries:
+            try:
+                sent_response = await response_channel.send(embed=embed)
+                break
+            except Exception as e:
+                tries = tries + 1
+                if tries == max_tries:
+                    await Utils.handle_exception("failed to send mod-action message", self.bot, e)
 
-        action = mod_action(message.channel.id, message.id, formatted_response)
-        self.mod_actions[sent_response.id] = action
+        if sent_response:
+            for action_emoji in ("YES", "CANDLE", "WARNING", "NO"):
+                tries = 0
+                while tries < max_tries:
+                    try:
+                        await sent_response.add_reaction(Emoji.get_emoji(action_emoji))
+                        break
+                    except Exception as e:
+                        tries = tries + 1
+                        if tries == max_tries:
+                            await Utils.handle_exception(f"failed to add {action_emoji} react to mod-action message", self.bot, e)
+
+            action = mod_action(message.channel.id, message.id, formatted_response)
+            self.mod_actions[sent_response.id] = action
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
@@ -792,13 +811,17 @@ class AutoResponders(BaseCog):
     async def on_message(self, message: discord.Message):
         """Set up message listener and respond to specific text with various canned responses"""
 
-        prefix = Configuration.get_var("bot_prefix")
-        is_boss = await self.cog_check(message)
-        command_context = message.content.startswith(prefix, 0) and is_boss
+        # check these first to avoid conflicts/exceptions
         not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
-        in_ignored_channel = False  # TODO: populate with entry_channel. Any others?
+        if message.author.bot or not_in_guild:
+            return
 
-        if message.author.bot or command_context or not_in_guild or in_ignored_channel:
+        prefix = Configuration.get_var("bot_prefix")
+        can_command = await self.cog_check(message)
+        command_context = message.content.startswith(prefix, 0) and can_command
+        in_ignored_channel = False  # TODO: commands for global ignore channels, populate with channels
+
+        if command_context or in_ignored_channel:
             return
 
         is_mod = message.author.guild_permissions.mute_members
@@ -880,7 +903,14 @@ class AutoResponders(BaseCog):
                         await response_channel.send(formatted_response)
 
                 if delete_trigger:
-                    await message.delete()
+                    try:
+                        await message.delete()
+                    except NotFound as e:
+                        # Message deleted by another bot
+                        pass
+                    except (Forbidden, HTTPException) as e:
+                        # maybe discord error.
+                        await Utils.handle_exception("ar failed to delete", self.bot, e)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):
