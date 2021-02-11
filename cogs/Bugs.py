@@ -114,7 +114,7 @@ class Bugs(BaseCog):
                 Logging.info(f"Bug report message sent in channel #{channel.name} ({channel.id})")
             except Exception as e:
                 # Ignore
-                Logging.info(f"Bug report message failed to send in channel #{channel.name} ({channel.id})")
+                await Utils.handle_exception(f"Bug report message failed to send in channel #{channel.name} ({channel.id})", self.bot, e)
                 await asyncio.sleep(1)
 
     @tasks.loop(seconds=30.0)

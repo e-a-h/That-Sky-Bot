@@ -1,5 +1,5 @@
 discord.py==1.6.0
-peewee==3.14.0
+peewee==3.14.1
 PyMySQL==1.0.2
 pytz==2021.1
 sentry-sdk==0.19.5
