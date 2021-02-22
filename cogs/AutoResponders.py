@@ -638,8 +638,6 @@ class AutoResponders(BaseCog):
                                                      escape=False,
                                                      locale=ctx)
                 except asyncio.TimeoutError as e:
-                    await self.nope(ctx)
-                    # TODO: warn about empty response
                     return
 
             trigger = AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
@@ -740,8 +738,6 @@ class AutoResponders(BaseCog):
                                                         escape=False,
                                                         locale=ctx))
             except asyncio.TimeoutError as e:
-                await self.nope(ctx)
-                # TODO: test - any further messaging required when chance is not found?
                 return
 
         try:
@@ -817,7 +813,6 @@ class AutoResponders(BaseCog):
                                                       Lang.get_locale_string("autoresponder/prompt_channel_id", ctx, mode=mode),
                                                       locale=ctx)
             except asyncio.TimeoutError as e:
-                # todo: test - is timeout message sufficient?
                 return
 
         channel_id = re.sub(r'[^\d]', '', str(channel_id))

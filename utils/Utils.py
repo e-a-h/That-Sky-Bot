@@ -347,23 +347,20 @@ def paginate(input, max_lines=20, max_chars=1900, prefix="", suffix=""):
     pages = []
     page = ""
     count = 0
+
     for line in lines:
         if len(page) + len(line) > max_chars or count == max_lines:
-            if page == "":
-                # single 2k line, split smaller
-                words = line.split(" ")
-                for word in words:
-                    if len(page) + len(word) > max_chars:
-                        pages.append(f"{prefix}{page}{suffix}")
-                        page = f"{word} "
-                    else:
-                        page += f"{word} "
-            else:
-                pages.append(f"{prefix}{page}{suffix}")
-                page = line
-                count = 1
+            # single 2k line, split smaller
+            words = line.split(" ")
+            for word in words:
+                if len(page) + len(word) > max_chars:
+                    pages.append(f"{prefix}{page}{suffix}")
+                    count += 1
+                    page = f"{word} "
+                else:
+                    page += f"{word} "
         else:
             page += line
-        count += 1
+    # append the last page
     pages.append(f"{prefix}{page}{suffix}")
     return pages

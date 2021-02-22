@@ -166,12 +166,12 @@ class DropBox(BaseCog):
                             self.bot.loop.create_task(self.clean_message(message))
                         else:
                             pass
-                except CancelledError as e:
-                    # I think this is safe to ignore...
+                except (CancelledError, TimeoutError, discord.DiscordServerError) as e:
+                    # I think these are safe to ignore...
                     pass
                 except Exception as e:
+                    # ignore but log
                     await Utils.handle_exception('dropbox clean failure', self.bot, e)
-                    # ignore. will try again soon?
         self.clean_in_progress = False
 
     async def clean_message(self, message):

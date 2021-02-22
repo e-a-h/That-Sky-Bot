@@ -36,7 +36,7 @@ class Skybot(Bot):
 
     async def on_ready(self):
         if self.loaded:
-            await Logging.info("Skybot reconnect")
+            Logging.info("Skybot reconnect")
             return
 
         Logging.BOT_LOG_CHANNEL = self.get_channel(Configuration.get_var("log_channel"))
