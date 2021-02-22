@@ -246,19 +246,22 @@ class DropBox(BaseCog):
             old_target_description = Utils.get_channel_description(
                 self.bot,
                 self.dropboxes[ctx.guild.id][sourceid].targetchannelid)
-            await Questions.ask(
-                self.bot,
-                ctx.channel,
-                ctx.author,
-                Lang.get_locale_string('dropbox/override_confirmation',
-                                       ctx,
-                                       source=source_description,
-                                       old_target=old_target_description,
-                                       new_target=new_target_description),
-                [
-                    Questions.Option('YES', handler=lambda: update(True)),
-                    Questions.Option('NO', handler=lambda: update(False))
-                ], delete_after=True, locale=ctx)
+            try:
+                await Questions.ask(
+                    self.bot,
+                    ctx.channel,
+                    ctx.author,
+                    Lang.get_locale_string('dropbox/override_confirmation',
+                                           ctx,
+                                           source=source_description,
+                                           old_target=old_target_description,
+                                           new_target=new_target_description),
+                    [
+                        Questions.Option('YES', handler=lambda: update(True)),
+                        Questions.Option('NO', handler=lambda: update(False))
+                    ], delete_after=True, locale=ctx)
+            except asyncio.TimeoutError as e:
+                update(False)
 
         if update_entry is False:
             # user chose not to update

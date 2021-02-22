@@ -12,6 +12,7 @@ def save():
     global MASTER_CONFIG
     with open('config.json', 'w') as jsonfile:
         jsonfile.write((json.dumps(MASTER_CONFIG, indent=4, skipkeys=True, sort_keys=True)))
+        jsonfile.close()
 
 
 # Ugly but this prevents import loop errors

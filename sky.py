@@ -75,7 +75,7 @@ class Skybot(Bot):
         try:
             return self.get_cog('GuildConfig').get_config(guild_id)
         except Exception as e:
-            Utils.handle_exception("Failed to get config", self, e)
+            Utils.get_embed_and_log_exception("--------Failed to get config--------", self, e)
             return None
 
     def get_config_channel(self, guild_id: int, channel_name: str):

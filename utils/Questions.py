@@ -53,6 +53,7 @@ async def ask(bot, channel, author, text, options, timeout=60, show_embed=False,
         except Exception as e:
             # ignore all failures at this point
             pass
+        raise ex
     else:
         if delete_after:
             await message.delete()

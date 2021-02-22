@@ -73,7 +73,7 @@ def extract_info(o):
     return info
 
 
-async def handle_exception(exception_type, bot, exception, event=None, message=None, ctx=None, *args, **kwargs):
+def get_embed_and_log_exception(exception_type, bot, exception, event=None, message=None, ctx=None, *args, **kwargs):
     with sentry_sdk.push_scope() as scope:
         embed = Embed(colour=Colour(0xff0000), timestamp=datetime.utcfromtimestamp(time.time()))
 
@@ -149,7 +149,8 @@ async def handle_exception(exception_type, bot, exception, event=None, message=N
             scope.set_tag('channel', channel_name)
 
             sender = f"{str(ctx.author)} (`{ctx.author.id}`)"
-            scope.user = dict(id=ctx.author.id, username=str(ctx.author))
+            scope.set_user({"id": ctx.author.id, "username": str(ctx.author)})
+
             lines.append(f"Sender: {sender}")
             embed.add_field(name="Sender", value=sender, inline=False)
 
@@ -169,6 +170,11 @@ async def handle_exception(exception_type, bot, exception, event=None, message=N
         else:
             embed.add_field(name="Traceback", value="stacktrace too long, see logs")
         sentry_sdk.capture_exception(exception)
+        return embed
+
+
+async def handle_exception(exception_type, bot, exception, event=None, message=None, ctx=None, *args, **kwargs):
+    embed = get_embed_and_log_exception(exception_type, bot, exception, event, message, ctx, *args, **kwargs)
     try:
         await Logging.bot_log(embed=embed)
     except Exception as ex:

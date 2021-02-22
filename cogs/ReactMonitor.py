@@ -18,7 +18,7 @@ class ReactMonitor(BaseCog):
         self.react_removers = dict()
         self.react_adds = dict()
         self.emoji = dict()
-        self.min_react_lifespan = 0.0
+        self.min_react_lifespan = dict()
         self.mutes = dict()
         self.mute_duration = dict()
         self.guilds = dict()
@@ -34,7 +34,7 @@ class ReactMonitor(BaseCog):
 
     def init_guild(self, guild_id):
         watch = ReactWatch.get_or_create(serverid=guild_id)[0]
-        self.min_react_lifespan = Configuration.get_persistent_var(f"min_react_lifespan_{guild_id}", 0.5)
+        self.min_react_lifespan[guild_id] = Configuration.get_persistent_var(f"min_react_lifespan_{guild_id}", 0.5)
         self.mute_duration[guild_id] = watch.muteduration
 
         # track react add/remove per guild
@@ -63,6 +63,7 @@ class ReactMonitor(BaseCog):
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
         Configuration.del_persistent_var(f"min_react_lifespan_{guild.id}")
+        del self.min_react_lifespan[guild.id]
         del self.recent_reactions[guild.id]
         del self.react_removers[guild.id]
         del self.react_adds[guild.id]
@@ -173,7 +174,7 @@ class ReactMonitor(BaseCog):
                     self.react_adds[guild_id][t] = e
                 # cull out expired ones
                 for t, e in dict(self.react_adds[guild_id]).items():
-                    if t + self.min_react_lifespan < now:
+                    if t + self.min_react_lifespan[guild_id] < now:
                         # add reaction is too far in the past. remove from the list
                         del self.react_adds[guild_id][t]
 
@@ -206,7 +207,7 @@ class ReactMonitor(BaseCog):
         embed.add_field(name="Monitor React Removal", value="Yes" if watch.watchremoves else "No")
 
         if watch.watchremoves:
-            embed.add_field(name="Reaction minimum lifespan", value=f"{self.min_react_lifespan} seconds")
+            embed.add_field(name="Reaction minimum lifespan", value=f"{self.min_react_lifespan[ctx.guild.id]} seconds")
 
         embed.add_field(name="Mute duration", value=Utils.to_pretty_time(self.mute_duration[ctx.guild.id]))
 
@@ -301,7 +302,7 @@ class ReactMonitor(BaseCog):
 
         react_time: time in seconds, floating point e.g. 0.25
         """
-        self.min_react_lifespan = react_time
+        self.min_react_lifespan[ctx.guild.id] = react_time
         Configuration.set_persistent_var(f"min_react_lifespan_{ctx.guild.id}", react_time)
         await ctx.send(f"Reactions that are removed before {react_time} seconds have passed will be flagged")
 
@@ -446,7 +447,7 @@ class ReactMonitor(BaseCog):
             not_user = add_event.user_id != event.user_id
 
             age = timestamp - t
-            expired = 0 > age > self.min_react_lifespan
+            expired = 0 > age > self.min_react_lifespan[event.guild_id]
             if expired or not_message or not_user:
                 # message id and user id must match remove event, and must not be expired
                 continue

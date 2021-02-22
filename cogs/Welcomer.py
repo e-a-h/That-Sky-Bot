@@ -665,34 +665,37 @@ class Welcomer(BaseCog):
         if message_id and not rules_channel:
             ctx.send('Rules channel must be set in order to set rules message. Try `!channel_config set rules_channel [id]`')
 
+        # clear old reactions
+        rules_message_id = Configuration.get_var('rules_react_message_id')
+        try:
+            # Un-setting rules message. Clear reactions from the old one.
+            old_rules = await rules_channel.fetch_message(rules_message_id)
+            await old_rules.clear_reactions()
+            await ctx.send(f"Cleared reactions from:\n{old_rules.jump_url}")
+            # TODO: make this guild-specific
+        except Exception as e:
+            await ctx.send(f"Failed to clear existing rules reactions")
+
+        try:
+            Configuration.MASTER_CONFIG['rules_react_message_id'] = message_id
+            Configuration.save()
+        except Exception as e:
+            await ctx.send(f"Failed while saving configuration. Operation will continue, but check the logs...")
+
         if message_id == 0:
-            rules_message_id = Configuration.get_var('rules_react_message_id')
             if rules_message_id == 0:
                 await ctx.send(f"Rules message is already unset")
-                return
-            try:
-                # Un-setting rules message. Clear reactions from the old one.
-                rules = await rules_channel.fetch_message(rules_message_id)
-                await rules.clear_reactions()
-                await ctx.send(f"Cleared reactions from:\n{rules.jump_url}")
-                Configuration.MASTER_CONFIG['rules_react_message_id'] = message_id
-                Configuration.save()
-            except Exception as e:
-                await ctx.send(f"Failed to clear existing rules reactions")
             return
 
         try:
-            rules = await rules_channel.fetch_message(message_id)
-            # TODO: make this guild-specific
-            Configuration.MASTER_CONFIG['rules_react_message_id'] = message_id
-            Configuration.save()
+            new_rules = await rules_channel.fetch_message(message_id)
             roles = Configuration.get_var("roles")
-            await rules.clear_reactions()
+            await new_rules.clear_reactions()
             for emoji, role_id in roles.items():
                 # if not Emoji.is_emoji_defined(emoji):
                 #     continue
                 # emoji = Emoji.get_chat_emoji(emoji)
-                await rules.add_reaction(emoji)
+                await new_rules.add_reaction(emoji)
             await ctx.send(f"Rules message set to {message_id} in channel {rules_channel.mention}")
         except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
             await ctx.send(f"Could not find message id {message_id} in channel {rules_channel.mention}")

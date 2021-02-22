@@ -3,39 +3,16 @@ import collections
 import json
 import random
 import re
-from collections import namedtuple
 from datetime import datetime
 from json import JSONDecodeError
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.errors import NotFound, HTTPException, Forbidden
 
 from cogs.BaseCog import BaseCog
 from utils import Lang, Utils, Questions, Emoji, Configuration, Logging
 from utils.Database import AutoResponder
-
-mod_action = namedtuple("mod_action", "channel_id message_id response", defaults=(None, None, None))
-
-
-async def nope(ctx, msg: str = None):
-    msg = msg or Lang.get_locale_string('common/nope', ctx)
-    await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} {msg}")
-
-
-async def get_db_trigger(guild_id: int, trigger: str):
-    if guild_id is None or trigger is None:
-        return None
-    trigger = await Utils.clean(trigger, links=False)
-    return AutoResponder.get_or_none(serverid=guild_id, trigger=trigger)
-
-
-def get_trigger_description(trigger) -> str:
-    if (len(trigger) + 5) > 30:
-        part_a = trigger[0:15]
-        part_b = trigger[-15:]
-        return f"`{part_a} ... {part_b}`"
-    return trigger
 
 
 class AutoResponders(BaseCog):
@@ -53,14 +30,43 @@ class AutoResponders(BaseCog):
     }
 
     trigger_length_max = 300
+    action_expiry_default = 86400
 
     def __init__(self, bot):
         super().__init__(bot)
 
         self.triggers = dict()
-        self.mod_actions = dict()
+        self.mod_messages = dict()
+        self.mod_action_expiry = dict()
+        for guild in self.bot.guilds:
+            self.init_guild(guild)
+        self.reload_mod_actions()
         self.bot.loop.create_task(self.reload_triggers())
+        self.clean_old_autoresponders.start()
         self.loaded = False
+
+    def cog_unload(self):
+        self.clean_old_autoresponders.cancel()
+
+    @staticmethod
+    def get_trigger_description(trigger) -> str:
+        if (len(trigger) + 5) > 30:
+            part_a = trigger[0:15]
+            part_b = trigger[-15:]
+            return f"`{part_a} ... {part_b}`"
+        return trigger
+
+    @staticmethod
+    async def nope(ctx, msg: str = None):
+        msg = msg or Lang.get_locale_string('common/nope', ctx)
+        await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} {msg}")
+
+    @staticmethod
+    async def get_db_trigger(guild_id: int, trigger: str):
+        if guild_id is None or trigger is None:
+            return None
+        trigger = await Utils.clean(trigger, links=False)
+        return AutoResponder.get_or_none(serverid=guild_id, trigger=trigger)
 
     async def cog_check(self, ctx):
         if ctx.guild is None:
@@ -71,6 +77,75 @@ class AutoResponders(BaseCog):
         for key, value in self.flags.items():
             if value is index:
                 return key
+
+    def init_guild(self, guild):
+        self.triggers[guild.id] = dict()
+        self.mod_messages[guild.id] = dict()
+        self.mod_action_expiry[guild.id] = Configuration.get_var(
+            f'auto_action_expiry_seconds_{guild.id}',
+            self.action_expiry_default
+        )
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild):
+        self.init_guild(guild)
+
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild):
+        del self.triggers[guild.id]
+        del self.mod_messages[guild.id]
+        del self.mod_action_expiry[guild.id]
+        try:
+            del Configuration.MASTER_CONFIG[f'auto_action_expiry_seconds_{guild.id}']
+            Configuration.save()
+        except Exception as e:
+            Logging.error(f"Could not save config when removing auto_action_expiry_seconds_{guild.id}")
+        for command in AutoResponder.select().where(AutoResponder.serverid == guild.id):
+            command.delete_instance()
+
+    def reload_mod_actions(self, ctx=None):
+        guilds = self.bot.guilds if ctx is None else [ctx.guild]
+        for guild in guilds:
+            self.mod_messages[guild.id] = dict()
+            saved_mod_messages = Configuration.get_persistent_var(f"mod_messages_{guild.id}")
+            if saved_mod_messages:
+                for channel_id, actions in saved_mod_messages.items():
+                    # Convert json str keys to int
+                    channel_id = int(channel_id)
+                    if channel_id not in self.mod_messages[guild.id]:
+                        self.mod_messages[guild.id][channel_id] = dict()
+                    for message_id, action in actions.items():
+                        message_id = int(message_id)
+                        self.mod_messages[guild.id][channel_id][message_id] = action
+
+    @tasks.loop(seconds=6)
+    async def clean_old_autoresponders(self):
+        for guild_id, channels in self.mod_messages.items():
+            for channel_id, messages in channels.items():
+                for message_id, action in dict(messages).items():
+                    now = datetime.now().timestamp()
+                    if (now - action['event_datetime']) > self.mod_action_expiry[guild_id]:
+                        #  expire very old mod action messages --- remove reacts and add "expired" react
+                        try:
+                            del self.mod_messages[guild_id][channel_id][message_id]
+                            Configuration.set_persistent_var(f"mod_messages_{guild_id}", self.mod_messages[guild_id])
+
+                            guild = self.bot.get_guild(guild_id)
+                            channel = guild.get_channel(channel_id)
+                            message = await channel.fetch_message(message_id)
+                            await message.clear_reactions()
+
+                            # replace mod action list with acting mod name and datetime
+                            my_embed = message.embeds[0]
+                            start = message.created_at
+                            react_time = datetime.utcnow()
+                            time_d = Utils.to_pretty_time((react_time - start).seconds)
+                            my_embed.set_field_at(-1, name="Expired", value=f'No action taken for {time_d}', inline=True)
+                            await(message.edit(embed=my_embed))
+                            await message.add_reaction(Emoji.get_emoji("SNAIL"))
+                        except Exception as e:
+                            pass
+                        pass
 
     async def reload_triggers(self, ctx=None):
         guilds = self.bot.guilds if ctx is None else [ctx.guild]
@@ -195,7 +270,7 @@ class AutoResponders(BaseCog):
                     flags_description += f"\n**\u200b \u200b **Respond in Channel: <#{trigger_obj['responsechannelid']}>"  # 51
                 if trigger_obj['listenchannelid']:
                     flags_description += f"\n**\u200b \u200b **Listen in Channel: <#{trigger_obj['listenchannelid']}>"  # 50
-                embed.add_field(name=f"**[{trigger_obj['id']}]** {get_trigger_description(trigger)}",  # 47
+                embed.add_field(name=f"**[{trigger_obj['id']}]** {self.get_trigger_description(trigger)}",  # 47
                                 value=flags_description,  # 282
                                 inline=False)  # total length 329 max
             # embeds.append(embed)
@@ -215,7 +290,7 @@ class AutoResponders(BaseCog):
             except ValueError:
                 if trigger in self.triggers[ctx.guild.id].keys():
                     return trigger
-                msg = Lang.get_locale_string('autoresponder/not_found', ctx, trigger=get_trigger_description(trigger))
+                msg = Lang.get_locale_string('autoresponder/not_found', ctx, trigger=self.get_trigger_description(trigger))
                 await ctx.send(f"{Emoji.get_chat_emoji('NO')} {msg}")
                 raise
 
@@ -235,7 +310,7 @@ class AutoResponders(BaseCog):
 
         for trigger_string, data in self.triggers[ctx.guild.id].items():
             available_triggers = '\n'.join(options)
-            option = f"{data['id']} ) {get_trigger_description(await Utils.clean(trigger_string))}"
+            option = f"{data['id']} ) {self.get_trigger_description(await Utils.clean(trigger_string))}"
             if len(f"{available_triggers}\n{option}") > 1000:
                 prompt_messages.append(await ctx.send(available_triggers))  # send current options, save message
                 options = ["**...**"]  # reinitialize w/ "..." continued indicator
@@ -254,15 +329,15 @@ class AutoResponders(BaseCog):
                                                         delete_after=True))
             if return_value in keys.keys():
                 return_value = keys[return_value]
-                chosen = get_trigger_description(await Utils.clean(return_value))
+                chosen = self.get_trigger_description(await Utils.clean(return_value))
                 await ctx.send(Lang.get_locale_string('autoresponder/you_chose', ctx, value=chosen))
                 self.bot.loop.create_task(clean_dialog())
                 return return_value
             raise ValueError
-        except ValueError:
+        except (ValueError, asyncio.TimeoutError):
             self.bot.loop.create_task(clean_dialog())
             key_dump = ', '.join(str(x) for x in keys)
-            await nope(ctx, Lang.get_locale_string("autoresponder/expect_integer", ctx, keys=key_dump))
+            await self.nope(ctx, Lang.get_locale_string("autoresponder/expect_integer", ctx, keys=key_dump))
             raise
 
     async def validate_trigger(self, ctx, trigger):
@@ -316,14 +391,14 @@ class AutoResponders(BaseCog):
         formatted_response: prepared auto-response
         """
         embed = discord.Embed(
-            title=f"Trigger: {matched or get_trigger_description(trigger)}",
+            title=f"Trigger: {matched or self.get_trigger_description(trigger)}",
             timestamp=message.created_at,
             color=0xFF0940
         )
         embed.add_field(name='Message Author', value=message.author.mention, inline=True)
         embed.add_field(name='Channel', value=message.channel.mention, inline=True)
         embed.add_field(name='Jump link', value=f"[Go to message]({message.jump_url})", inline=True)
-        contents = Utils.paginate(message.content, max_chars=1000)
+        contents = Utils.paginate(message.content, max_chars=900)
         i = 0
         for chunk in contents:
             i = i + 1
@@ -348,31 +423,33 @@ class AutoResponders(BaseCog):
                 tries = tries + 1
                 if tries == max_tries:
                     await Utils.handle_exception("failed to send mod-action message", self.bot, e)
+                    return
 
-        if sent_response:
-            for action_emoji in ("YES", "CANDLE", "WARNING", "NO"):
-                tries = 0
-                while tries < max_tries:
-                    try:
-                        await sent_response.add_reaction(Emoji.get_emoji(action_emoji))
-                        break
-                    except Exception as e:
-                        tries = tries + 1
-                        if tries == max_tries:
-                            await Utils.handle_exception(f"failed to add {action_emoji} react to mod-action message", self.bot, e)
+        for action_emoji in ("YES", "CANDLE", "WARNING", "NO"):
+            tries = 0
+            while tries < max_tries:
+                try:
+                    await sent_response.add_reaction(Emoji.get_emoji(action_emoji))
+                    break
+                except Exception as e:
+                    tries = tries + 1
+                    if tries == max_tries:
+                        await Utils.handle_exception(f"failed to add {action_emoji} react to mod-action message", self.bot, e)
 
-            action = mod_action(message.channel.id, message.id, formatted_response)
-            self.mod_actions[sent_response.id] = action
+        # a record of the event
+        record = {"channel_id": message.channel.id,
+                  "message_id": message.id,
+                  "formatted_response": formatted_response,
+                  "event_datetime": datetime.now().timestamp()}
 
-    @commands.Cog.listener()
-    async def on_guild_join(self, guild):
-        self.triggers[guild.id] = dict()
+        guild_id = response_channel.guild.id
 
-    @commands.Cog.listener()
-    async def on_guild_remove(self, guild):
-        del self.triggers[guild.id]
-        for command in AutoResponder.select().where(AutoResponder.serverid == guild.id):
-            command.delete_instance()
+        # init dict where necessary
+        if response_channel.id not in self.mod_messages[guild_id]:
+            self.mod_messages[guild_id][response_channel.id] = dict()
+
+        self.mod_messages[guild_id][response_channel.id][sent_response.id] = record
+        Configuration.set_persistent_var(f"mod_messages_{guild_id}", self.mod_messages[guild_id])
 
     @commands.group(name="autoresponder", aliases=['ar', 'auto'])
     @commands.guild_only()
@@ -381,6 +458,31 @@ class AutoResponders(BaseCog):
         """Show a list of autoresponder tags and their flags"""
         if ctx.invoked_subcommand is None:
             await self.list_auto_responders(ctx)
+
+    @autor.command(aliases=['setactionexpiration'])
+    @commands.guild_only()
+    async def set_action_expiry_seconds(self, ctx, expiry_seconds: int = 0):
+        """
+        Set the amount of time (in seconds) after which unused mod-action messages expire.
+
+        expiry_seconds: Time in seconds. (e.g. 3600 for one hour, 86400 for one day) Default is 1 day.
+        """
+        if expiry_seconds == 0:
+            expiry_seconds = self.action_expiry_default
+
+        old_exp = self.mod_action_expiry[ctx.guild.id]
+        exp = Utils.to_pretty_time(expiry_seconds)
+        if old_exp == expiry_seconds:
+            await ctx.send(f"mod action message expiration time is already {exp}")
+            return
+        try:
+            # save to configuration and local var last in case saving config raises error
+            Configuration.MASTER_CONFIG[f'auto_action_expiry_seconds_{ctx.guild.id}'] = expiry_seconds
+            Configuration.save()
+            self.mod_action_expiry[ctx.guild.id] = expiry_seconds
+            await ctx.send(f"Configuration saved. Autoresponder mod action messages are now valid for {exp}")
+        except Exception as e:
+            await ctx.send(f"Failed while saving configuration. check the logs...")
 
     @autor.command()
     @commands.guild_only()
@@ -413,7 +515,7 @@ class AutoResponders(BaseCog):
         """
         trigger = await self.validate_trigger(ctx, trigger)
         if trigger is not False and await self.validate_reply(ctx, reply):
-            db_trigger = await get_db_trigger(ctx.guild.id, trigger)
+            db_trigger = await self.get_db_trigger(ctx.guild.id, trigger)
             if db_trigger is None:
                 AutoResponder.create(serverid=ctx.guild.id, trigger=trigger, response=reply)
                 await self.reload_triggers(ctx)
@@ -438,7 +540,7 @@ class AutoResponders(BaseCog):
                                             Questions.Option('NO', handler=no)
                                         ], delete_after=True, locale=ctx)
                 except asyncio.TimeoutError:
-                    pass
+                    await self.nope(ctx)
 
     def find_trigger_by_id(self, guild_id, trigger_id):
         for trigger, data in self.triggers[guild_id].items():
@@ -462,7 +564,7 @@ class AutoResponders(BaseCog):
         trigger = await Utils.clean(trigger, links=False)
         AutoResponder.get(serverid=ctx.guild.id, trigger=trigger).delete_instance()
         del self.triggers[ctx.guild.id][trigger]
-        msg = Lang.get_locale_string('autoresponder/removed', ctx, trigger=get_trigger_description(trigger))
+        msg = Lang.get_locale_string('autoresponder/removed', ctx, trigger=self.get_trigger_description(trigger))
         await ctx.send(f"{Emoji.get_chat_emoji('YES')} {msg}")
         await self.reload_triggers(ctx)
 
@@ -481,7 +583,7 @@ class AutoResponders(BaseCog):
 
         row = AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
         if trigger is None or row is None:
-            await nope(ctx)
+            await self.nope(ctx)
             return
 
         embed = discord.Embed(
@@ -528,12 +630,17 @@ class AutoResponders(BaseCog):
 
             trigger = await Utils.clean(trigger, links=False)
             if reply is None:
-                reply = await Questions.ask_text(self.bot,
-                                                 ctx.channel,
-                                                 ctx.author,
-                                                 Lang.get_locale_string("autoresponder/prompt_response", ctx),
-                                                 escape=False,
-                                                 locale=ctx)
+                try:
+                    reply = await Questions.ask_text(self.bot,
+                                                     ctx.channel,
+                                                     ctx.author,
+                                                     Lang.get_locale_string("autoresponder/prompt_response", ctx),
+                                                     escape=False,
+                                                     locale=ctx)
+                except asyncio.TimeoutError as e:
+                    await self.nope(ctx)
+                    # TODO: warn about empty response
+                    return
 
             trigger = AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
             if trigger is None:
@@ -548,7 +655,7 @@ class AutoResponders(BaseCog):
 
                 msg = Lang.get_locale_string('autoresponder/updated',
                                              ctx,
-                                             trigger=get_trigger_description(trigger.trigger))
+                                             trigger=self.get_trigger_description(trigger.trigger))
                 await ctx.send(f"{Emoji.get_chat_emoji('YES')} {msg}")
         except Exception as ex:
             pass
@@ -569,18 +676,22 @@ class AutoResponders(BaseCog):
 
         trigger = await Utils.clean(trigger, links=False)
         if new_trigger is None:
-            new_trigger = await Questions.ask_text(self.bot,
-                                                   ctx.channel,
-                                                   ctx.author,
-                                                   Lang.get_locale_string("autoresponder/prompt_trigger", ctx),
-                                                   escape=False,
-                                                   locale=ctx)
+            try:
+                new_trigger = await Questions.ask_text(self.bot,
+                                                       ctx.channel,
+                                                       ctx.author,
+                                                       Lang.get_locale_string("autoresponder/prompt_trigger", ctx),
+                                                       escape=False,
+                                                       locale=ctx)
+            except asyncio.TimeoutError as e:
+                # empty trigger emits message when validated below. pass exception
+                pass
 
         new_trigger = await self.validate_trigger(ctx, new_trigger)
         if new_trigger is not False:
             trigger = AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
             if trigger is None:
-                await nope(ctx)
+                await self.nope(ctx)
             else:
                 trigger.trigger = new_trigger
                 trigger.save()
@@ -605,7 +716,7 @@ class AutoResponders(BaseCog):
 
         trigger_obj = self.triggers[ctx.guild.id][trigger]
         trigger = await Utils.clean(trigger)
-        await ctx.send(f"`{get_trigger_description(trigger)}`: {self.get_flags_description(trigger_obj)}")
+        await ctx.send(f"`{self.get_trigger_description(trigger)}`: {self.get_flags_description(trigger_obj)}")
 
     @autor.command(aliases=["set_chance", "chance"])
     @commands.guild_only()
@@ -621,17 +732,22 @@ class AutoResponders(BaseCog):
             return
 
         if chance is None:
-            chance = float(await Questions.ask_text(self.bot,
-                                                    ctx.channel,
-                                                    ctx.author,
-                                                    Lang.get_locale_string("autoresponder/prompt_chance", ctx),
-                                                    escape=False,
-                                                    locale=ctx))
+            try:
+                chance = float(await Questions.ask_text(self.bot,
+                                                        ctx.channel,
+                                                        ctx.author,
+                                                        Lang.get_locale_string("autoresponder/prompt_chance", ctx),
+                                                        escape=False,
+                                                        locale=ctx))
+            except asyncio.TimeoutError as e:
+                await self.nope(ctx)
+                # TODO: test - any further messaging required when chance is not found?
+                return
 
         try:
-            db_trigger = await get_db_trigger(ctx.guild.id, trigger)
+            db_trigger = await self.get_db_trigger(ctx.guild.id, trigger)
             if db_trigger is None:
-                await nope(ctx)
+                await self.nope(ctx)
                 return
 
             chance = int(chance * 100)
@@ -641,8 +757,8 @@ class AutoResponders(BaseCog):
             await Utils.handle_exception("autoresponder setchance exception", self.bot, e)
         await ctx.send(
             Lang.get_locale_string('autoresponder/chanceset', ctx,
-                            chance=chance/100,
-                            trigger=get_trigger_description(trigger)))
+                                   chance=chance/100,
+                                   trigger=self.get_trigger_description(trigger)))
         await self.reload_triggers(ctx)
 
     @autor.command(aliases=["channel", "sc", "listen_in", "respond_in", "li", "ri"])
@@ -691,30 +807,34 @@ class AutoResponders(BaseCog):
         except ValueError:
             return
 
-        db_trigger = await get_db_trigger(ctx.guild.id, trigger)
+        db_trigger = await self.get_db_trigger(ctx.guild.id, trigger)
 
         if channel_id is None:
-            channel_id = await Questions.ask_text(self.bot,
-                                                  ctx.channel,
-                                                  ctx.author,
-                                                  Lang.get_locale_string("autoresponder/prompt_channel_id", ctx, mode=mode),
-                                                  locale=ctx)
+            try:
+                channel_id = await Questions.ask_text(self.bot,
+                                                      ctx.channel,
+                                                      ctx.author,
+                                                      Lang.get_locale_string("autoresponder/prompt_channel_id", ctx, mode=mode),
+                                                      locale=ctx)
+            except asyncio.TimeoutError as e:
+                # todo: test - is timeout message sufficient?
+                return
 
         channel_id = re.sub(r'[^\d]', '', str(channel_id))
         if db_trigger is None or not re.match(r'^\d+$', channel_id):
-            await nope(ctx)
+            await self.nope(ctx)
             return
 
         channel = self.bot.get_channel(int(channel_id))
         if channel_id == '0':
             await ctx.send(Lang.get_locale_string("autoresponder/channel_unset", ctx,
                                                   mode=mode,
-                                                  trigger=get_trigger_description(trigger)))
+                                                  trigger=self.get_trigger_description(trigger)))
         elif channel is not None:
             await ctx.send(Lang.get_locale_string("autoresponder/channel_set", ctx,
                                                   channel=channel.mention,
                                                   mode=mode,
-                                                  trigger=get_trigger_description(trigger)))
+                                                  trigger=self.get_trigger_description(trigger)))
         else:
             await ctx.send(Lang.get_locale_string("autoresponder/no_channel", ctx, mode=mode))
             return
@@ -749,7 +869,7 @@ class AutoResponders(BaseCog):
                 return
 
             # get db trigger based on raw trigger
-            db_trigger = await get_db_trigger(ctx.guild.id, trigger)
+            db_trigger = await self.get_db_trigger(ctx.guild.id, trigger)
             trigger = None
 
         try:
@@ -805,7 +925,7 @@ class AutoResponders(BaseCog):
         except asyncio.TimeoutError:
             pass
         except ValueError:
-            await nope(ctx)
+            await self.nope(ctx)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -922,8 +1042,9 @@ class AutoResponders(BaseCog):
             has_permission = member.guild_permissions.mute_members  # TODO: change to role-based?
             if user_is_bot or not has_permission:
                 return
-            action: mod_action = self.mod_actions.pop(event.message_id)
+            action = self.mod_messages[channel.guild.id][channel.id].pop(event.message_id)
             message = await channel.fetch_message(event.message_id)
+            Configuration.set_persistent_var(f"mod_messages_{channel.guild.id}", self.mod_messages[channel.guild.id])
         except (NotFound, KeyError, AttributeError, HTTPException) as e:
             # couldn't find channel, message, member, or action
             return
@@ -935,15 +1056,20 @@ class AutoResponders(BaseCog):
 
     async def do_mod_action(self, action, member, message, emoji):
         """
-        action: namedtuple mod_action to execute
+        action: dict - saved action to execute
         member: member performing the action
         message: message action is performed on
         emoji: the emoji that was added
         """
 
+        # record = {"channel_id": message.channel.id,
+        #           "message_id": message.id,
+        #           "formatted_response": formatted_response,
+        #           "event_datetime": datetime.now().timestamp()}
+
         try:
-            trigger_channel = self.bot.get_channel(action.channel_id)
-            trigger_message = await trigger_channel.fetch_message(action.message_id)
+            trigger_channel = self.bot.get_channel(action['channel_id'])
+            trigger_message = await trigger_channel.fetch_message(action['message_id'])
         except (NotFound, HTTPException, AttributeError) as e:
             trigger_message = None
 
@@ -964,7 +1090,7 @@ class AutoResponders(BaseCog):
             nonlocal trigger_message
             my_embed.set_field_at(-1, name="Handled by", value=mod.mention, inline=True)
             if trigger_message is None:
-                my_embed.add_field(name="Deleted", value="Member removed message before action was taken.")
+                my_embed.add_field(name="Deleted", value=":snail: message removed before action was taken.")
             my_embed.add_field(name="Action Used", value=emoji, inline=True)
             my_embed.add_field(name="Reaction Time", value=time_d, inline=True)
             await(my_message.edit(embed=my_embed))
@@ -981,7 +1107,7 @@ class AutoResponders(BaseCog):
             # send auto-response in the triggering channel
             m.auto_responder_mod_auto.inc()
             if trigger_message is not None:
-                await trigger_message.channel.send(action.response)
+                await trigger_message.channel.send(action['formatted_response'])
         if str(emoji) == str(Emoji.get_emoji("NO")):
             # delete the triggering message
             m.auto_responder_mod_delete_trigger.inc()
