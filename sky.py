@@ -36,7 +36,7 @@ class Skybot(Bot):
 
     async def on_ready(self):
         if self.loaded:
-            await Logging.bot_log("Skybot reconnect")
+            Logging.info("Skybot reconnect")
             return
 
         Logging.BOT_LOG_CHANNEL = self.get_channel(Configuration.get_var("log_channel"))
@@ -75,7 +75,7 @@ class Skybot(Bot):
         try:
             return self.get_cog('GuildConfig').get_config(guild_id)
         except Exception as e:
-            Utils.handle_exception("Failed to get config", self, e)
+            Utils.get_embed_and_log_exception("--------Failed to get config--------", self, e)
             return None
 
     def get_config_channel(self, guild_id: int, channel_name: str):
@@ -88,6 +88,11 @@ class Skybot(Bot):
             except Exception as ex:
                 pass
         return None
+
+    async def guild_log(self, guild_id: int, message=None, embed=None):
+        channel = self.get_guild_log_channel(guild_id)
+        if channel and (message or embed):
+            return await channel.send(content=message, embed=embed)
 
     async def close(self):
         Logging.info("Shutting down?")

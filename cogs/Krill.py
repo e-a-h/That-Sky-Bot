@@ -225,7 +225,12 @@ class Krill(BaseCog):
             title=Lang.get_locale_string("krill/list_oreo_monsters", ctx, server_name=ctx.guild.name))
         for monster in self.monsters.keys():
             bad_person = Lang.get_locale_string("krill/bad_person", ctx)
-            embed.add_field(name=bad_person, value=ctx.guild.get_member(monster).display_name, inline=False)
+            this_member = ctx.guild.get_member(monster)
+            if this_member is None:
+                # remove nonexistent member
+                del self.monsters[monster]
+            else:
+                embed.add_field(name=bad_person, value=this_member.display_name, inline=False)
         await ctx.send(embed=embed)
 
     @oreo.command(aliases=["monster"])

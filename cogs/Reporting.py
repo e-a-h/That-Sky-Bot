@@ -9,6 +9,7 @@ from discord.ext import commands
 from discord.ext.commands import command
 
 from cogs.BaseCog import BaseCog
+from utils import Utils
 from utils.Database import BugReport, Attachments, connection
 from utils.Utils import save_to_disk
 
@@ -60,13 +61,18 @@ class Reporting(BaseCog):
         pl = get_platform(platform)
         br = get_branch(branch)
 
-        sent = await ctx.send(
-            f"Fetching bug reports...\n"
-            f"start id: {start}\n"
-            f"end id: {end}\n"
-            f"branch: {br}\n"
-            f"platform: {pl}\n"
-        )
+        try:
+            # send feedback on command. Failure to send should end attempt.
+            await ctx.send(
+                f"Fetching bug reports...\n"
+                f"start id: {start}\n"
+                f"end id: {end}\n"
+                f"branch: {br}\n"
+                f"platform: {pl}\n"
+            )
+        except Exception as e:
+            await Utils.handle_exception("failed to send reporting CSV startup message", self.bot, e)
+            return
 
         conditions = (
             BugReport.branch.in_(br) &

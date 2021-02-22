@@ -18,7 +18,7 @@ class Sweepstakes(BaseCog):
         super().__init__(bot)
 
     async def cog_check(self, ctx):
-        if not hasattr(ctx.author, 'guild'):
+        if ctx.guild is None:
             return False
         # TODO: should this be admin and/or custom role? PermissionViewSweepstakes, PermissionManageSweepstakes
         return ctx.author.guild_permissions.manage_channels
@@ -131,8 +131,8 @@ class Sweepstakes(BaseCog):
     @commands.bot_has_permissions(embed_links=True)
     async def sweepstakes(self, ctx: commands.Context):
         """sweeps help"""
-        if ctx.invoked_subcommand is None:
-            await ctx.send(Lang.get_locale_string('sweeps/help', ctx))
+        if not ctx.invoked_subcommand:
+            await ctx.send_help(ctx.command)
 
     @sweepstakes.group(name="entries")
     @commands.guild_only()
@@ -261,11 +261,6 @@ class Sweepstakes(BaseCog):
         """get a list of all reactions to a given message"""
         message = await self.get_reaction_message(ctx, jump_url)
         await self.fetch_all(ctx, message)
-
-    @sweepstakes.command(aliases=["h"])
-    @commands.guild_only()
-    async def help(self, ctx):
-        await ctx.send(Lang.get_locale_string('sweeps/help', ctx))
 
 
 def setup(bot):

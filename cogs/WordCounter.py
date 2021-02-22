@@ -26,7 +26,7 @@ class WordCounter(BaseCog):
         self.loaded = True
 
     async def cog_check(self, ctx):
-        if not hasattr(ctx.author, 'guild'):
+        if ctx.guild is None:
             return False
         return ctx.author.guild_permissions.ban_members
 
@@ -99,12 +99,15 @@ class WordCounter(BaseCog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        if message.author.bot:
+            return
+
         prefix = Configuration.get_var("bot_prefix")
         is_boss = await self.cog_check(message)
         command_context = message.content.startswith(prefix, 0) and is_boss
         not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
 
-        if message.author.bot or command_context or not_in_guild:
+        if command_context or not_in_guild:
             return
 
         m = self.bot.metrics

@@ -20,6 +20,7 @@ BACKUPS = {
     "BRUSH": "🖌️",
     "LOVE_LETTER": "💌",
     "SCROLL": "📜",
+    "SNAIL": "🐌",
     "NUMBER_0": "0\u20e3",
     "NUMBER_1": "1\u20e3",
     "NUMBER_2": "2\u20e3",

@@ -257,13 +257,15 @@ autoresponder:
     {options}
   which_mode: --jp-- Set channel to listen in, or channel to respond in?
   which_trigger: --jp-- Which trigger would you like? (type a number)
+  available_triggers: |
+    --jp-- **Available auto-responder triggers**:
   prompt_channel_id: --jp-- Which channel should this trigger {mode} in? (channel id)
   prompt_response: --jp-- How would you like me to respond?
   prompt_trigger: --jp-- What should the new trigger be?
   prompt_chance: --jp-- How often should I respond? (floating point percent e.g. `35.15`)
   on_or_off: |
     --jp-- `{subject}` on or off?
-  expect_integer: --jp-- I was hoping for an integer between {min} and {max}
+  expect_integer: --jp-- I was hoping for one of these values ```{keys}```
 krill:
   list_channels: --jp-- Krill channels for {server_name}.
   list_oreo_filter: --jp-- Oreo filters for {server_name}.

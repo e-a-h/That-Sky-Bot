@@ -63,10 +63,9 @@ class Bugs(BaseCog):
     async def startup_cleanup(self):
         Logging.info("starting bugs")
         # TODO: find out what the condition is we need to wait for instead of just sleep
-        await asyncio.sleep(20)
+        # await asyncio.sleep(20)
 
         for name, cid in Configuration.get_var("channels").items():
-            Logging.info(f"{name}:{cid}")
             channel = self.bot.get_channel(cid)
             shutdown_id = Configuration.get_persistent_var(f"{name}_shutdown")
             if shutdown_id is not None:
@@ -91,7 +90,6 @@ class Bugs(BaseCog):
             # Keep looking for channel history until we have it.
             # this API call fails on startup because connection is not made yet.
             # TODO: properly wait for connection to be initialized
-            Logging.info(f"Bugs channel {channel.id}...")
 
             try:
                 last_message = await channel.history(limit=1).flatten()
@@ -113,10 +111,10 @@ class Bugs(BaseCog):
                 await message.add_reaction(bugemoji)
                 self.bug_messages.add(message.id)
                 Configuration.set_persistent_var(f"{key}_message", message.id)
-                Logging.info(f"... bug info sent")
+                Logging.info(f"Bug report message sent in channel #{channel.name} ({channel.id})")
             except Exception as e:
                 # Ignore
-                Logging.info("send_bug_info failed... trying again")
+                await Utils.handle_exception(f"Bug report message failed to send in channel #{channel.name} ({channel.id})", self.bot, e)
                 await asyncio.sleep(1)
 
     @tasks.loop(seconds=30.0)
@@ -158,12 +156,13 @@ class Bugs(BaseCog):
             # show/hide maintenance channel
             maint_message_channel = self.bot.get_channel(Configuration.get_var("bug_maintenance_channel"))
 
-            member_role = ctx.guild.get_role(Configuration.get_var("member_role"))
+            default_role = ctx.guild.default_role
+            # member_role = ctx.guild.get_role(Configuration.get_var("member_role"))
             beta_role = ctx.guild.get_role(Configuration.get_var("beta_role"))
 
-            member_overwrite = maint_message_channel.overwrites[member_role]
-            member_overwrite.read_messages = active
-            await maint_message_channel.set_permissions(member_role, overwrite=member_overwrite)
+            channel_overwrite = maint_message_channel.overwrites[default_role]
+            channel_overwrite.read_messages = active
+            await maint_message_channel.set_permissions(default_role, overwrite=channel_overwrite)
 
             beta_overwrite = maint_message_channel.overwrites[beta_role]
             beta_overwrite.read_messages = active
@@ -173,13 +172,13 @@ class Bugs(BaseCog):
                 # show/hide reporting channels
                 channel = self.bot.get_channel(cid)
 
-                member_overwrite = channel.overwrites[member_role]
-                member_overwrite.read_messages = None if active else True
-                await channel.set_permissions(member_role, overwrite=member_overwrite)
+                channel_overwrite = channel.overwrites[default_role]
+                channel_overwrite.read_messages = False if active else True
+                await channel.set_permissions(default_role, overwrite=channel_overwrite)
 
                 if re.search(r'beta', name):
                     beta_overwrite = channel.overwrites[beta_role]
-                    beta_overwrite.read_messages = None if active else True
+                    beta_overwrite.read_messages = False if active else True
                     await channel.set_permissions(beta_role, overwrite=beta_overwrite)
         except Exception as e:
             await ctx.send(Lang.get_locale_string('bugs/report_channel_permissions_fail', ctx))

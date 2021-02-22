@@ -151,6 +151,7 @@ autoresponder:
   which_flag:
   which_mode:
   which_trigger:
+  available_triggers:
   prompt_channel_id:
   prompt_response:
   prompt_trigger:
