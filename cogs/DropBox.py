@@ -25,6 +25,7 @@ class DropBox(BaseCog):
         bot.loop.create_task(self.startup_cleanup())
 
     async def startup_cleanup(self):
+        await self.bot.wait_until_ready()
         Logging.info("starting DropBox")
 
         for guild in self.bot.guilds:
