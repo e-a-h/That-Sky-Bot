@@ -118,7 +118,7 @@ class AutoResponders(BaseCog):
                         message_id = int(message_id)
                         self.mod_messages[guild.id][channel_id][message_id] = action
 
-    @tasks.loop(seconds=6)
+    @tasks.loop(seconds=60)
     async def clean_old_autoresponders(self):
         for guild_id, channels in self.mod_messages.items():
             for channel_id, messages in channels.items():

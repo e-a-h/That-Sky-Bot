@@ -32,7 +32,7 @@ class Eden(BaseCog):
         return 0
 
     @commands.command(aliases=["edenreset", "er"])
-    async def reset(self, ctx, tz=None):
+    async def reset(self, ctx, *, tz=None):
         """Show information about reset time (and countdown) for Eye of Eden"""
         cid = ctx.channel.id
 

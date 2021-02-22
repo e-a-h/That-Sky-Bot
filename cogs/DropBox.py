@@ -1,5 +1,6 @@
 import asyncio
 import io
+from asyncio import CancelledError
 from datetime import datetime
 
 import discord
@@ -164,6 +165,9 @@ class DropBox(BaseCog):
                             self.bot.loop.create_task(self.clean_message(message))
                         else:
                             pass
+                except CancelledError as e:
+                    # I think this is safe to ignore...
+                    pass
                 except Exception as e:
                     await Utils.handle_exception('dropbox clean failure', self.bot, e)
                     # ignore. will try again soon?
