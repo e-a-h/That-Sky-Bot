@@ -392,7 +392,7 @@ class Krill(BaseCog):
         body = utils.get(self.bot.emojis, id=640741616281452545)
         tail = utils.get(self.bot.emojis, id=640741616319070229)
         red = utils.get(self.bot.emojis, id=641445732670373916)
-        star = utils.get(self.bot.emojis, id=624094243329146900)
+        star = utils.get(self.bot.emojis, id=677980926378246184)
         blank = utils.get(self.bot.emojis, id=647913138758483977)
         ded = u"\U0001F916" if victim_name == "thatskybot" else utils.get(self.bot.emojis, id=641445732246880282)
 
