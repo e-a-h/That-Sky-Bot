@@ -159,6 +159,7 @@ autoresponder:
   on_or_off:
   expect_integer:
 krill:
+  config_title:
   list_channels:
   list_oreo_filter:
   list_oreo_monsters:
@@ -189,6 +190,7 @@ krill:
   too_many_emoji:
   nice_try:
   summoned_by:
+  evaded_by:
   cooldown_message:
   no_such_channel:
 react_monitor:

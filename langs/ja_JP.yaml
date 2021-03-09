@@ -47,6 +47,12 @@ bugs:
   attachment_info_plural: "--jp-- **Attachments to report {id}**\n{links}"
   report_confirmation: --jp-- Thank you! Your report was submitted, and can be found in <#{channel_id}>!
   maint_check_fail: --jp-- Sorry {author} but I give up. Maybe the bug queue is busted, as usual.
+  bugs_all_done: --jp-- Bug reports are all done, {author}!!
+  none_in_progress: --jp-- There are no bug reports in progress.
+  report_channel_permissions_fail: --jp-- Failed to set reporting channel permissions. Check channel permissions because I might have broken something...
+  dead_bugs_cleaned: "--jp-- Ok. Number of dead bugs cleaned up: {active_keys}. Number still alive: {in_progress}"
+  maint_on: "--jp-- bot maintenance mode **on**: Reporting channels **closed**."
+  maint_off: "--jp-- bot maintenance mode **off**: Reporting channels **open**."
   question_ready: |
     --jp-- ```css
     Report a Bug
@@ -93,8 +99,7 @@ bugs:
     The version number is the number in place of "X.X.X"
   app_build: --jp-- Sky app build
   question_app_build: |
-    --jp--
-    ```css
+    --jp-- ```css
     Sky App Build Number
     ```
     What **build** of the Sky app were you using when you experienced the bug?
@@ -114,22 +119,19 @@ bugs:
     For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623643887977627658
   title: --jp-- Title/Topic
   question_title: |
-    --jp--
-    ```css
+    --jp-- ```css
     Title/Topic
     ```
     Provide a brief title or topic for your bug ({max} characters max)
   description: --jp-- Bug description
   question_actual: |
-    --jp--
-    ```css
+    --jp-- ```css
     Describe the bug
     ```
     Describe the problem you experienced, what looked or worked the wrong way. I'll ask for steps to reproduce the problem next, so don't tell me *how* it happened yet ({max} characters max)
   steps_to_reproduce: --jp-- Steps to reproduce
   question_steps: |
-    --jp--
-    ```css
+    --jp-- ```css
     How to Reproduce the Bug
     ```
     How did the bug happen? Tell me the steps you took that lead to the problem ({max} characters max). Example:
@@ -140,31 +142,28 @@ bugs:
     ```
   expected: --jp-- Expected outcome
   question_expected: |
-    --jp--
-    ```css
+    --jp-- ```css
     Expectation
     ```
     When following the steps you gave, what did you expect to happen ({max} characters max)?
   additional_info: --jp-- Additional information
   question_additional: |
-    --jp--
-    ```css
+    --jp-- ```css
     Additional Information
     ```
     Do you have any other information to add to this report?
   question_additional_info: --jp-- What other information would you like me to include in your report?
   additional_info_yes: --jp-- Provide additional information
   question_attachments: |
-    --jp--
-    ```css
+    --jp-- ```css
     Attachments
     ```
-    Do you have screenshots, videos, or other documents to add?
+    Do you have screenshots, videos, or other documents to add? Video may be attached directly to this report, but size is limited for direct messages. If your video is too large, you can share it in the appropriate screenshot channel or on a site like youtube and add a link to your report instead.
   question_ok: --jp-- This is what your report will look like. Should I **submit** it or **discard** it? You have **{timeout} to review.**
   send_report: --jp-- All done! Send this report
   mistake: --jp-- Nope, I made a mistake. Throw away this report and start again
   no_live_android: --jp-- There is no live version available on Android yet, only beta. Go back to the bug report channel any time to start a new report!
-  dm_unable: --jp-- '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
+  dm_unable: '--jp-- {user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
 eden:
   dm_prompt: --jp-- Did you know you can use the `!edenreset` or `!er` command in my DMs? Shorter cooldown there too.
   reset: |
@@ -210,7 +209,7 @@ lang:
   lang_settings_title: |
     --jp-- **Language/locale settings** in `{server_name}` server
   unknown_locale: |
-    --jp-- '{locale}' is not a locale I know. Try one from this list: {locale_lsit}
+    --jp-- `{locale}` is not a locale I know. Try one from this list: `{locale_lsit}`
   reloaded: --jp-- Language files reloaded for `{server_name}` server
   channel_not_unset: --jp-- I can't unset channel locale, because channel locale is not set for <#{channelid}>
   channel_unset: --jp-- Channel locale `{old_value}` been **unset**. Server locale will be used.
@@ -267,6 +266,7 @@ autoresponder:
     --jp-- `{subject}` on or off?
   expect_integer: --jp-- I was hoping for one of these values ```{keys}```
 krill:
+  config_title: --jp-- Krill Configuration for {server_name}
   list_channels: --jp-- Krill channels for {server_name}.
   list_oreo_filter: --jp-- Oreo filters for {server_name}.
   list_oreo_monsters: --jp-- The most horrible people in the _"{server_name}"_ server.
@@ -285,12 +285,17 @@ krill:
   letter_filter_removed: --jp-- I removed "{letter}" from the {category} list!
   oreo_cooldown_reset: --jp-- Oreo cooldown reset
   no_monsters: --jp-- There are no monsters in sight!
-  monster_added: --jp-- {name} is a monster
-  monster_removed: --jp-- {name} isn't a monster anymore
-  member_ignored: --jp-- {name} is ignored
-  member_not_ignored: --jp-- {name} isn't a ignored anymore
+  monster_added: |
+    --jp-- {name} is a monster
+  monster_removed: |
+    --jp-- {name} isn't a monster anymore
+  member_ignored: |
+    --jp-- {name} is ignored
+  member_not_ignored: |
+    --jp-- {name} isn't a ignored anymore
   member_not_found: --jp-- beep boop, no {name} here
-  oreo_cooldown_message: --jp-- {name} is a horrible person and can spend the next {time_remaining} thinking about what they've done
+  oreo_cooldown_message: |
+    --jp-- {name} is a horrible person and can spend the next {time_remaining} thinking about what they've done
   not_oreo: --jp-- not Oreo! {victim_name}, you monster!!
   dirty_trick: --jp-- That's a dirty trick, {name}, and I'm not falling for it
   too_much_text: --jp-- too much text!
@@ -298,6 +303,8 @@ krill:
   nice_try: --jp-- rofl nice try!
   summoned_by: |
     --jp-- *summoned by {name}*
+  evaded_by: |
+    --jp-- *evaded by {name}*
   cooldown_message: --jp-- Cool it, {name}. Try again in {time_remaining}
   no_such_channel: |
     --jp-- No such channel: `{channel_id}`
@@ -375,11 +382,11 @@ sweeps:
       `!sweeps end [clear|clean] jump_url` List entrants and remove all reactions
       `!sweeps end [reset|restart] jump_url` List entrants to-date and reset reactions to starting state
 music:
-  dm_unable: --jp-- {user}, I was unable to DM you to transcribe a song. You can enable this in the privacy settings, found in the server dropdown menu.
+  dm_unable: '--jp-- {user}, I was unable to DM you to transcribe a song. You can enable this in the privacy settings, found in the server dropdown menu.'
   text_too_long: --jp-- Text response is too long, {max} characters is the max.
   abort_song: --jp-- Ok, I won't ask you any more questions for now. Call me again to start a new song!
   song_timeout: --jp-- This song creation has been cancelled. Call me again to start a new song!
   song_trash: --jp-- Sorry to bother you, but you had an in-progress song that was idle for too long. I cancelled it. If you think you received this message in error, please report me to the proper authorites (a moderator in the Sky server)
-  start_over: --jp-- {user} You are already in the middle of creating a song. Do you want to cancel that song to start a new one?
+  start_over: '--jp-- {user} You are already in the middle of creating a song. Do you want to cancel that song to start a new one?'
   start_over_yes: --jp-- Cancel my song and start a new one
   start_over_no: --jp-- Do not cancel my current song creation
