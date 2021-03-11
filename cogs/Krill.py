@@ -1,29 +1,32 @@
 import asyncio
 import re
 from datetime import datetime
+from functools import reduce
 from random import randint, random, choice
 
 import discord
 from discord import utils
 from discord.ext import commands
-from discord.ext.commands import command, UserConverter, BucketType, Command
+from discord.ext.commands import command, UserConverter, BucketType
 
 from cogs.BaseCog import BaseCog
 from utils import Configuration, Utils, Lang, Emoji, Logging
-from utils.Database import KrillChannel
+from utils.Database import KrillChannel, KrillConfig, OreoMap, OreoLetters, Guild
 from utils.Utils import CHANNEL_ID_MATCHER
 
 
 class Krill(BaseCog):
-
     def __init__(self, bot):
         super().__init__(bot)
+        self.configs = dict()
         self.krilled = dict()
         self.channels = dict()
         self.monsters = dict()
         self.ignored = set()
         self.loaded = False
-        self.oreo_filter = Configuration.get_persistent_var('oreo_filter', dict(
+        self.oreo_map = OreoMap(OreoMap.get_or_create())
+        self.oreo_filter = dict()
+        self.oreo_defaults = Configuration.get_persistent_var('oreo_filter', dict(
             o=["o", "0", "Ø", "Ǒ", "ǒ", "Ǫ", "ǫ", "Ǭ", "ǭ", "Ǿ", "ǿ", "Ō", "ō", "Ŏ",
                "ŏ", "Ő", "ő", "ò", "ó", "ô", "õ", "ö", "Ò", "Ó", "Ô", "Õ", "Ö", "ỗ",
                "ở", "O", "ø", "⌀", "Ơ", "ơ", "ᵒ", "𝕠", "🅞", "⓪", "ⓞ", "Ⓞ", "ớ",
@@ -44,10 +47,29 @@ class Krill(BaseCog):
             n='{0,10}'
         ))
 
-        # TODO: this is an upgrade from old list style. remove this block after it goes into live bot.
-        if 'oh' not in self.oreo_filter:
-            self.oreo_filter['oh'] = ["お"]
-            self.oreo_filter['re'] = ["れ"]
+        my_letters = OreoLetters.select()
+        if len(my_letters) == 0:
+            # Stuff existing persistent vars into db. This is a migration from persistent to db
+            # and should only run if OreoLetters table is empty
+            for letter_o in self.oreo_defaults['o']:
+                row = OreoLetters.get_or_create(token=letter_o, token_class=self.oreo_map.letter_o)
+            for letter_r in self.oreo_defaults['r']:
+                row = OreoLetters.get_or_create(token=letter_r, token_class=self.oreo_map.letter_r)
+            for letter_e in self.oreo_defaults['e']:
+                row = OreoLetters.get_or_create(token=letter_e, token_class=self.oreo_map.letter_e)
+            for letter_oh in self.oreo_defaults['oh']:
+                row = OreoLetters.get_or_create(token=letter_oh, token_class=self.oreo_map.letter_oh)
+            for letter_re in self.oreo_defaults['re']:
+                row = OreoLetters.get_or_create(token=letter_re, token_class=self.oreo_map.letter_re)
+            for letter_sp in self.oreo_defaults['sp']:
+                row = OreoLetters.get_or_create(token=letter_sp, token_class=self.oreo_map.space_char)
+            my_letters = OreoLetters.select()
+
+        # marshall tokens for use by filter
+        for row in my_letters:
+            if row.token_class not in self.oreo_filter:
+                self.oreo_filter[row.token_class] = set()
+            self.oreo_filter[row.token_class].add(row.token)
 
         bot.loop.create_task(self.startup_cleanup())
 
@@ -63,21 +85,32 @@ class Krill(BaseCog):
 
         # Load channels
         for guild in self.bot.guilds:
-            my_channels = set()
-            for row in KrillChannel.select(KrillChannel.channelid).where(KrillChannel.serverid == guild.id):
-                my_channels.add(row.channelid)
-            self.channels[guild.id] = my_channels
+            self.init_guild(guild)
         self.loaded = True
+
+    def init_guild(self, guild):
+        my_channels = set()
+        # Get or create db entries for guild and krill config
+        guild_row = Guild.get_or_create(serverid=guild.id)[0]
+        self.configs[guild.id] = KrillConfig.get_or_create(guild=guild_row)[0]
+        for row in KrillChannel.select(KrillChannel.channelid).where(KrillChannel.serverid == guild.id):
+            my_channels.add(row.channelid)
+        self.channels[guild.id] = my_channels
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        self.channels[guild.id] = set()
+        self.init_guild(guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
-        del self.channels[guild.id]
+        # delete configs from db
         for row in KrillChannel.select().where(KrillChannel.serverid == guild.id):
             row.delete_instance()
+        self.configs[guild.id].delete_instance()
+
+        # delete configs from memory
+        del self.channels[guild.id]
+        del self.configs[guild.id]
 
     async def trigger_krill(self, user_id):
         # TODO: read configured duration
@@ -123,13 +156,13 @@ class Krill(BaseCog):
             timestamp=ctx.message.created_at,
             color=0x663399,
             title=Lang.get_locale_string("krill/list_oreo_filter", ctx, server_name=ctx.guild.name))
-        embed.add_field(name='Letter "o"', value=" ".join(self.oreo_filter['o']))
-        embed.add_field(name='Letter "r"', value=" ".join(self.oreo_filter['r']))
-        embed.add_field(name='Letter "e"', value=" ".join(self.oreo_filter['e']))
-        embed.add_field(name='Letter "お"', value=" ".join(self.oreo_filter['oh']))
-        embed.add_field(name='Letter "れ"', value=" ".join(self.oreo_filter['re']))
-        embed.add_field(name='Inter-letter space', value=self.oreo_filter['sp'])
-        embed.add_field(name='Character count', value=self.oreo_filter['n'])
+        embed.add_field(name='Letter "o"', value=" ".join(self.oreo_filter[self.oreo_map.letter_o]))
+        embed.add_field(name='Letter "r"', value=" ".join(self.oreo_filter[self.oreo_map.letter_r]))
+        embed.add_field(name='Letter "e"', value=" ".join(self.oreo_filter[self.oreo_map.letter_e]))
+        embed.add_field(name='Letter "お"', value=" ".join(self.oreo_filter[self.oreo_map.letter_oh]))
+        embed.add_field(name='Letter "れ"', value=" ".join(self.oreo_filter[self.oreo_map.letter_re]))
+        embed.add_field(name='Inter-letter space', value=", ".join(self.oreo_filter[self.oreo_map.space_char]))
+        embed.add_field(name='Character count', value=self.oreo_map.char_count)
         await ctx.send(embed=embed)
 
     @oreo.command()
@@ -153,8 +186,7 @@ class Krill(BaseCog):
         if not found:
             await ctx.send(Lang.get_locale_string("krill/smells_clean", ctx, value=value))
 
-    @staticmethod
-    async def validate_oreo_letter(ctx, letter):
+    async def validate_oreo_letter(self, ctx, letter):
         categories = ['o', 'r', 'e', 'oh', 're', 'お', 'れ', 'sp']
         if letter not in categories:
             await ctx.send(Lang.get_locale_string("krill/invalid_letter_category", ctx, value=', '.join(categories)))
@@ -163,7 +195,15 @@ class Krill(BaseCog):
             letter = 'oh'
         if letter == 'れ':
             letter = 're'
-        return letter
+        map_map = dict(
+            o=self.oreo_map.letter_o,
+            r=self.oreo_map.letter_r,
+            e=self.oreo_map.letter_e,
+            oh=self.oreo_map.letter_oh,
+            re=self.oreo_map.letter_re,
+            sp=self.oreo_map.space_char
+        )
+        return map_map[letter]
 
     @oreo.command(aliases=["add", "letter"])
     @commands.check(can_mod_krill)
@@ -174,16 +214,29 @@ class Krill(BaseCog):
         if not letter:
             return
 
-        x = "space" if letter == "sp" else f"letter \"{letter}\""
-        if letter != "sp":
+        x = self.get_letter_description(letter)
+        if letter != self.oreo_map.space_char:
             value = re.escape(value)
         if value in self.oreo_filter[letter]:
-            await ctx.send(Lang.get_locale_string("krill/letter_already_filtered", ctx, letter=x))
+            await ctx.send(Lang.get_locale_string( "krill/letter_already_filtered", ctx, letter=x))
             return
 
-        self.oreo_filter[letter].append(value)
-        Configuration.set_persistent_var("oreo_filter", self.oreo_filter)
-        await ctx.send(Lang.get_locale_string("krill/letter_filter_added", ctx, letter=value, category=x))
+        try:
+            self.oreo_filter[letter].add(value)
+            OreoLetters.create(token_class=letter, token=value)
+            await ctx.send(Lang.get_locale_string("krill/letter_filter_added", ctx, letter=value, category=x))
+        except Exception as e:
+            await Utils.handle_exception('Failed to add oreo filter letter', self.bot, e)
+
+    def get_letter_description(self, letter):
+        letter_map = dict()
+        letter_map[self.oreo_map.letter_o] = "letter \"o\""
+        letter_map[self.oreo_map.letter_r] = "letter \"r\""
+        letter_map[self.oreo_map.letter_e] = "letter \"e\""
+        letter_map[self.oreo_map.letter_oh] = "letter \"oh\""
+        letter_map[self.oreo_map.letter_re] = "letter \"re\""
+        letter_map[self.oreo_map.space_char] = "space"
+        return letter_map[letter]
 
     @oreo.command(aliases=["remove"])
     @commands.check(can_mod_krill)
@@ -194,14 +247,17 @@ class Krill(BaseCog):
         if not letter:
             return
 
-        x = "space" if letter == "sp" else f"letter \"{letter}\""
+        x = self.get_letter_description(letter)
         if value not in self.oreo_filter[letter]:
             await ctx.send(Lang.get_locale_string("krill/letter_not_filtered", ctx, letter=x))
             return
 
-        self.oreo_filter[letter].remove(value)
-        Configuration.set_persistent_var("oreo_filter", self.oreo_filter)
-        await ctx.send(Lang.get_locale_string("krill/letter_filter_removed", ctx, letter=value, category=x))
+        try:
+            OreoLetters.get(token_class=letter, token=value).delete_instance()
+            self.oreo_filter[letter].remove(value)
+            await ctx.send(Lang.get_locale_string("krill/letter_filter_removed", ctx, letter=value, category=x))
+        except Exception as e:
+            await Utils.handle_exception('Failed to remove oreo filter letter', self.bot, e)
 
     @oreo.command(aliases=["reset"])
     @commands.check(can_admin_krill)
@@ -275,13 +331,13 @@ class Krill(BaseCog):
     def get_oreo_patterns(self):
         # o-ø º.o r...r e é 0 º oおれ
         # ((o|0|ø|º)[ .-]*)+((r|®)[ .-]*)+((e|é)[ .-]*)+((o|0|º)[ .-]*)+
-        o = f"({'|'.join(self.oreo_filter['o'])})"
-        r = f"({'|'.join(self.oreo_filter['r'])})"
-        e = f"({'|'.join(self.oreo_filter['e'])})"
-        oo = f"({'|'.join(self.oreo_filter['oh'])})"
-        rr = f"({'|'.join(self.oreo_filter['re'])})"
-        sp = f"[{''.join(self.oreo_filter['sp'])}]"
-        n = self.oreo_filter['n']
+        o = f"({'|'.join(self.oreo_filter[self.oreo_map.letter_o])})"
+        r = f"({'|'.join(self.oreo_filter[self.oreo_map.letter_r])})"
+        e = f"({'|'.join(self.oreo_filter[self.oreo_map.letter_e])})"
+        oo = f"({'|'.join(self.oreo_filter[self.oreo_map.letter_oh])})"
+        rr = f"({'|'.join(self.oreo_filter[self.oreo_map.letter_re])})"
+        sp = f"[{''.join(self.oreo_filter[self.oreo_map.space_char])}]"
+        n = self.oreo_map.char_count
         oreo_pattern = re.compile(f"({o}{sp}{n})+"
                                   f"("
                                   f"({r}{sp}{n})+"
@@ -300,14 +356,97 @@ class Krill(BaseCog):
 
         return dict(en=oreo_pattern, jp=oreo_jp_pattern, chars=oreo_chars)
 
+    @commands.group(name="krill_config", aliases=['kcfg', 'kfg'], invoke_without_command=True)
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    @commands.guild_only()
+    async def krill_config(self, ctx):
+        """
+        Configure krill settings for your server
+        """
+        embed = discord.Embed(
+            timestamp=ctx.message.created_at,
+            color=0xCC0000,
+            title=Lang.get_locale_string("krill/config_title", ctx, server_name=ctx.guild.name))
+        guild_krill_config = self.configs[ctx.guild.id]
+        return_home_freq = guild_krill_config.return_home_freq
+        shadow_roll_freq = guild_krill_config.shadow_roll_freq
+        krill_rider_freq = guild_krill_config.krill_rider_freq
+        crab_freq = guild_krill_config.crab_freq
+        allow_text = guild_krill_config.allow_text
+        embed.add_field(name="__Return Home__", value=f"{return_home_freq}%")
+        embed.add_field(name="__Shadow Roll__", value=f"{shadow_roll_freq}%")
+        embed.add_field(name="__Krill Rider__", value=f"{krill_rider_freq}%")
+        embed.add_field(name="__Crab__", value=f"{crab_freq}%")
+        embed.add_field(name="__Allow Text__", value='Yes' if allow_text else 'No')
+        await ctx.send(embed=embed)
+
+    @krill_config.command()
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def return_home(self, ctx, percent: int = 0):
+        """
+        Configure return-home frequency for krill command in your server
+
+        Input is in the form of a percentage, however all configured frequencies will be normalized upon command
+        execution. For example, if all freqs are set to the same number, the chance will be even. If one is set
+        to 100 and 3 are set to 20, then the chance for the higher one will be 100/(100 +(3*20)) = 62.5 %
+        :param percent: The non-normalized frequency to set
+        """
+        guild_krill_config = self.configs[ctx.guild.id]
+        guild_krill_config.return_home_freq = max(0, min(100, percent))  # clamp to percent range
+        guild_krill_config.save()
+        await ctx.send(f"`Return home` chance is now {guild_krill_config.return_home_freq}%")
+
+    @krill_config.command()
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def shadow_roll(self, ctx, percent: int = 0):
+        guild_krill_config = self.configs[ctx.guild.id]
+        guild_krill_config.shadow_roll_freq = max(0, min(100, percent))  # clamp to percent range
+        guild_krill_config.save()
+        await ctx.send(f"`Shadow roll` chance is now {guild_krill_config.shadow_roll_freq}%")
+
+    @krill_config.command()
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def krill_rider(self, ctx, percent: int = 0):
+        guild_krill_config = self.configs[ctx.guild.id]
+        guild_krill_config.krill_rider_freq = max(0, min(100, percent))  # clamp to percent range
+        guild_krill_config.save()
+        await ctx.send(f"`Krill rider` chance is now {guild_krill_config.krill_rider_freq}%")
+
+    @krill_config.command()
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def crab(self, ctx, percent: int = 0):
+        guild_krill_config = self.configs[ctx.guild.id]
+        guild_krill_config.crab_freq = max(0, min(100, percent))  # clamp to percent range
+        guild_krill_config.save()
+        await ctx.send(f"`Crab` chance is now {guild_krill_config.crab_freq}%")
+
+    @krill_config.command()
+    @commands.check(can_mod_krill)
+    @commands.bot_has_permissions(embed_links=True)
+    async def allow_text(self, ctx, allow: bool = True):
+        guild_krill_config = self.configs[ctx.guild.id]
+        guild_krill_config.allow_text = allow
+        guild_krill_config.save()
+        await ctx.send(f"Text is {'' if guild_krill_config.allow_text else 'not'} allowed with krill command")
+
     @command()
     @commands.check(can_krill)
-    @commands.cooldown(1, 600, BucketType.member)
+    @commands.cooldown(1, 300, BucketType.member)
+    @commands.max_concurrency(3, wait=True)
     @commands.guild_only()
     async def krill(self, ctx, *, arg=''):
         """Krill attack!!!"""
         if ctx.message.author.id in self.ignored:
             return
+
+        guild_krill_config = self.configs[ctx.guild.id]
+        if not guild_krill_config.allow_text:
+            arg = ''
 
         await ctx.trigger_typing()
 
@@ -326,19 +465,17 @@ class Krill(BaseCog):
         patterns = self.get_oreo_patterns()
         oreo_pattern = patterns['en']
         oreo_jp_pattern = patterns['jp']
-        dog_pattern = re.compile(r"\bdog\b|\bcookie\b|\bbiscuit\b|\bcanine\b", re.IGNORECASE)
+        dog_pattern = re.compile(r"\bdog\b|\bcookie\b|\bbiscuit\b|\bcanine\b|\bperro\b", re.IGNORECASE)
 
-        monster = False
         name_is_oreo = oreo_pattern.search(ctx.author.display_name) or oreo_jp_pattern.search(ctx.author.display_name)
         if oreo_pattern.search(arg) or oreo_jp_pattern.search(arg) or name_is_oreo or dog_pattern.search(arg):
             self.bot.get_command("krill").reset_cooldown(ctx)
             victim_name = "bad person" if name_is_oreo else ctx.author.mention
             await ctx.send(Lang.get_locale_string("krill/not_oreo", ctx, victim_name=victim_name))
-            monster = True
             self.monsters[ctx.author.id] = datetime.now().timestamp()
             return
 
-        victim = arg
+        victim = '' if arg in ('shadow_roll', 'return_home') else arg
         try:
             victim_user = await UserConverter().convert(ctx, victim)
             victim_user = ctx.message.guild.get_member(victim_user.id)
@@ -392,32 +529,34 @@ class Krill(BaseCog):
         body = utils.get(self.bot.emojis, id=640741616281452545)
         tail = utils.get(self.bot.emojis, id=640741616319070229)
         red = utils.get(self.bot.emojis, id=641445732670373916)
-        star = utils.get(self.bot.emojis, id=624094243329146900)
+        party_kid = utils.get(self.bot.emojis, id=817568025573326868)
+        star = utils.get(self.bot.emojis, id=816861755582054451)
         blank = utils.get(self.bot.emojis, id=647913138758483977)
-        ded = u"\U0001F916" if victim_name == "thatskybot" else utils.get(self.bot.emojis, id=641445732246880282)
+        return_home = utils.get(self.bot.emojis, id=816855701786984528)
+        shadow_roll = utils.get(self.bot.emojis, id=816876601534709760)
+        my_name = ctx.guild.get_member(self.bot.user.id).display_name
+        ded = u"\U0001F916" if victim_name in ("thatskybot", my_name, "skybot", "sky bot") else utils.get(self.bot.emojis, id=641445732246880282)
+        bonked_kid = shadow_roll if arg == "shadow_roll" or random() < 0.4 else ded
+        going_home = False
+        shadow_rolling = False
+        krill_riding = False
+        crab_attacking = False
 
-        # alternate bodies
-        # KrillRiderHead       664191325104504880>
-        # KrillRideraTail      664191324869754881>
-        # KrillRiderBodyOreo   664262338874048512>
-        # KrillRiderBodya9     664239237696323596>
-        # KrillRiderBodya8     664237187184853012>
-        # KrillRiderBodya7     664191324911697960>
-        # KrillRiderBodya6     664242877492101159>
-        # KrillRiderBodya5     664235527607812107>
-        # KrillRiderBodya4     664234216145289216>
-        # KrillRiderBodya3     664246386727845939>
-        # KrillRiderBodya2     664230982169264135>
-        # KrillRiderBodya11    664259346234081283>
-        # KrillRiderBodya10    664256923784314898>
-        # KrillRiderBodya1     664230982378979347>
-        # KrillRiderBodya      664251608212832256>
+        # normal
+        #   krill rider
+        #   shadow roll
+        # going home
+        #   krill rider
+        # crab
+        #   shadow roll
 
-        # p.s. this will not work w/ a test bot because these emojis are on the official server
-        # instead, the krill will look like "NoneNoneNone"
-        chance = 0.25
-        roll = random()
-        if roll < chance:
+        # krill rider freq is normal percentage, but only applies to regular and going-home krill attack
+        if random() < (guild_krill_config.krill_rider_freq/100):
+            krill_riding = True
+            print('krill rider')
+            # alternate bodies
+            # p.s. this will not work w/ a test bot because these emojis are on the official server
+            # instead, the krill will look like "NoneNoneNone"
             body_id = choice([
                 664262338874048512,
                 664239237696323596,
@@ -437,32 +576,81 @@ class Krill(BaseCog):
             tail = utils.get(self.bot.emojis, id=664191324869754881)
             body = utils.get(self.bot.emojis, id=body_id)
 
+        # shadow roll freq is normal percentage, but only applies to regular and crab attack
+        if random() < (guild_krill_config.shadow_roll_freq/100):
+            bonked_kid = shadow_roll
+            shadow_rolling = True
+            print('shadow roll')
+
+        def go_home():
+            nonlocal going_home
+            going_home = True
+            print('going home')
+
+        def crab_attack():
+            nonlocal crab_attacking
+            crab_attacking = True
+            print('crab attack')
+
+        out = [
+            dict(action=lambda: go_home(), raw=guild_krill_config.return_home_freq),
+            dict(action=lambda: crab_attack(), raw=guild_krill_config.crab_freq),
+            dict(action=None, raw=0)
+        ]
+
+        # return home and crab are percentage, unless they total more than 100
+        # when more than 100, regular attack has 0 chance, and others are normalized
+        chance_total = max(100, reduce(lambda x, y: x+y['raw'], out, 0))
+
+        for item in out:
+            item['normalized'] = item['raw'] / chance_total
+
+        roll = random()
+        tally = 0
+        for item in out:
+            if item['raw'] == 0:
+                continue
+            tally += item['normalized']
+            if roll < tally:
+                action = item['action']
+                action()
+                break
+
+        count = 0
         time_step = 1
         step = randint(1, 2)
         distance = step * 3
         spaces = str(blank) * distance
         spacestep = str(blank) * step
         message = await ctx.send(f"{spacestep}{victim_name} {red}{spaces}{head}{body}{tail}")
-        if not monster:
-            await ctx.send(Lang.get_locale_string("krill/summoned_by", ctx, name=ctx.author.mention))
-        await ctx.trigger_typing()
+        summoned_by = await ctx.send(Lang.get_locale_string("krill/summoned_by", ctx, name=ctx.author.mention))
+
         while distance > 0:
+            skykid = return_home if count > 0 and going_home else red
             distance = distance - step
             spaces = str(blank) * distance
-            await message.edit(content=f"{spacestep}{victim_name} {red}{spaces}{head}{body}{tail}")
+            await message.edit(content=f"{spacestep}{victim_name} {skykid}{spaces}{head}{body}{tail}")
             await asyncio.sleep(time_step)
+            count = count + 1
 
         step = randint(0, 2)
         distance = step*3
         count = 0
         secaps = ""
-        while count < distance:
-            spaces = str(blank) * count
-            count = count + step
-            secaps = str(blank) * (distance - count)
-            await message.edit(content=f"{secaps}{star}{spaces}{ded} {victim_name}{spaces}{star}{spaces}{star}")
-            await asyncio.sleep(time_step)
-        await message.edit(content=f"{secaps}{star}{spaces}{ded} {victim_name}{spaces}{star}{spaces}{star}")
+        if going_home:
+            await message.edit(content=f"{spacestep}{victim_name} {skykid}")
+            await asyncio.sleep(time_step*2)
+            await summoned_by.edit(content=Lang.get_locale_string("krill/evaded_by", ctx, name=ctx.author.mention))
+            await message.edit(content=f"{spacestep}{victim_name} {party_kid}")
+        else:
+            while count < distance:
+                spaces = str(blank) * count
+                count = count + step
+                secaps = str(blank) * (distance - count)
+                await message.edit(content=f"{secaps}{star}{spaces}{bonked_kid} {victim_name}{spaces}{star}{spaces}{star}")
+                await asyncio.sleep(time_step)
+            await message.edit(content=f"{secaps}{star}{spaces}{bonked_kid} {victim_name}{spaces}{star}{spaces}{star}")
+
         # await message.add_reaction(star)
         # TODO: add message id to persistent vars, listen for reactions.
         #  if reaction count >= 3 remove id from persistent
