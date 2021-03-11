@@ -78,6 +78,42 @@ class KrillChannel(Model):
         database = connection
 
 
+class KrillConfig(Model):
+    id = AutoField()
+    guild = ForeignKeyField(Guild, backref='krill_config', unique=True)
+    return_home_freq = SmallIntegerField(default=0)
+    shadow_roll_freq = SmallIntegerField(default=0)
+    krill_rider_freq = SmallIntegerField(default=0)
+    crab_freq = SmallIntegerField(default=0)
+    allow_text = BooleanField(default=True)
+
+    class Meta:
+        database = connection
+
+
+class OreoMap(Model):
+    id = PrimaryKeyField()
+    letter_o = SmallIntegerField(default=1)
+    letter_r = SmallIntegerField(default=2)
+    letter_e = SmallIntegerField(default=3)
+    letter_oh = SmallIntegerField(default=4)
+    letter_re = SmallIntegerField(default=5)
+    space_char = SmallIntegerField(default=6)
+    char_count = CharField(max_length=50, collation="utf8mb4_general_ci", default="{0,10}")
+
+    class Meta:
+        database = connection
+
+
+class OreoLetters(Model):
+    id = PrimaryKeyField()
+    token = CharField(max_length=50, collation="utf8mb4_general_ci", default="")
+    token_class = SmallIntegerField()
+
+    class Meta:
+        database = connection
+
+
 class ConfigChannel(Model):
     id = AutoField()
     configname = CharField(max_length=100, collation="utf8mb4_general_ci")
@@ -211,6 +247,9 @@ def init():
         CustomCommand,
         DropboxChannel,
         KrillChannel,
+        KrillConfig,
+        OreoMap,
+        OreoLetters,
         Repros,
         ReactWatch,
         WatchedEmoji,
