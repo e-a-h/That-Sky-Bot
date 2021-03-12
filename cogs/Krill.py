@@ -216,6 +216,7 @@ class Krill(BaseCog):
 
         x = self.get_letter_description(letter)
         if letter != self.oreo_map.space_char:
+            value = re.sub(r'[.*|\-\'\"+{\}\[\]`]', '', value)
             value = re.escape(value)
         if value in self.oreo_filter[letter]:
             await ctx.send(Lang.get_locale_string( "krill/letter_already_filtered", ctx, letter=x))
@@ -354,7 +355,9 @@ class Krill(BaseCog):
         # (o|0|º)|(r|®)|(e|é)|(o|0|º|ø)|[ .-]|(お)|(れ)
         oreo_chars = re.compile(f"{o}|{r}|{e}|{sp}|{oo}|{rr}", re.IGNORECASE)
 
-        return dict(en=oreo_pattern, jp=oreo_jp_pattern, chars=oreo_chars)
+        or_pattern = re.compile(f"{o}(.*){r}", re.IGNORECASE)
+
+        return dict(en=oreo_pattern, jp=oreo_jp_pattern, chars=oreo_chars, or_pattern=or_pattern)
 
     @commands.group(name="krill_config", aliases=['kcfg', 'kfg'], invoke_without_command=True)
     @commands.check(can_mod_krill)
@@ -462,10 +465,16 @@ class Krill(BaseCog):
                                                       time_remaining=Utils.to_pretty_time(remain)))
                 return
 
+        # TODO: remove emojis and check pattern
+        #  remove all lowercase and re-check
+        #  remove all uppercase and re-check
+        #  only allow letters and emojis?
+
         patterns = self.get_oreo_patterns()
         oreo_pattern = patterns['en']
         oreo_jp_pattern = patterns['jp']
         dog_pattern = re.compile(r"\bdog\b|\bcookie\b|\bbiscuit\b|\bcanine\b|\bperro\b", re.IGNORECASE)
+        or_pattern = patterns['or_pattern']
 
         name_is_oreo = oreo_pattern.search(ctx.author.display_name) or oreo_jp_pattern.search(ctx.author.display_name)
         if oreo_pattern.search(arg) or oreo_jp_pattern.search(arg) or name_is_oreo or dog_pattern.search(arg):
@@ -500,7 +509,7 @@ class Krill(BaseCog):
             return
 
         # remove pattern interference
-        reg_clean = re.compile(r'[.\[\](){}\\+]')
+        reg_clean = re.compile(r'[.\[\](){}\\|~*_`\'\"\-+]')
         victim_name = reg_clean.sub('', victim_name)
         bad_emoji = set()
         for emoji in emoji_used:
@@ -510,6 +519,21 @@ class Krill(BaseCog):
             # remove bad emoji
             this_match = re.compile(f'<(a?):([^: \n]+):{bad_id}>')
             victim_name = this_match.sub('', victim_name)
+
+        #  check for /o(.*)r/ then use captured sequence to remove and re-check
+        name_has_or = or_pattern.search(ctx.author.display_name)
+        victim_has_or = or_pattern.search(victim_name)
+        captured_pattern = None
+        if victim_has_or:
+            captured_pattern = victim_has_or.group(2)
+        if name_has_or:
+            captured_pattern = name_has_or.group(2)
+        if captured_pattern:
+            name_cleaned = re.sub(captured_pattern, '', victim_name)
+            if oreo_pattern.match(name_cleaned):
+                self.monsters[ctx.author.id] = datetime.now().timestamp()
+                await ctx.send(f"you smell funny, {ctx.author.mention}")
+                return
 
         # one more backup check
         victim_is_oreo = oreo_pattern.search(victim_name) or \
@@ -536,19 +560,11 @@ class Krill(BaseCog):
         shadow_roll = utils.get(self.bot.emojis, id=816876601534709760)
         my_name = ctx.guild.get_member(self.bot.user.id).display_name
         ded = u"\U0001F916" if victim_name in ("thatskybot", my_name, "skybot", "sky bot") else utils.get(self.bot.emojis, id=641445732246880282)
-        bonked_kid = shadow_roll if arg == "shadow_roll" or random() < 0.4 else ded
-        going_home = False
+        bonked_kid = shadow_roll if arg == "shadow_roll" else ded
+        going_home = True if arg == "going_home" else False
         shadow_rolling = False
         krill_riding = False
         crab_attacking = False
-
-        # normal
-        #   krill rider
-        #   shadow roll
-        # going home
-        #   krill rider
-        # crab
-        #   shadow roll
 
         # krill rider freq is normal percentage, but only applies to regular and going-home krill attack
         if random() < (guild_krill_config.krill_rider_freq/100):
@@ -580,17 +596,14 @@ class Krill(BaseCog):
         if random() < (guild_krill_config.shadow_roll_freq/100):
             bonked_kid = shadow_roll
             shadow_rolling = True
-            print('shadow roll')
 
         def go_home():
             nonlocal going_home
             going_home = True
-            print('going home')
 
         def crab_attack():
             nonlocal crab_attacking
             crab_attacking = True
-            print('crab attack')
 
         out = [
             dict(action=lambda: go_home(), raw=guild_krill_config.return_home_freq),
