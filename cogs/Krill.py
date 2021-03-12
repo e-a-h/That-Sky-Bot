@@ -484,7 +484,7 @@ class Krill(BaseCog):
             self.monsters[ctx.author.id] = datetime.now().timestamp()
             return
 
-        victim = '' if arg in ('shadow_roll', 'return_home') else arg
+        victim = re.sub(r'shadow_roll\s*|return_home\s*|krill_rider\s*|crab_attack\s*', '', arg)
         try:
             victim_user = await UserConverter().convert(ctx, victim)
             victim_user = ctx.message.guild.get_member(victim_user.id)
@@ -510,7 +510,7 @@ class Krill(BaseCog):
 
         # remove pattern interference
         reg_clean = re.compile(r'[.\[\](){}\\|~*_`\'\"\-+]')
-        victim_name = reg_clean.sub('', victim_name)
+        victim_name = reg_clean.sub('', victim_name).rstrip().lstrip()
         bad_emoji = set()
         for emoji in emoji_used:
             if utils.get(self.bot.emojis, id=int(emoji[2])) is None:
@@ -559,17 +559,19 @@ class Krill(BaseCog):
         return_home = utils.get(self.bot.emojis, id=816855701786984528)
         shadow_roll = utils.get(self.bot.emojis, id=816876601534709760)
         my_name = ctx.guild.get_member(self.bot.user.id).display_name
-        ded = u"\U0001F916" if victim_name in ("thatskybot", my_name, "skybot", "sky bot") else utils.get(self.bot.emojis, id=641445732246880282)
-        bonked_kid = shadow_roll if arg == "shadow_roll" else ded
-        going_home = True if arg == "going_home" else False
-        shadow_rolling = False
-        krill_riding = False
-        crab_attacking = False
+        ded_emoji = utils.get(self.bot.emojis, id=641445732246880282)
+        bot_emoji = u"\U0001F916"
+        victim_is_skybot = re.search(rf"thatskybot|{my_name}|skybot|sky bot", victim_name)
+        bonked_kid = bot_emoji if victim_is_skybot else ded_emoji
+
+        args = arg.split(' ')
+        going_home = "return_home" in args or False
+        krill_riding = 'krill_rider' in args or (random() < (guild_krill_config.krill_rider_freq/100))
+        shadow_rolling = "shadow_roll" in args or (random() < (guild_krill_config.shadow_roll_freq/100))
+        crab_attacking = "crab_attack" in args or False
 
         # krill rider freq is normal percentage, but only applies to regular and going-home krill attack
-        if random() < (guild_krill_config.krill_rider_freq/100):
-            krill_riding = True
-            print('krill rider')
+        if krill_riding:
             # alternate bodies
             # p.s. this will not work w/ a test bot because these emojis are on the official server
             # instead, the krill will look like "NoneNoneNone"
@@ -593,9 +595,8 @@ class Krill(BaseCog):
             body = utils.get(self.bot.emojis, id=body_id)
 
         # shadow roll freq is normal percentage, but only applies to regular and crab attack
-        if random() < (guild_krill_config.shadow_roll_freq/100):
-            bonked_kid = shadow_roll
-            shadow_rolling = True
+        if shadow_rolling:
+            bonked_kid = f"{bot_emoji}{shadow_roll}" if victim_is_skybot else shadow_roll
 
         def go_home():
             nonlocal going_home
