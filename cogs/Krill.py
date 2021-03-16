@@ -1033,7 +1033,7 @@ class Krill(BaseCog):
                                                   name=ctx.author.mention,
                                                   time_remaining=time_display))
 
-    @commands.group(name="krillchannel", aliases=['krillchan'], invoke_without_command=True)
+    @krill_config.group(name="krill_channel", aliases=['krillchan', 'channel'], invoke_without_command=True)
     @commands.guild_only()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
@@ -1060,7 +1060,11 @@ class Krill(BaseCog):
     @commands.check(can_mod_krill)
     @commands.guild_only()
     async def add(self, ctx: commands.Context, channel_id: str):
-        """Add a channel from list of channels in which krill command is allowed"""
+        """
+        Allow krill command in a given channel
+
+        channel_id: id for the channel to allow
+        """
         # TODO: use Converter for channel_id
         channel_id = int(channel_id)
         channel = f"<#{channel_id}>"
@@ -1081,7 +1085,11 @@ class Krill(BaseCog):
     @commands.check(can_mod_krill)
     @commands.guild_only()
     async def remove(self, ctx:commands.Context, channel_id):
-        """Remove a channel from list of channels in which krill command is allowed"""
+        """
+        Remove channel from krill-allowed channels
+
+        channel_id: id for the channel to remove
+        """
         channel_id = int(channel_id)
         channel = f"<#{channel_id}>"
         channel_name = await Utils.clean(channel, guild=ctx.guild)
