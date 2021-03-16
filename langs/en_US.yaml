@@ -158,15 +158,14 @@ bugs:
     ```css
     Attachments
     ```
-    Do you have screenshots, videos, or other documents to add?
+    Do you have screenshots, videos, or other documents to add? Video may be attached directly to this report, but size is limited for direct messages. If your video is too large, you can share it in the appropriate screenshot channel or on a site like youtube and add a link to your report instead.
   question_ok: This is what your report will look like. Should I **submit** it or **discard** it? You have **{timeout} to review.**
   send_report: All done! Send this report
   mistake: Nope, I made a mistake. Throw away this report and start again
   no_live_android: There is no live version available on Android yet, only beta. Go back to the bug report channel any time to start a new report!
   dm_unable: '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
 eden:
-  dm_prompt: |
-    Did you know you can use the `!edenreset` or `!er` command in my DMs? Shorter cooldown there too.
+  dm_prompt: Did you know you can use the `!edenreset` or `!er` command in my DMs? Shorter cooldown there too.
   reset: |
     The Eye of Eden resets once per week.
     Next reset is on {date} at {time} (In {countdown})
@@ -176,6 +175,10 @@ eden:
   channel_cooldown: I just... didn't I just answer that question {author}?
 common:
   nope: Something isn't right...
+  which_one: Which one would you like? (type a number)
+  you_chose_codeblock: You chose ```{value}```
+  you_chose_bold: You chose **{value}**
+  expect_integer: I was hoping for one of these values ```{keys}```
 test: test this
 welcome:
   welcome_msg: Welcome, {user}! Please read through all the items posted in our {rules_channel} channel. When you're done, click the {accept_emoji} emote at the end of the rules to join the community and gain access to the other channels.
@@ -267,6 +270,8 @@ autoresponder:
     `{subject}` on or off?
   expect_integer: I was hoping for one of these values ```{keys}```
 krill:
+  config_title: Krill Configuration for {server_name}
+  config_bylines_title: Krill bylines for {server_name}
   list_channels: Krill channels for {server_name}.
   list_oreo_filter: Oreo filters for {server_name}.
   list_oreo_monsters: The most horrible people in the _"{server_name}"_ server.
@@ -303,9 +308,20 @@ krill:
   nice_try: rofl nice try!
   summoned_by: |
     *summoned by {name}*
+  evaded_by: |
+    *{name}, the krill you summoned was evaded*
   cooldown_message: Cool it, {name}. Try again in {time_remaining}
   no_such_channel: |
     No such channel: `{channel_id}`
+  available_bylines: |
+    **Available krill bylines:**
+  duplicate_byline: That one already exists. Try something different.
+  confirm_byline: |
+    Does this look right?
+    {formatted_byline}
+  add_byline: New krill byline added ```{byline}```
+  remove_byline: Byline {number} removed.
+  not_changing_byline: Ok, no changes. Gimme a call when you make up your mind.
 react_monitor:
   info_title: Emoji reaction monitor settings for {server_name}
 art:

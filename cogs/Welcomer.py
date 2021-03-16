@@ -716,7 +716,7 @@ class Welcomer(BaseCog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.author.bot or not hasattr(message.author, "guild") or message.author.guild_permissions.mute_members:
+        if message.author.bot or not hasattr(message.author, "guild"):
             return
 
         welcome_channel = self.bot.get_config_channel(message.guild.id, Utils.welcome_channel)
@@ -741,11 +741,11 @@ class Welcomer(BaseCog):
                     ''')
                 return
 
-        if await self.member_verify_action(message):
-            # verification flow triggered. no further processing
-            return
-
-        if member_role in message.author.roles:
+        if message.author.guild_permissions.mute_members or \
+                await self.member_verify_action(message) or \
+                member_role in message.author.roles:
+            # is a mod or
+            # verification flow triggered. no further processing or
             # message from regular member. no action for welcomer to take.
             return
 
@@ -760,6 +760,11 @@ class Welcomer(BaseCog):
                         Logging.info(f"{Utils.get_member_log_name(message.author)} - had shadow role when speaking. removing it!")
                         await message.author.remove_roles(nonmember_role)
                 except Exception as e:
+                    try:
+                        Logging.info(f"message: {message.content}")
+                        Logging.info(f"author id: {message.author.id}")
+                    except Exception as ee:
+                        pass
                     await Utils.handle_exception("member join exception", self.bot, e)
             return
 
