@@ -86,6 +86,19 @@ class KrillConfig(Model):
     krill_rider_freq = SmallIntegerField(default=0)
     crab_freq = SmallIntegerField(default=0)
     allow_text = BooleanField(default=True)
+    monster_duration = SmallIntegerField(default=21600)
+
+    class Meta:
+        database = connection
+
+
+class KrillByLines(Model):
+    id = PrimaryKeyField()
+    krill_config = ForeignKeyField(KrillConfig, backref='bylines')
+    byline = CharField(max_length=100, collation="utf8mb4_general_ci")
+    type = SmallIntegerField(default=0)
+    channelid = BigIntegerField(default=0)
+    locale = CharField(max_length=10, default='')
 
     class Meta:
         database = connection
@@ -248,6 +261,7 @@ def init():
         DropboxChannel,
         KrillChannel,
         KrillConfig,
+        KrillByLines,
         OreoMap,
         OreoLetters,
         Repros,

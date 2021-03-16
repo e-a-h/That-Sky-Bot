@@ -198,6 +198,7 @@ class ReactMonitor(BaseCog):
         """
         List the watched emoji and their settings
         """
+        max_fields = 24
         watch = ReactWatch.get(serverid=ctx.guild.id)
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
@@ -217,6 +218,11 @@ class ReactMonitor(BaseCog):
 
         if ctx.guild.id in self.emoji:
             for key, emoji in self.emoji[ctx.guild.id].items():
+                if len(embed.fields) == max_fields:
+                    await ctx.send(embed=embed)
+                    embed = discord.Embed(
+                        color=Utils.COLOR_LIME,
+                        title="...")
                 embed.add_field(
                     name=f"{emoji.emoji}",
                     value=self.describe_emoji_watch_settings(emoji),

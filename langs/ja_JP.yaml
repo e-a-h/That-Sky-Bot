@@ -175,6 +175,10 @@ eden:
   channel_cooldown: --jp-- I just... didn't I just answer that question {author}?
 common:
   nope: --jp-- Something isn't right...
+  which_one: --jp-- Which one would you like? (type a number)
+  you_chose_codeblock: --jp-- You chose ```{value}```
+  you_chose_bold: --jp-- You chose **{value}**
+  expect_integer: --jp-- I was hoping for one of these values ```{keys}```
 test: --jp-- test this
 welcome:
   welcome_msg: --jp-- Welcome, {user}! Please read through all the items posted in our {rules_channel} channel. When you're done, click the {accept_emoji} emote at the end of the rules to join the community and gain access to the other channels.
@@ -267,6 +271,7 @@ autoresponder:
   expect_integer: --jp-- I was hoping for one of these values ```{keys}```
 krill:
   config_title: --jp-- Krill Configuration for {server_name}
+  config_bylines_title: --jp-- Krill bylines for {server_name}
   list_channels: --jp-- Krill channels for {server_name}.
   list_oreo_filter: --jp-- Oreo filters for {server_name}.
   list_oreo_monsters: --jp-- The most horrible people in the _"{server_name}"_ server.
@@ -308,6 +313,15 @@ krill:
   cooldown_message: --jp-- Cool it, {name}. Try again in {time_remaining}
   no_such_channel: |
     --jp-- No such channel: `{channel_id}`
+  available_bylines: |
+    **Available krill bylines:**
+  duplicate_byline: --jp-- That one already exists. Try something different.
+  confirm_byline: |
+    --jp-- Does this look right?
+    {formatted_byline}
+  add_byline: --jp-- New krill byline added. {byline}
+  remove_byline: --jp-- Byline {number} removed.
+  not_changing_byline: --jp-- Ok, no changes. Gimme a call when you make up your mind.
 react_monitor:
   info_title: --jp-- Emoji reaction monitor settings for {server_name}
 art:

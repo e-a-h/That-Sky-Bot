@@ -3,6 +3,10 @@ guild_config:
   info_title:
 common:
   nope:
+  which_one:
+  you_chose_codeblock:
+  you_chose_bold:
+  expect_integer:
 questions:
   text_only:
   confirm_prompt:
@@ -160,6 +164,7 @@ autoresponder:
   expect_integer:
 krill:
   config_title:
+  config_bylines_title:
   list_channels:
   list_oreo_filter:
   list_oreo_monsters:
@@ -193,6 +198,12 @@ krill:
   evaded_by:
   cooldown_message:
   no_such_channel:
+  available_bylines:
+  duplicate_byline:
+  add_byline:
+  confirm_byline:
+  remove_byline:
+  not_changing_byline:
 react_monitor:
   info_title:
 art:
