@@ -275,7 +275,7 @@ class Krill(BaseCog):
             await Utils.handle_exception('Failed to remove oreo filter letter', self.bot, e)
 
     @oreo.command(aliases=["reset"])
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     async def reset_cooldown(self, ctx: commands.Context):
         """Clear the oreo cooldown list."""
@@ -579,7 +579,7 @@ class Krill(BaseCog):
             raise
 
     @krill_config.group(name="byline", aliases=["by", "bylines"], invoke_without_command=True)
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def byline(self, ctx):
@@ -589,7 +589,7 @@ class Krill(BaseCog):
         await self.list_bylines(ctx)
 
     @byline.command(aliases=["add"])
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def add_byline(self, ctx, *, arg=''):
@@ -640,7 +640,7 @@ class Krill(BaseCog):
     #  kfg byline set_locale
 
     @byline.command(aliases=["settype", "type"])
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def set_byline_type(self, ctx, byline_id: int = 0, byline_type: int = None):
@@ -668,7 +668,7 @@ class Krill(BaseCog):
         await ctx.send(f"{Emoji.get_chat_emoji('YES')} byline [{my_byline.id}] type set to `{self.byline_types[my_type]}`")
 
     @byline.command(aliases=["remove"])
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def remove_byline(self, ctx, byline_id: int = 0):
@@ -686,7 +686,7 @@ class Krill(BaseCog):
         await ctx.send(Lang.get_locale_string('krill/remove_byline', ctx, number=byline_id))
 
     @krill_config.command()
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def return_home(self, ctx, percent: int = 0):
@@ -702,7 +702,7 @@ class Krill(BaseCog):
         await ctx.send(f"`Return home` chance is now {guild_krill_config.return_home_freq}%")
 
     @krill_config.command()
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def shadow_roll(self, ctx, percent: int = 0):
@@ -718,7 +718,7 @@ class Krill(BaseCog):
         await ctx.send(f"`Shadow roll` chance is now {guild_krill_config.shadow_roll_freq}%")
 
     @krill_config.command()
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def krill_rider(self, ctx, percent: int = 0):
@@ -733,7 +733,7 @@ class Krill(BaseCog):
         await ctx.send(f"`Krill rider` chance is now {guild_krill_config.krill_rider_freq}%")
 
     @krill_config.command()
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def crab(self, ctx, percent: int = 0):
@@ -749,7 +749,7 @@ class Krill(BaseCog):
         await ctx.send(f"`Crab` chance is now {guild_krill_config.crab_freq}%")
 
     @krill_config.command()
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def allow_text(self, ctx, allow: bool = True):
@@ -764,7 +764,7 @@ class Krill(BaseCog):
         await ctx.send(f"Text is {'' if guild_krill_config.allow_text else 'not'} allowed with krill command")
 
     @krill_config.command()
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def monster_duration(self, ctx, monster_time: int = 21600):
@@ -1035,7 +1035,7 @@ class Krill(BaseCog):
 
     @commands.group(name="krillchannel", aliases=['krillchan'], invoke_without_command=True)
     @commands.guild_only()
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     async def krill_channel(self, ctx: commands.Context):
         """Show a list of allowed channels"""
@@ -1057,7 +1057,7 @@ class Krill(BaseCog):
             await ctx.send(Lang.get_locale_string("krill/no_channels", ctx))
 
     @krill_channel.command(aliases=["new"])
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.guild_only()
     async def add(self, ctx: commands.Context, channel_id: str):
         """Add a channel from list of channels in which krill command is allowed"""
@@ -1078,7 +1078,7 @@ class Krill(BaseCog):
             await ctx.send(Lang.get_locale_string('krill/channel_found', ctx, channel=channel_name))
 
     @krill_channel.command(aliases=["del", "delete"])
-    @commands.check(can_admin_krill)
+    @commands.check(can_mod_krill)
     @commands.guild_only()
     async def remove(self, ctx:commands.Context, channel_id):
         """Remove a channel from list of channels in which krill command is allowed"""
