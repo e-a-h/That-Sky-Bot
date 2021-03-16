@@ -22,6 +22,7 @@ class Krill(BaseCog):
         'return_home',
         'crab_attack'
     ]
+
     def __init__(self, bot):
         super().__init__(bot)
         self.configs = dict()
@@ -393,6 +394,24 @@ class Krill(BaseCog):
         embed.add_field(name="__Monster Duration__", value=Utils.to_pretty_time(guild_krill_config.monster_duration))
         await ctx.send(embed=embed)
 
+    def blyine_type_disable(self, type):
+        try:
+            return int(type) | (1 << 14)  # set bit 14 to indicate disabled
+        except TypeError as e:
+            return 1 << 14
+
+    def blyine_type_enable(self, type):
+        try:
+            return int(type) & ~(1 << 14)  # unset bit 14 to indicate enabled
+        except TypeError as e:
+            return 1 << 14
+
+    def is_byline_enabled(self, type):
+        try:
+            return (int(type) >> 14) & 1
+        except TypeError as e:
+            return False
+
     def get_byline_type_id(self, id_or_value):
         for i, v in enumerate(self.byline_types):
             if str(id_or_value) == str(i) or str(id_or_value) == str(v):
@@ -417,7 +436,9 @@ class Krill(BaseCog):
                 if byline.channelid:
                     channel = ctx.guild.get_channel(byline.channelid)
                     byline_description += f"\n**\u200b \u200b **Channel: {channel.mention}"
-                field_name = f"[{byline.id}]`[{self.get_byline_type_id(byline.type)['type']}]`"
+                byline_type = self.get_byline_type_id(byline.type)
+                type_description = byline_type['type'] if byline_type else "DISABLED"
+                field_name = f"[{byline.id}]`[{type_description}]`"
                 byline_description += f"\n**\u200b \u200b **message: {byline.byline}"
 
                 # Limit of embed count per message. Requires new message
@@ -558,7 +579,7 @@ class Krill(BaseCog):
             raise
 
     @krill_config.group(name="byline", aliases=["by", "bylines"], invoke_without_command=True)
-    @commands.check(can_mod_krill)
+    @commands.check(can_admin_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def byline(self, ctx):
@@ -568,7 +589,7 @@ class Krill(BaseCog):
         await self.list_bylines(ctx)
 
     @byline.command(aliases=["add"])
-    @commands.check(can_mod_krill)
+    @commands.check(can_admin_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def add_byline(self, ctx, *, arg=''):
@@ -594,7 +615,8 @@ class Krill(BaseCog):
                 await ctx.send(Lang.get_locale_string('krill/duplicate_byline', ctx, byline=arg))
                 return
 
-            KrillByLines.create(krill_config=guild_krill_config, byline=arg)
+            disabled = self.blyine_type_disable(1)
+            KrillByLines.create(krill_config=guild_krill_config, type=disabled, byline=arg)
             await ctx.send(Lang.get_locale_string('krill/add_byline', ctx, byline=arg))
 
         async def no():
@@ -618,7 +640,7 @@ class Krill(BaseCog):
     #  kfg byline set_locale
 
     @byline.command(aliases=["settype", "type"])
-    @commands.check(can_mod_krill)
+    @commands.check(can_admin_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def set_byline_type(self, ctx, byline_id: int = 0, byline_type: int = None):
@@ -643,10 +665,10 @@ class Krill(BaseCog):
 
         my_byline.type = str(my_type)
         my_byline.save()
-        await ctx.send(f"{Emoji.get_chat_emoji('YES')} byline [{byline_id}] type set to `{self.byline_types[my_type]}`")
+        await ctx.send(f"{Emoji.get_chat_emoji('YES')} byline [{my_byline.id}] type set to `{self.byline_types[my_type]}`")
 
     @byline.command(aliases=["remove"])
-    @commands.check(can_mod_krill)
+    @commands.check(can_admin_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def remove_byline(self, ctx, byline_id: int = 0):
@@ -664,7 +686,7 @@ class Krill(BaseCog):
         await ctx.send(Lang.get_locale_string('krill/remove_byline', ctx, number=byline_id))
 
     @krill_config.command()
-    @commands.check(can_mod_krill)
+    @commands.check(can_admin_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def return_home(self, ctx, percent: int = 0):
@@ -680,7 +702,7 @@ class Krill(BaseCog):
         await ctx.send(f"`Return home` chance is now {guild_krill_config.return_home_freq}%")
 
     @krill_config.command()
-    @commands.check(can_mod_krill)
+    @commands.check(can_admin_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def shadow_roll(self, ctx, percent: int = 0):
@@ -696,7 +718,7 @@ class Krill(BaseCog):
         await ctx.send(f"`Shadow roll` chance is now {guild_krill_config.shadow_roll_freq}%")
 
     @krill_config.command()
-    @commands.check(can_mod_krill)
+    @commands.check(can_admin_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def krill_rider(self, ctx, percent: int = 0):
@@ -711,7 +733,7 @@ class Krill(BaseCog):
         await ctx.send(f"`Krill rider` chance is now {guild_krill_config.krill_rider_freq}%")
 
     @krill_config.command()
-    @commands.check(can_mod_krill)
+    @commands.check(can_admin_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def crab(self, ctx, percent: int = 0):
@@ -727,7 +749,7 @@ class Krill(BaseCog):
         await ctx.send(f"`Crab` chance is now {guild_krill_config.crab_freq}%")
 
     @krill_config.command()
-    @commands.check(can_mod_krill)
+    @commands.check(can_admin_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def allow_text(self, ctx, allow: bool = True):
@@ -742,7 +764,7 @@ class Krill(BaseCog):
         await ctx.send(f"Text is {'' if guild_krill_config.allow_text else 'not'} allowed with krill command")
 
     @krill_config.command()
-    @commands.check(can_mod_krill)
+    @commands.check(can_admin_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
     async def monster_duration(self, ctx, monster_time: int = 21600):
