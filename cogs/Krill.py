@@ -57,7 +57,7 @@ class Krill(BaseCog):
         my_letters = OreoLetters.select()
         if len(my_letters) == 0:
             # Stuff existing persistent vars into db. This is a migration from persistent to db
-            # and should only run if OreoLetters table is empty
+            # or initialization, and should only run if OreoLetters table is empty
             token_class_map = dict()
             token_class_map['o'] = self.oreo_map.letter_o
             token_class_map['r'] = self.oreo_map.letter_r
@@ -359,7 +359,8 @@ class Krill(BaseCog):
                                   f"({e}{sp}{n})+"
                                   f"|"
                                   f"({e}{sp}{n})+"
-                                  f"({r}{sp}{n})+)"
+                                  f"({r}{sp}{n})+"
+                                  f")"
                                   f"({o}{sp}{n})+",
                                   re.IGNORECASE)
 
@@ -490,7 +491,7 @@ class Krill(BaseCog):
                 try:
                     await msg.delete()
                     await asyncio.sleep(0.1)
-                except Exception as e:
+                except Exception:
                     pass
 
         for row in guild_bylines:
@@ -529,7 +530,7 @@ class Krill(BaseCog):
         try:
             if 0 <= int(line_id) < len(self.byline_types):
                 return int(line_id)
-        except TypeError as e:
+        except TypeError:
             pass
 
         # failed to find by id. Ask
@@ -544,7 +545,7 @@ class Krill(BaseCog):
                 try:
                     await msg.delete()
                     await asyncio.sleep(0.1)
-                except Exception as e:
+                except Exception:
                     pass
 
         for i, v in enumerate(self.byline_types):
@@ -607,7 +608,7 @@ class Krill(BaseCog):
         async def yes():
             try:
                 KrillByLines.get(krill_config=guild_krill_config, byline=arg)
-            except DoesNotExist as ex:
+            except DoesNotExist:
                 # not found. may continue creating now
                 pass
             else:
@@ -660,12 +661,14 @@ class Krill(BaseCog):
 
         try:
             my_type = await self.choose_byline_type(ctx, byline_type)
-        except ValueError as e:
+        except ValueError:
             return
 
         my_byline.type = str(my_type)
         my_byline.save()
-        await ctx.send(f"{Emoji.get_chat_emoji('YES')} byline [{my_byline.id}] type set to `{self.byline_types[my_type]}`")
+        await ctx.send(
+            f"{Emoji.get_chat_emoji('YES')} byline [{my_byline.id}] type set to `{self.byline_types[my_type]}`"
+        )
 
     @byline.command(aliases=["remove"])
     @commands.check(can_mod_krill)
@@ -675,7 +678,8 @@ class Krill(BaseCog):
         """
         Remove a Krill byline
 
-        byline_id: integer id number for the line to remove. If you don't know id, omit and bot will prompt for it.
+        byline_id: integer id number for the line to remove.
+        If you don't know id, omit and bot will prompt for it.
         """
         try:
             my_byline = await self.choose_byline(ctx, byline_id)
@@ -835,7 +839,10 @@ class Krill(BaseCog):
         reg_clean = re.compile(r'[.\[\](){}\\|~*_`\'\"\-+]')
         victim_name = reg_clean.sub('', victim_name).rstrip().lstrip()
 
-        if oreo_pattern.search(victim_name) or oreo_jp_pattern.search(victim_name) or name_is_oreo or dog_pattern.search(victim_name):
+        if oreo_pattern.search(victim_name) or \
+                oreo_jp_pattern.search(victim_name) or \
+                name_is_oreo or \
+                dog_pattern.search(victim_name):
             self.bot.get_command("krill").reset_cooldown(ctx)
             victim_name = "bad person" if name_is_oreo else ctx.author.mention
             await ctx.send(Lang.get_locale_string("krill/not_oreo", ctx, victim_name=victim_name))
@@ -870,7 +877,7 @@ class Krill(BaseCog):
         if name_has_or:
             captured_pattern = name_has_or.group(2)
         if captured_pattern:
-            name_cleaned = re.sub(captured_pattern, '', victim_name)
+            name_cleaned = re.sub(re.escape(captured_pattern), '', victim_name)
             if oreo_pattern.match(name_cleaned):
                 self.monsters[ctx.author.id] = datetime.now().timestamp()
                 await ctx.send(f"you smell funny, {ctx.author.mention}")
@@ -878,8 +885,8 @@ class Krill(BaseCog):
 
         # one more backup check
         victim_is_oreo = oreo_pattern.search(victim_name) or \
-                         oreo_jp_pattern.search(victim_name) or \
-                         dog_pattern.search(victim_name)
+            oreo_jp_pattern.search(victim_name) or \
+            dog_pattern.search(victim_name)
         if victim_is_oreo:
             self.monsters[ctx.author.id] = datetime.now().timestamp()
             await ctx.send(Lang.get_locale_string("krill/nice_try", ctx))
@@ -977,20 +984,22 @@ class Krill(BaseCog):
         time_step = 1
         step = randint(1, 2)
         distance = step * 3
+        sky_kid = ""
         spaces = str(blank) * distance
-        spacestep = str(blank) * step
-        message = await ctx.send(f"{spacestep}{victim_name} {red}{spaces}{head}{body}{tail}")
+        space_step = str(blank) * step
+        message = await ctx.send(f"{space_step}{victim_name} {red}{spaces}{head}{body}{tail}")
 
         # TODO: channel and locale detection
-        print(byline_type)
         byline = [byline for byline in guild_krill_config.bylines if byline.type in (byline_type['id'], 0)]
-        summoned_by = await ctx.send(choice(byline).byline.format(mention=ctx.author.mention))
+        if not byline:
+            byline = [await ctx.send(Lang.get_locale_string("krill/summoned_by", ctx, name=ctx.author.mention))]
+        summoned_by = await ctx.send(choice(byline).byline.format(mention=ctx.author.mention, victim=victim_name))
 
         while distance > 0:
-            skykid = return_home if count > 0 and going_home else red
+            sky_kid = return_home if count > 0 and going_home else red
             distance = distance - step
             spaces = str(blank) * distance
-            await message.edit(content=f"{spacestep}{victim_name} {skykid}{spaces}{head}{body}{tail}")
+            await message.edit(content=f"{space_step}{victim_name} {sky_kid}{spaces}{head}{body}{tail}")
             await asyncio.sleep(time_step)
             count = count + 1
 
@@ -999,21 +1008,25 @@ class Krill(BaseCog):
         count = 0
         secaps = ""
         if going_home:
-            await message.edit(content=f"{spacestep}{victim_name} {skykid}")
+            await message.edit(content=f"{space_step}{victim_name} {sky_kid}")
             await asyncio.sleep(time_step*2)
             return_type = self.get_byline_type_id('return_home')
             evaded_by = [byline for byline in guild_krill_config.bylines if byline.type == return_type['id']]
             # TODO: detect channel/locale
             await summoned_by.edit(content=choice(evaded_by).byline.format(mention=ctx.author.mention))
-            await message.edit(content=f"{spacestep}{victim_name} {party_kid}")
+            await message.edit(content=f"{space_step}{victim_name} {party_kid}")
         else:
-            while count < distance:
-                spaces = str(blank) * count
-                count = count + step
-                secaps = str(blank) * (distance - count)
+            if distance == 0:
+                # no star animation. send final result
                 await message.edit(content=f"{secaps}{star}{spaces}{bonked_kid} {victim_name}{spaces}{star}{spaces}{star}")
-                await asyncio.sleep(time_step)
-            await message.edit(content=f"{secaps}{star}{spaces}{bonked_kid} {victim_name}{spaces}{star}{spaces}{star}")
+            else:
+                # star animation
+                while count < distance:
+                    spaces = str(blank) * count
+                    count = count + step
+                    secaps = str(blank) * (distance - count)
+                    await message.edit(content=f"{secaps}{star}{spaces}{bonked_kid} {victim_name}{spaces}{star}{spaces}{star}")
+                    await asyncio.sleep(time_step)
 
         # await message.add_reaction(star)
         # TODO: add message id to persistent vars, listen for reactions.
@@ -1033,7 +1046,7 @@ class Krill(BaseCog):
                                                   name=ctx.author.mention,
                                                   time_remaining=time_display))
 
-    @commands.group(name="krillchannel", aliases=['krillchan'], invoke_without_command=True)
+    @krill_config.group(name="krill_channel", aliases=['krillchan', 'channel'], invoke_without_command=True)
     @commands.guild_only()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
@@ -1060,7 +1073,11 @@ class Krill(BaseCog):
     @commands.check(can_mod_krill)
     @commands.guild_only()
     async def add(self, ctx: commands.Context, channel_id: str):
-        """Add a channel from list of channels in which krill command is allowed"""
+        """
+        Allow krill command in a given channel
+
+        channel_id: id for the channel to allow
+        """
         # TODO: use Converter for channel_id
         channel_id = int(channel_id)
         channel = f"<#{channel_id}>"
@@ -1073,25 +1090,33 @@ class Krill(BaseCog):
         if row is None:
             KrillChannel.create(serverid = ctx.guild.id, channelid=channel_id)
             self.channels[ctx.guild.id].add(channel_id)
-            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_locale_string('krill/channel_added', ctx, channel=channel_name)}")
+            added = Lang.get_locale_string('krill/channel_added', ctx, channel=channel_name)
+            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {added}")
         else:
             await ctx.send(Lang.get_locale_string('krill/channel_found', ctx, channel=channel_name))
 
     @krill_channel.command(aliases=["del", "delete"])
     @commands.check(can_mod_krill)
     @commands.guild_only()
-    async def remove(self, ctx:commands.Context, channel_id):
-        """Remove a channel from list of channels in which krill command is allowed"""
+    async def remove(self, ctx: commands.Context, channel_id):
+        """
+        Remove channel from krill-allowed channels
+
+        channel_id: id for the channel to remove
+        """
         channel_id = int(channel_id)
         channel = f"<#{channel_id}>"
-        channel_name = await Utils.clean(channel, guild=ctx.guild)
 
         if channel_id in self.channels[ctx.guild.id]:
-            KrillChannel.get(serverid = ctx.guild.id, channelid=channel_id).delete_instance()
+            KrillChannel.get(serverid=ctx.guild.id, channelid=channel_id).delete_instance()
             self.channels[ctx.guild.id].remove(channel_id)
-            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {Lang.get_locale_string('krill/channel_removed', ctx, channel=channel_id)}")
+            removed = Lang.get_locale_string('krill/channel_removed', ctx, channel=channel_id)
+            await ctx.send(
+                f"{Emoji.get_chat_emoji('YES')} {removed}")
         else:
-            await ctx.send(f"{Emoji.get_chat_emoji('NO')} {Lang.get_locale_string('krill/channel_not_found', ctx, channel=channel_id)}")
+            not_found = Lang.get_locale_string('krill/channel_not_found', ctx, channel=channel_id)
+            await ctx.send(
+                f"{Emoji.get_chat_emoji('NO')} {not_found}")
 
 
 def setup(bot):
