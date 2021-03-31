@@ -908,16 +908,27 @@ class Krill(BaseCog):
         shadow_roll = utils.get(self.bot.emojis, id=816876601534709760)
         my_name = ctx.guild.get_member(self.bot.user.id).display_name
         ded_emoji = utils.get(self.bot.emojis, id=641445732246880282)
+
+        # CRABS
+        crab_dance = utils.get(self.bot.emojis, id=825802012615639060)
+        crab_mad_1 = utils.get(self.bot.emojis, id=825922697094758440)
+        crab_mad_2 = utils.get(self.bot.emojis, id=825922696881373185)
+        crab_mad_3 = utils.get(self.bot.emojis, id=825922697031581717)
+        crab_mods = utils.get(self.bot.emojis, id=825929190108168213)
+        crab_walker_1 = utils.get(self.bot.emojis, id=826275692340707378)
+        crab_walker_2 = utils.get(self.bot.emojis, id=826279059523895306)
+
         bot_emoji = u"\U0001F916"
         victim_is_skybot = re.search(rf"thatskybot|{my_name}|skybot|sky bot", victim_name)
         bonked_kid = bot_emoji if victim_is_skybot else ded_emoji
 
         args = arg.split(' ')
         byline_type = self.get_byline_type_id('normal')
-        going_home = "return_home" in args or False
-        krill_riding = 'krill_rider' in args or (random() < (guild_krill_config.krill_rider_freq/100))
-        shadow_rolling = "shadow_roll" in args or (random() < (guild_krill_config.shadow_roll_freq/100))
-        crab_attacking = "crab_attack" in args or False
+        cheats = Krill.can_mod_krill(ctx)
+        going_home = ("return_home" in args and cheats) or False
+        krill_riding = ('krill_rider' in args and cheats) or (random() < (guild_krill_config.krill_rider_freq/100))
+        shadow_rolling = ("shadow_roll" in args and cheats) or (random() < (guild_krill_config.shadow_roll_freq/100))
+        crab_attacking = ("crab_attack" in args and cheats) or False
 
         # krill rider freq is normal percentage, but only applies to regular and going-home krill attack
         if krill_riding:
@@ -952,8 +963,7 @@ class Krill(BaseCog):
             going_home = True
 
         def crab_attack():
-            nonlocal crab_attacking, byline_type
-            byline_type = self.get_byline_type_id('crab_attack')
+            nonlocal crab_attacking
             crab_attacking = True
 
         out = [
@@ -979,6 +989,20 @@ class Krill(BaseCog):
                 action = item['action']
                 action()
                 break
+
+        if crab_attacking:
+            byline_type = self.get_byline_type_id('crab_attack')
+
+            choices = [
+                [crab_dance, crab_dance, crab_dance],
+                [crab_mods, crab_mods, crab_mods],
+                [crab_mad_1, crab_mad_2, crab_mad_3],
+                [crab_walker_1, crab_walker_2, blank]
+            ]
+            my_crab = choice(choices)
+            head = my_crab[0]
+            body = my_crab[1]
+            tail = my_crab[2]
 
         count = 0
         time_step = 1
