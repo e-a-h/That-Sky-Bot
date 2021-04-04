@@ -785,7 +785,7 @@ class Krill(BaseCog):
 
     @command()
     @commands.check(can_krill)
-    @commands.cooldown(1, 3, BucketType.member)  # TODO: change 3 back to 300
+    @commands.cooldown(1, 300, BucketType.member)
     @commands.max_concurrency(3, wait=True)
     @commands.guild_only()
     async def krill(self, ctx, *, arg=''):
@@ -818,7 +818,7 @@ class Krill(BaseCog):
         patterns = self.get_oreo_patterns()
         oreo_pattern = patterns['en']
         oreo_jp_pattern = patterns['jp']
-        dog_pattern = re.compile(r"\bdog\b|\bcookie\b|\bbiscuit\b|\bcanine\b|\bperro\b", re.IGNORECASE)
+        dog_pattern = re.compile(r"\bdog\b|\bdoggo\b|\bcookie\b|\bbiscuit\b|\bcanine\b|\bperro\b", re.IGNORECASE)
         or_pattern = patterns['or_pattern']
 
         name_is_oreo = oreo_pattern.search(ctx.author.display_name) or oreo_jp_pattern.search(ctx.author.display_name)
@@ -871,13 +871,13 @@ class Krill(BaseCog):
         #  check for /o(.*)r/ then use captured sequence to remove and re-check
         name_has_or = or_pattern.search(ctx.author.display_name)
         victim_has_or = or_pattern.search(victim_name)
-        captured_pattern = None
+        captured_pattern = []
         if victim_has_or:
-            captured_pattern = victim_has_or.group(2)
+            captured_pattern.append(victim_has_or.group(2))
         if name_has_or:
-            captured_pattern = name_has_or.group(2)
-        if captured_pattern:
-            name_cleaned = re.sub(re.escape(captured_pattern), '', victim_name)
+            captured_pattern.append(name_has_or.group(2))
+        for pattern in captured_pattern:
+            name_cleaned = re.sub(re.escape(pattern), '', victim_name)
             if oreo_pattern.match(name_cleaned):
                 self.monsters[ctx.author.id] = datetime.now().timestamp()
                 await ctx.send(f"you smell funny, {ctx.author.mention}")
@@ -963,7 +963,8 @@ class Krill(BaseCog):
             going_home = True
 
         def crab_attack():
-            nonlocal crab_attacking
+            nonlocal crab_attacking, going_home
+            going_home = False
             crab_attacking = True
 
         out = [
@@ -991,6 +992,7 @@ class Krill(BaseCog):
                 break
 
         if crab_attacking:
+            going_home = False
             byline_type = self.get_byline_type_id('crab_attack')
 
             choices = [
