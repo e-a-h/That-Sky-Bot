@@ -153,6 +153,7 @@ class Skybot(Bot):
 
 def run_db_migrations():
     dbv = int(Configuration.get_persistent_var('db_version', 0))
+    Logging.info(f"db version is {dbv}")
     dbv_list = [f for f in glob.glob("db_migrations/db_migrate_*.py")]
     dbv_pattern = re.compile(r'db_migrations/db_migrate_(\d+)\.py', re.IGNORECASE)
     migration_count = 0
@@ -161,7 +162,7 @@ def run_db_migrations():
         version = int(re.match(dbv_pattern, filename)[1])
         if version > dbv:
             try:
-                print(f"--- running db migration version number {version}")
+                Logging.info(f"--- running db migration version number {version}")
                 spec = importlib.util.spec_from_file_location(f"migrator_{version}", filename)
                 dbm = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(dbm)
@@ -170,7 +171,7 @@ def run_db_migrations():
             except Exception as e:
                 # throw a fit if it doesn't work
                 raise e
-    print(f"--- {migration_count if migration_count else 'no'} db migration{'' if migration_count == 1 else 's'} run")
+    Logging.info(f"--- {migration_count if migration_count else 'no'} db migration{'' if migration_count == 1 else 's'} run")
 
 
 def before_send(event, hint):
@@ -194,11 +195,15 @@ if __name__ == '__main__':
 
     dsn = Configuration.get_var('SENTRY_DSN', '')
     dsn_env = Configuration.get_var('SENTRY_ENV', 'Dev')
+    Logging.info(f"DSN info - dsn:{dsn} env:{dsn_env}")
     if dsn != '':
         sentry_sdk.init(dsn, before_send=before_send, environment=dsn_env, integrations=[AioHttpIntegration()])
 
+    # TODO: exception handling for db migration error
     run_db_migrations()
+    Logging.info('dg migrations go')
     Database.init()
+    Logging.info('db init go')
 
     intents = Intents(members=True, messages=True, guilds=True, bans=True, emojis=True, presences=True, reactions=True)
     loop = asyncio.get_event_loop()
@@ -208,6 +213,7 @@ if __name__ == '__main__':
         case_insensitive=True,
         intents=intents,
         loop=loop)
+    Logging.info('skybot instantiated')
     skybot.help_command = commands.DefaultHelpCommand(command_attrs=dict(name='snelp', checks=[can_help]))
 
     Utils.BOT = skybot
