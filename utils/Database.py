@@ -1,4 +1,4 @@
-from peewee import MySQLDatabase, Model, PrimaryKeyField, BigIntegerField, CharField, ForeignKeyField, AutoField, \
+from peewee import MySQLDatabase, Model, BigIntegerField, CharField, ForeignKeyField, AutoField, \
     TimestampField, SmallIntegerField, BooleanField
 
 from utils import Configuration
@@ -13,7 +13,7 @@ connection = MySQLDatabase(Configuration.get_var("DATABASE_NAME"),
 
 
 class Guild(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     serverid = BigIntegerField()
     memberrole = BigIntegerField(default=0)
     nonmemberrole = BigIntegerField(default=0)
@@ -93,7 +93,7 @@ class KrillConfig(Model):
 
 
 class KrillByLines(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     krill_config = ForeignKeyField(KrillConfig, backref='bylines')
     byline = CharField(max_length=100, collation="utf8mb4_general_ci")
     type = SmallIntegerField(default=0)
@@ -105,7 +105,7 @@ class KrillByLines(Model):
 
 
 class OreoMap(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     letter_o = SmallIntegerField(default=1)
     letter_r = SmallIntegerField(default=2)
     letter_e = SmallIntegerField(default=3)
@@ -119,7 +119,7 @@ class OreoMap(Model):
 
 
 class OreoLetters(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     token = CharField(max_length=50, collation="utf8mb4_general_ci", default="")
     token_class = SmallIntegerField()
 
@@ -138,7 +138,7 @@ class ConfigChannel(Model):
 
 
 class CustomCommand(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     serverid = BigIntegerField()
     trigger = CharField(max_length=20, collation="utf8mb4_general_ci")
     response = CharField(max_length=2000, collation="utf8mb4_general_ci")
@@ -149,7 +149,7 @@ class CustomCommand(Model):
 
 
 class AutoResponder(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     serverid = BigIntegerField()
     trigger = CharField(max_length=300, collation="utf8mb4_general_ci")
     response = CharField(max_length=2000, collation="utf8mb4_general_ci")
@@ -157,13 +157,14 @@ class AutoResponder(Model):
     chance = SmallIntegerField(default=10000)
     responsechannelid = BigIntegerField(default=0)
     listenchannelid = BigIntegerField(default=0)
+    logchannelid = BigIntegerField(default=0)
 
     class Meta:
         database = connection
 
 
 class CountWord(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     serverid = BigIntegerField()
     # guild = ForeignKeyField(Guild, backref='watchwords')
     word = CharField(max_length=300, collation="utf8mb4_general_ci")
@@ -173,7 +174,7 @@ class CountWord(Model):
 
 
 class ReactWatch(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     serverid = BigIntegerField()
     # guild = ForeignKeyField(Guild, backref='watchemoji')
     muteduration = SmallIntegerField(default=600)
@@ -184,7 +185,7 @@ class ReactWatch(Model):
 
 
 class WatchedEmoji(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     watcher = ForeignKeyField(ReactWatch, backref='emoji')
     emoji = CharField(max_length=50, collation="utf8mb4_general_ci", default="")
     log = BooleanField(default=False)
@@ -196,7 +197,7 @@ class WatchedEmoji(Model):
 
 
 class ArtChannel(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     serverid = BigIntegerField()
     # guild = ForeignKeyField(Guild, backref='artchannels')
     listenchannelid = BigIntegerField(default=0)
@@ -208,7 +209,7 @@ class ArtChannel(Model):
 
 
 class DropboxChannel(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     serverid = BigIntegerField()
     sourcechannelid = BigIntegerField()
     targetchannelid = BigIntegerField(default=0)
@@ -219,7 +220,7 @@ class DropboxChannel(Model):
 
 
 class Localization(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     guild = ForeignKeyField(Guild, backref='locales')
     channelid = BigIntegerField(default=0)
     locale = CharField(max_length=10, default='')
@@ -229,7 +230,7 @@ class Localization(Model):
 
 
 class AdminRole(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     guild = ForeignKeyField(Guild, backref='admin_roles')
     roleid = BigIntegerField()
 
@@ -238,7 +239,7 @@ class AdminRole(Model):
 
 
 class ModRole(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     guild = ForeignKeyField(Guild, backref='mod_roles')
     roleid = BigIntegerField()
 

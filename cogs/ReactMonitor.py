@@ -165,7 +165,7 @@ class ReactMonitor(BaseCog):
                             log_channel = self.bot.get_guild_log_channel(guild_id)
                             del self.mutes[guild_id][user_id]
                             await log_channel.send(f'Failed to unmute user ({user_id}) <@{user_id}>... did they leave the server?')
-                            await Utils.handle_exception('react watch unmute failure', self.bot, e)
+                            # await Utils.handle_exception('react watch unmute failure', self.bot, e)
                 rr = self.recent_reactions[guild_id]
                 adds = {t: e for (t, e) in rr.items() if e.event_type == "REACTION_ADD"}
 
