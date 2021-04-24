@@ -22,11 +22,12 @@ class AutoResponders(BaseCog):
         'delete': 2,
         'match_case': 3,
         'ignore_mod': 4,
-        'mod_action': 5  # ,
-        # 'log_only': 6,
-        # 'dm_response': 7,
-        # 'delete_when_trigger_deleted': 8,
-        # 'delete_on_mod_respond': 9
+        'mod_action': 5,
+        'log_only': 6,
+        'dm_response': 7,
+        'word_match': 8,
+        'delete_when_trigger_deleted': 8,
+        'delete_on_mod_respond': 9
     }
 
     trigger_length_max = 300
@@ -199,6 +200,7 @@ class AutoResponders(BaseCog):
                     'response': response,
                     'flags': flags,
                     'chance': chance,
+                    'logchannelid': responder.logchannelid,
                     'responsechannelid': responder.responsechannelid,
                     'listenchannelid': responder.listenchannelid
                 }
@@ -757,7 +759,7 @@ class AutoResponders(BaseCog):
                                    trigger=self.get_trigger_description(trigger)))
         await self.reload_triggers(ctx)
 
-    @autor.command(aliases=["channel", "sc", "listen_in", "respond_in", "li", "ri"])
+    @autor.command(aliases=["channel", "sc", "listen_in", "respond_in", "log_in"])
     @commands.guild_only()
     async def setchannel(self, ctx: commands.Context, trigger: str = None, channel_id: int = None, mode: str = None):
         """
@@ -769,11 +771,15 @@ class AutoResponders(BaseCog):
         """
         respond = 'respond'
         listen = 'listen'
+        log = 'log'
         # check aliases for mode
-        if ctx.invoked_with in ('listen_in', 'li'):
+        if ctx.invoked_with in ('listen_in'):
             mode = listen
-        elif ctx.invoked_with in ('respond_in', 'ri'):
+        elif ctx.invoked_with in ('respond_in'):
             mode = respond
+        elif ctx.invoked_with in ('log_in'):
+            mode = respond
+
         if mode is None or mode not in [respond, listen]:
             def choose(val):
                 nonlocal mode
@@ -792,7 +798,11 @@ class AutoResponders(BaseCog):
                                         Questions.Option(f"NUMBER_2",
                                                          'Listen Channel',
                                                          handler=choose,
-                                                         args=[listen])
+                                                         args=[listen]),
+                                        Questions.Option(f"NUMBER_3",
+                                                         'Log Channel',
+                                                         handler=choose,
+                                                         args=[log])
                                     ],
                                     delete_after=True, show_embed=True, locale=ctx)
             except (ValueError, asyncio.TimeoutError) as e:
@@ -833,10 +843,14 @@ class AutoResponders(BaseCog):
         else:
             await ctx.send(Lang.get_locale_string("autoresponder/no_channel", ctx, mode=mode))
             return
+
         if mode == respond:
             db_trigger.responsechannelid = channel_id
         elif mode == listen:
             db_trigger.listenchannelid = channel_id
+        elif mode == log:
+            db_trigger.logchannelid = channel_id
+
         db_trigger.save()
         await self.reload_triggers(ctx)
 
@@ -927,10 +941,14 @@ class AutoResponders(BaseCog):
         """Set up message listener and respond to specific text with various canned responses"""
 
         # check these first to avoid conflicts/exceptions
+        # message must be in guild and not a bot
         not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
         if message.author.bot or not_in_guild:
             return
 
+        # ignore privileged members who are calling commands
+        # TODO: this looks broken. cog_check needs a context object.
+        #  also, check if "command" called is an actual skybot command
         prefix = Configuration.get_var("bot_prefix")
         can_command = await self.cog_check(message)
         command_context = message.content.startswith(prefix, 0) and can_command
@@ -948,6 +966,11 @@ class AutoResponders(BaseCog):
             ignore_mod = data['flags'][self.flags['ignore_mod']]
             match_case = data['flags'][self.flags['match_case']]
             full_match = data['flags'][self.flags['full_match']]
+            word_match = data['flags'][self.flags['word_match']]
+            dm_response = data['flags'][self.flags['dm_response']]
+            delete_when_trigger_deleted = data['flags'][self.flags['delete_when_trigger_deleted']]
+            delete_on_mod_respond = data['flags'][self.flags['delete_on_mod_respond']]
+            log_only = data['flags'][self.flags['log_only']]
             mod_action = data['flags'][self.flags['mod_action']] and data['responsechannelid']
             chance = data['chance']
 
@@ -965,21 +988,21 @@ class AutoResponders(BaseCog):
                 return my_word
 
             if data['match_list'] is not None:
-                # full match done as whole word match per item in list when using list-match
+                # full match is not compatible with list-match
                 words = []
                 for word in data['match_list']:
                     if isinstance(word, list):
                         sub_list = []
                         for token in word:
                             token = re.escape(token)
-                            if full_match:
+                            if word_match:
                                 token = add_bounds(token)
                             sub_list.append(token)
                         # a list of words at this level indicates one word from a list must match
                         word = f"({'|'.join(sub_list)})"
                     else:
                         word = re.escape(word)
-                        if full_match:
+                        if word_match:
                             word = add_bounds(word)
                     # escape the words and join together as a series of look-ahead searches
                     words.append(f'(?=.*{word})')
@@ -1006,6 +1029,11 @@ class AutoResponders(BaseCog):
                 # send to channel
                 if data['responsechannelid']:
                     response_channel = self.bot.get_channel(data['responsechannelid'])
+                elif log_only:
+                    if data['logchannelid']:
+                        response_channel = self.bot.get_channel(data['logchannelid'])
+                    else:
+                        response_channel = self.bot.get_guild_log_channel(message.channel.guild.id)
                 else:
                     response_channel = message.channel
 
