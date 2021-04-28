@@ -229,6 +229,7 @@ custom_commands:
   not_found:
   creating_command:
   command_updated:
+  delete_trigger_updated:
 word_counter:
   list_words:
   no_words:

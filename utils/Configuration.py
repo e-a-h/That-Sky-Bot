@@ -58,5 +58,8 @@ def set_persistent_var(key, value):
 
 
 def del_persistent_var(key):
-    del PERSISTENT[key]
-    Utils.save_to_disk("persistent", PERSISTENT)
+    try:
+        del PERSISTENT[key]
+        Utils.save_to_disk("persistent", PERSISTENT)
+    except Exception as e:
+        Utils.get_embed_and_log_exception("--------delete persistent var--------", Utils.BOT, e)
