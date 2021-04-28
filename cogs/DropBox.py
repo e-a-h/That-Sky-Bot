@@ -36,8 +36,6 @@ class DropBox(BaseCog):
         self.loaded = True
 
         self.deliver_to_channel.start()
-        # TODO: find out what the condition is we need to wait for instead of just sleep
-        # await asyncio.sleep(20)
         self.clean_channels.start()
 
     def init_guild(self, guild_id):
@@ -65,6 +63,8 @@ class DropBox(BaseCog):
         del self.drop_messages[guild.id]
         del self.delivery_in_progress[guild.id]
         del self.delete_in_progress[guild.id]
+        for row in DropboxChannel.select().where(DropboxChannel.serverid == guild.id):
+            row.delete_instance()
 
     @tasks.loop(seconds=1.0)
     async def deliver_to_channel(self):
@@ -185,13 +185,6 @@ class DropBox(BaseCog):
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
         self.init_guild(guild.id)
-
-    @commands.Cog.listener()
-    async def on_guild_remove(self, guild):
-        del self.dropboxes[guild.id]
-        del self.drop_messages[guild.id]
-        for row in DropboxChannel.select().where(DropboxChannel.serverid == guild.id):
-            row.delete_instance()
 
     @commands.group(name="dropbox", invoke_without_command=True)
     @commands.guild_only()
@@ -315,7 +308,7 @@ class DropBox(BaseCog):
 
     @dropbox.command(aliases=['delay', 'delete_delay'])
     @commands.guild_only()
-    async def set_delay(self, ctx, channel: discord.TextChannel, delay: int):
+    async def set_delay(self, ctx, channel: discord.TextChannel, delay: float):
         """
         Set the lifespan for response messages in the channel
 
@@ -324,9 +317,9 @@ class DropBox(BaseCog):
         """
         if channel.id in self.dropboxes[ctx.guild.id]:
             drop = self.dropboxes[ctx.guild.id][channel.id]
-            drop.deletedelayms = delay
+            drop.deletedelayms = int(delay * 1000)
             drop.save()
-            t = Utils.to_pretty_time(delay/1000)
+            t = Utils.to_pretty_time(delay)
             await ctx.send(f'Confirmation messages in dropbox channel {channel.mention} will be deleted after {t}')
         else:
             await ctx.send(f'Failed to set dropbox delete delay time in {channel.mention}')
