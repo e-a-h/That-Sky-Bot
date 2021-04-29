@@ -211,7 +211,7 @@ lang:
   default_set: Default language for server `{server_name}` is now `{locale}`.
   default_not_changed: Default language for server `{server_name}` was alaredy `{locale}`. No changes recorded.
   lang_settings_title: |
-    **Language/locale settings** in `{server_name}` server
+    **Language/locale defaults** in `{server_name}` server
   unknown_locale: |
     `{locale}` is not a locale I know. Try one from this list: `{locale_lsit}`
   reloaded: Language files reloaded for `{server_name}` server

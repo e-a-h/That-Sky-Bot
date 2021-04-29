@@ -136,7 +136,10 @@ class Skybot(Bot):
                 f"{Emoji.get_chat_emoji('NO')} Failed to parse the ``{param._name}`` param: ``{error}``\n{Emoji.get_chat_emoji('WRENCH')} Command usage: `{bot.help_command.get_command_signature(ctx.command)}`")
         elif isinstance(error, commands.CommandNotFound):
             return
-
+        elif isinstance(error, commands.UnexpectedQuoteError):
+            bot.help_command.context = ctx
+            await ctx.send(
+                f"{Emoji.get_chat_emoji('NO')} There are quotes in there that I don't like\n{Emoji.get_chat_emoji('WRENCH')} Command usage: `{bot.help_command.get_command_signature(ctx.command)}`")
         else:
             await Utils.handle_exception("Command execution failed", bot,
                                          error.original if hasattr(error, "original") else error, ctx=ctx)
