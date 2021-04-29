@@ -17,9 +17,9 @@ class Welcomer(BaseCog):
         super().__init__(bot)
         self.welcome_talkers = dict()
         self.join_cooldown = dict()
-        self.mute_new_members = True
-        self.mute_minutes_old_account = 10
-        self.mute_minutes_new_account = 20
+        self.mute_new_members = dict()
+        self.mute_minutes_old_account = dict()
+        self.mute_minutes_new_account = dict()
         self.discord_verification_flow = dict()
         bot.loop.create_task(self.startup_cleanup())
 
@@ -29,13 +29,33 @@ class Welcomer(BaseCog):
     async def startup_cleanup(self):
         self.join_cooldown = Configuration.get_persistent_var("join_cooldown", dict())
         for guild in self.bot.guilds:
-            self.set_verification_mode(guild)
-            self.mute_minutes_old_account = Configuration.get_persistent_var(f"{guild.id}_mute_minutes_old_account", 10)
-            self.mute_minutes_new_account = Configuration.get_persistent_var(f"{guild.id}_mute_minutes_new_account", 20)
-            self.welcome_talkers[guild.id] = dict()
-            if str(guild.id) not in self.join_cooldown:
-                self.join_cooldown[str(guild.id)] = dict()
+            self.init_guild(guild)
         self.check_cooldown.start()
+
+    def init_guild(self, guild):
+        self.set_verification_mode(guild)
+        self.mute_minutes_old_account[guild.id] = Configuration.get_persistent_var(f"{guild.id}_mute_minutes_old_account", 10)
+        self.mute_minutes_new_account[guild.id] = Configuration.get_persistent_var(f"{guild.id}_mute_minutes_new_account", 20)
+        self.mute_new_members[guild.id] = Configuration.get_persistent_var(f"{guild.id}_mute_new_members", False)
+        self.welcome_talkers[guild.id] = dict()
+        if str(guild.id) not in self.join_cooldown:
+            self.join_cooldown[str(guild.id)] = dict()
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild):
+        self.init_guild(guild)
+
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild):
+        Configuration.del_persistent_var(f"{guild.id}_mute_new_members")
+        Configuration.del_persistent_var(f"{guild.id}_mute_minutes_old_account")
+        Configuration.del_persistent_var(f"{guild.id}_mute_minutes_new_account")
+        del self.mute_minutes_old_account[guild.id]
+        del self.mute_minutes_new_account[guild.id]
+        del self.welcome_talkers[guild.id]
+        del self.mute_new_members[guild.id]
+        del self.discord_verification_flow[guild.id]
+        del self.join_cooldown[str(guild.id)]
 
     def set_verification_mode(self, guild):
         # TODO: enforce channel permissions for entry_channel?
@@ -45,7 +65,7 @@ class Welcomer(BaseCog):
         self.discord_verification_flow[guild.id] = bool(ec)
         # Do not mute new members if verification flow is on.
         # Otherwise, mute new members UNLESS it's manually overridden
-        self.mute_new_members = False if self.discord_verification_flow[guild.id] else \
+        self.mute_new_members[guild.id] = False if self.discord_verification_flow[guild.id] else \
             Configuration.get_persistent_var(f"{guild.id}_mute_new_members", True)
 
     def remove_member_from_cooldown(self, guildid, memberid):
@@ -93,9 +113,9 @@ class Welcomer(BaseCog):
 
                     user_age = now - member.created_at.timestamp()
                     elapsed = int(now - join_time)
-                    cooldown_time = 60 * self.mute_minutes_old_account  # 10 minutes default
+                    cooldown_time = 60 * self.mute_minutes_old_account[guild.id]  # 10 minutes default
                     if user_age < 60 * 60 * 24:  # 1 day
-                        cooldown_time = 60 * self.mute_minutes_new_account  # 20 minutes default for new users
+                        cooldown_time = 60 * self.mute_minutes_new_account[guild.id]  # 20 minutes default for new users
 
                     if elapsed > cooldown_time:
                         # member has waited long enough
@@ -116,17 +136,6 @@ class Welcomer(BaseCog):
         if ctx.guild is None:
             return False
         return ctx.author.guild_permissions.ban_members
-
-    @commands.Cog.listener()
-    async def on_guild_join(self, guild):
-        self.welcome_talkers[guild.id] = dict()
-        self.join_cooldown[guild.id] = dict()
-
-    @commands.Cog.listener()
-    async def on_guild_remove(self, guild):
-        del self.welcome_talkers[guild.id]
-        del self.join_cooldown[str(guild.id)]
-        del self.discord_verification_flow[guild.id]
 
     def fetch_recent(self, time_delta: int = 1):
         """
@@ -226,7 +235,7 @@ class Welcomer(BaseCog):
                                              user=member.mention,
                                              rules_channel=rules_channel.mention,
                                              accept_emoji=Emoji.get_chat_emoji('CANDLE'))
-                if self.mute_new_members:
+                if self.mute_new_members[member.guild.id]:
                     # add mute notification if mute for new members is on
                     mute_txt = Lang.get_locale_string("welcome/welcome_mute_msg",
                                                       Configuration.get_var('broadcast_locale', 'en_US'))
@@ -253,8 +262,8 @@ class Welcomer(BaseCog):
         Mute settings for new members
 
         active: mute on or off
-        mute_minutes_old: how long (minutes) to mute established accounts
-        mute_minutes_new: how long (minutes) to mute accounts < 1 day old
+        mute_minutes_old: how long (minutes) to mute established accounts (default 10)
+        mute_minutes_new: how long (minutes) to mute accounts < 1 day old (default 20)
         """
         self.set_verification_mode(ctx.guild)
         if self.discord_verification_flow[ctx.guild.id]:
@@ -266,9 +275,9 @@ class Welcomer(BaseCog):
             return
 
         if active is not None:
-            self.mute_new_members = active
-            self.mute_minutes_old_account = mute_minutes_old
-            self.mute_minutes_new_account = mute_minutes_new
+            self.mute_new_members[ctx.guild.id] = active
+            self.mute_minutes_old_account[ctx.guild.id] = mute_minutes_old
+            self.mute_minutes_new_account[ctx.guild.id] = mute_minutes_new
             Configuration.set_persistent_var(f"{ctx.guild.id}_mute_new_members", active)
             Configuration.set_persistent_var(f"{ctx.guild.id}_mute_minutes_old_account", mute_minutes_old)
             Configuration.set_persistent_var(f"{ctx.guild.id}_mute_minutes_new_account", mute_minutes_new)
@@ -279,21 +288,15 @@ class Welcomer(BaseCog):
             title=Lang.get_locale_string("welcome/mute_settings_title", ctx, server_name=ctx.guild.name))
 
         status.add_field(name="Mute new members",
-                         value=f"**{'ON' if self.mute_new_members else 'OFF'}**",
+                         value=f"**{'ON' if self.mute_new_members[ctx.guild.id] else 'OFF'}**",
                          inline=False)
         status.add_field(name="Mute duration",
-                         value=f"{self.mute_minutes_old_account} minutes",
+                         value=f"{self.mute_minutes_old_account[ctx.guild.id]} minutes",
                          inline=False)
         status.add_field(name="New account mute duration\n(< 1 day old) ",
-                         value=f"{self.mute_minutes_new_account} minutes",
+                         value=f"{self.mute_minutes_new_account[ctx.guild.id]} minutes",
                          inline=False)
         await ctx.send(embed=status)
-
-    def muted_mode(argument):
-        mode = int(argument)
-        if mode in [0, 1, 2, 3]:
-            return mode
-        raise discord.ext.commands.UserInputError('Bad mode')
 
     @welcome.command()
     @commands.guild_only()
@@ -315,6 +318,23 @@ class Welcomer(BaseCog):
             await ctx.send(f"Ok, I unmuted these members:\n{member_list}")
         else:
             await ctx.send(f"nobody to unmute")
+
+    def muted_mode(argument):
+        modes = [0, 1, 2, 3]
+
+        def fail():
+            nonlocal modes
+            raise discord.ext.commands.BadArgument(f'mode must be one of {modes}')
+
+        try:
+            mode = int(argument)
+        except ValueError:
+            fail()
+            return
+
+        if mode in modes:
+            return mode
+        fail()
 
     @welcome.command(aliases=["list", "muted"])
     @commands.guild_only()
@@ -558,7 +578,7 @@ class Welcomer(BaseCog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        if self.mute_new_members and not self.discord_verification_flow[member.guild.id]:
+        if self.mute_new_members[member.guild.id] and not self.discord_verification_flow[member.guild.id]:
             self.bot.loop.create_task(self.mute_new_member(member))
 
         if self.discord_verification_flow[member.guild.id]:
@@ -604,7 +624,7 @@ class Welcomer(BaseCog):
 
     async def mute_new_member(self, member):
         # is this feature turned on?
-        if not self.mute_new_members:
+        if not self.mute_new_members[member.guild.id]:
             return
 
         # give other bots a chance to perform other actions first (like mute)
@@ -743,7 +763,7 @@ class Welcomer(BaseCog):
 
         if message.author.guild_permissions.mute_members or \
                 await self.member_verify_action(message) or \
-                member_role in message.author.roles:
+                (member_role is not None and member_role in message.author.roles):
             # is a mod or
             # verification flow triggered. no further processing or
             # message from regular member. no action for welcomer to take.
@@ -751,12 +771,12 @@ class Welcomer(BaseCog):
 
         # ignore when channels not configured
         if not welcome_channel or not rules_channel or message.channel.id != welcome_channel.id:
-            if member_role not in message.author.roles:
+            if member_role is not None and member_role not in message.author.roles:
                 # nonmember speaking somewhere other than welcome channel? Maybe we're not using the
                 # welcome channel anymore? or something else went wrong... give them member role.
                 try:
                     await message.author.add_roles(member_role)
-                    if nonmember_role in message.author.roles:
+                    if nonmember_role is not None and nonmember_role in message.author.roles:
                         Logging.info(f"{Utils.get_member_log_name(message.author)} - had shadow role when speaking. removing it!")
                         await message.author.remove_roles(nonmember_role)
                 except Exception as e:
