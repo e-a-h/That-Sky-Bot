@@ -9,15 +9,17 @@ from discord.ext import commands
 from discord.ext.commands import command
 
 from cogs.BaseCog import BaseCog
-from utils import Utils
+from utils import Utils, Configuration
 from utils.Database import BugReport, Attachments, connection
 from utils.Utils import save_to_disk
 
 
 class Reporting(BaseCog):
 
+    fetch_limit = 1000
+
     async def cog_check(self, ctx):
-        return ctx.author.guild_permissions.ban_members
+        return Utils.permission_official_ban(ctx.author.id)
 
     @command(hidden=True)
     async def csv(
@@ -35,6 +37,7 @@ class Reporting(BaseCog):
         csv {both|beta|stable} [all|android|ios|etc]
                                    exports reports for given branch and platform"""
         # TODO: start from date?
+        # TODO: migrate to async ORM like tortoise
 
         def get_branch(br):
             br = br.lower()
@@ -61,6 +64,12 @@ class Reporting(BaseCog):
         pl = get_platform(platform)
         br = get_branch(branch)
 
+        if start < -self.fetch_limit:
+            await ctx.send(f"you requested more than {self.fetch_limit} records, "
+                           f"so I'm only giving you {self.fetch_limit} because I'm a lazy bot")
+            start = -self.fetch_limit
+            return
+
         try:
             # send feedback on command. Failure to send should end attempt.
             await ctx.send(
@@ -84,7 +93,7 @@ class Reporting(BaseCog):
             # count backward from end of data
             query = BugReport.select().where(conditions).order_by(BugReport.id.desc()).limit(abs(start))
         else:
-            query = BugReport.select().where(conditions)  # .prefetch(Attachments)
+            query = BugReport.select().where(conditions).limit(self.fetch_limit)  # .prefetch(Attachments)
 
         ids = []
         for row in query:
