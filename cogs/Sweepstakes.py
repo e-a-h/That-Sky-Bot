@@ -20,7 +20,8 @@ class Sweepstakes(BaseCog):
     async def cog_check(self, ctx):
         if ctx.guild is None:
             return False
-        # TODO: should this be admin and/or custom role? PermissionViewSweepstakes, PermissionManageSweepstakes
+        # TODO: change to admin role
+        #  and/or separate roles for view and manage sweeps
         return ctx.author.guild_permissions.manage_channels
 
     async def get_reaction_message(self, ctx, jump_url):
