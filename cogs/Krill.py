@@ -147,7 +147,7 @@ class Krill(BaseCog):
         pass
 
     def can_mod_krill(ctx):
-        return ctx.author.guild_permissions.mute_members
+        return Utils.permission_official_ban(ctx.author.id)
 
     def can_admin_krill(ctx):
         return ctx.author.guild_permissions.manage_channels
@@ -1016,10 +1016,10 @@ class Krill(BaseCog):
         message = await ctx.send(f"{space_step}{victim_name} {red}{spaces}{head}{body}{tail}")
 
         # TODO: channel and locale detection
-        byline = [byline for byline in guild_krill_config.bylines if byline.type in (byline_type['id'], 0)]
+        byline = [byline.byline for byline in guild_krill_config.bylines if byline.type in (byline_type['id'], 0)]
         if not byline:
-            byline = [await ctx.send(Lang.get_locale_string("krill/summoned_by", ctx, name=ctx.author.mention))]
-        summoned_by = await ctx.send(choice(byline).byline.format(mention=ctx.author.mention, victim=victim_name))
+            byline = [Lang.get_locale_string("krill/summoned_by", ctx, name=ctx.author.mention)]
+        summoned_by = await ctx.send(choice(byline).format(mention=ctx.author.mention, victim=victim_name))
 
         while distance > 0:
             sky_kid = return_home if count > 0 and going_home else red
