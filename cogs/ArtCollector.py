@@ -28,36 +28,37 @@ class ArtCollector(BaseCog):
     async def startup_cleanup(self):
         # Load channels
         for guild in self.bot.guilds:
-            await self.load_channels(guild)
+            self.init_guild(guild)
 
-    async def load_channels(self, guild):
-        my_channels = dict()
-        my_collection_channels = set()
+    def init_guild(self, guild):
+        if guild.id not in self.collection_channels:
+            self.collection_channels[guild.id] = set()
+        if guild.id not in self.channels:
+            self.channels[guild.id] = dict()
         for row in ArtChannel.select().where(ArtChannel.serverid == guild.id):
-            # [guildid][listen][tag] = [collect_to]
-            l_id = row.listenchannelid
-            c_id = row.collectionchannelid
-            tag = row.tag or self.no_tag
+            self.add_channel(guild.id, row.listenchannelid, row.collectionchannelid, row.tag)
 
-            # listen channel is primary sort key
-            if l_id not in my_channels:
-                my_channels[l_id] = dict()
+    def add_channel(self, guild_id, listen_channel_id, collection_channel_id, tag):
+        # [guild_id][listen][tag] = [collect_to]
+        tag = tag or self.no_tag
 
-            # tagged items go to corresponding channel
-            my_channels[l_id][tag] = c_id
-            # flat set of channels that art is collected into, for easier listening
-            my_collection_channels.add(c_id)
+        # listen channel is primary sort key
+        if listen_channel_id not in self.channels[guild_id]:
+            self.channels[guild_id][listen_channel_id] = dict()
 
-        self.collection_channels[guild.id] = my_collection_channels
-        self.channels[guild.id] = my_channels
+        # tagged items go to corresponding channel
+        self.channels[guild_id][listen_channel_id][tag] = collection_channel_id
+        # flat set of channels that art is collected into, for easier listening
+        self.collection_channels[guild_id].add(collection_channel_id)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        self.channels[guild.id] = dict()
+        self.init_guild(guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
         del self.channels[guild.id]
+        del self.collection_channels[guild.id]
         for row in ArtChannel.select().where(ArtChannel.serverid == guild.id):
             row.delete_instance()
 
@@ -110,30 +111,36 @@ class ArtCollector(BaseCog):
             await ctx.send(Lang.get_locale_string('art/no_such_channel', ctx, collect_channel_id=collect_channel_id))
             return
 
-        row = ArtChannel.get_or_none(serverid=ctx.guild.id,
-                                     listenchannelid=listen_channel_id,
-                                     collectionchannelid=collect_channel_id,
-                                     tag=tag)
+        # Check if listen/collect/tag channel combo already exists
+        row = ArtChannel.get_or_none(
+            serverid=ctx.guild.id,
+            listenchannelid=listen_channel_id,
+            collectionchannelid=collect_channel_id,
+            tag=tag)
         listen_channel_name = await Utils.clean(listen_channel_mention, guild=ctx.guild)
         collect_channel_name = await Utils.clean(collect_channel_mention, guild=ctx.guild)
+
         if row is None:
             # no row found exactly matching channels and tag
-            ArtChannel.create(serverid=ctx.guild.id,
-                              listenchannelid=listen_channel_id,
-                              collectionchannelid=collect_channel_id,
-                              tag=tag)
-            await self.startup_cleanup()
-            channel_added_str = Lang.get_locale_string('art/channel_added', ctx,
-                                                listenchannel=listen_channel_mention,
-                                                collectchannel=collect_channel_mention,
-                                                tag=tag)
+            ArtChannel.create(
+                serverid=ctx.guild.id,
+                listenchannelid=listen_channel_id,
+                collectionchannelid=collect_channel_id,
+                tag=tag)
+            self.add_channel(ctx.guild.id, listen_channel_id, collect_channel_id, tag)
+            channel_added_str = Lang.get_locale_string(
+                'art/channel_added', ctx,
+                listenchannel=listen_channel_mention,
+                collectchannel=collect_channel_mention,
+                tag=tag)
             await ctx.send(f"{Emoji.get_chat_emoji('YES')} {channel_added_str}")
         else:
             # Don't overwrite existing
-            await ctx.send(Lang.get_locale_string('art/channel_found', ctx,
-                                           listenchannel=listen_channel_mention,
-                                           collectchannel=collect_channel_mention,
-                                           tag=row.tag))
+            await ctx.send(Lang.get_locale_string(
+                'art/channel_found', ctx,
+                listenchannel=listen_channel_mention,
+                collectchannel=collect_channel_mention,
+                tag=row.tag))
 
     @art_channel.command(aliases=["del", "delete"])
     @commands.guild_only()
@@ -158,22 +165,28 @@ class ArtCollector(BaseCog):
                                listenchannelid=listen_channel_id,
                                collectionchannelid=collect_channel_id,
                                tag=tag).delete_instance()
-                await self.startup_cleanup()
+                # don't listen for this tag anymore. if no more tags, don't listen in this channel anymore
+                del self.channels[ctx.guild.id][listen_channel_id][key]
+                if not self.channels[ctx.guild.id][listen_channel_id]:
+                    del self.channels[ctx.guild.id][listen_channel_id]
+
                 lc_mention = self.bot.get_channel(listen_channel_id).mention
                 cc_mention = self.bot.get_channel(collect_channel_id).mention
-                channel_removed_str = Lang.get_locale_string('art/channel_removed', ctx,
-                                                      listenchannel=lc_mention,
-                                                      collectchannel=cc_mention,
-                                                      tag=key)
+                channel_removed_str = Lang.get_locale_string(
+                    'art/channel_removed', ctx,
+                    listenchannel=lc_mention,
+                    collectchannel=cc_mention,
+                    tag=key)
                 await ctx.send(f"{Emoji.get_chat_emoji('YES')} {channel_removed_str}")
             except Exception as ex:
                 await ctx.send(Lang.get_locale_string('art/remove_channel_failed', ctx))
                 pass
         else:
-            channel_not_found_str = Lang.get_locale_string('art/channel_not_found', ctx,
-                                                    listenchannel=listen_channel_id,
-                                                    collectchannel=collect_channel_id,
-                                                    tag=tag)
+            channel_not_found_str = Lang.get_locale_string(
+                'art/channel_not_found', ctx,
+                listenchannel=listen_channel_id,
+                collectchannel=collect_channel_id,
+                tag=tag)
             await ctx.send(f"{Emoji.get_chat_emoji('NO')} {channel_not_found_str}")
 
     @commands.Cog.listener()
