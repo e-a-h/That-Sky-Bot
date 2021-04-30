@@ -49,6 +49,25 @@ def get_chanconf_description(bot, guild_id):
     return message
 
 
+def permission_official_mute(member_id):
+    return permission_official(member_id, 'mute_members')
+
+
+def permission_official_ban(member_id):
+    return permission_official(member_id, 'ban_members')
+
+
+def permission_official(member_id, permission_name):
+    # ban permission on official server - sort of a hack to propagate perms
+    # TODO: better permissions model
+    try:
+        official_guild = BOT.get_guild(Configuration.get_var("guild_id"))
+        official_member = official_guild.get_member(member_id)
+        return getattr(official_member.guild_permissions, permission_name)
+    except Exception:
+        return False
+
+
 def get_channel_description(bot, channel_id):
     channel = bot.get_channel(channel_id)
     if not channel:

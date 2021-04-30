@@ -6,7 +6,7 @@ from discord.ext import commands
 from prometheus_client.exposition import generate_latest
 
 from cogs.BaseCog import BaseCog
-from utils import Configuration
+from utils import Configuration, Logging
 
 
 class PromMonitoring(BaseCog):
@@ -26,8 +26,10 @@ class PromMonitoring(BaseCog):
 
     @commands.Cog.listener()
     async def on_command_completion(self, ctx):
+        guild_id = ctx.guild.id if ctx.guild is not None else 0
         self.bot.metrics.command_counter.labels(
             command_name=ctx.command.qualified_name,
+            guild_id=guild_id
         ).inc()
 
     @commands.Cog.listener()

@@ -348,6 +348,8 @@ custom_commands:
   not_found: --jp-- Unable to remove `{trigger}` as it doesn't seem to exist.
   creating_command: --jp-- This command does not exist, making it for you instead.
   command_updated: --jp-- Command `{trigger}` has been updated!
+  delete_trigger_updated: |
+    --jp-- Command `{trigger}` delete triggering command: `{delete_trigger}`
 word_counter:
   list_words: --jp-- Words being counted for metrics in the {server_name} server
   no_words: --jp-- There are no words currently being counted.

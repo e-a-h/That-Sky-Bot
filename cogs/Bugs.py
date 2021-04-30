@@ -31,10 +31,14 @@ class Bugs(BaseCog):
         self.verify_empty_bug_queue.cancel()
 
     def can_mod(ctx):
-        return ctx.author.guild_permissions.mute_members
+        guild = Utils.BOT.get_guild(Configuration.get_var("guild_id"))
+        member = guild.get_member(ctx.author.id)
+        return member.guild_permissions.mute_members
 
     def can_admin(ctx):
-        return ctx.author.guild_permissions.manage_channels
+        guild = Utils.BOT.get_guild(Configuration.get_var("guild_id"))
+        member = guild.get_member(ctx.author.id)
+        return member.guild_permissions.manage_channels
 
     async def sweep_trash(self, user, ctx):
         await asyncio.sleep(Configuration.get_var("bug_trash_sweep_minutes") * 60)

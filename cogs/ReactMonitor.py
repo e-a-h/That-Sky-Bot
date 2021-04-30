@@ -28,12 +28,12 @@ class ReactMonitor(BaseCog):
     async def startup_cleanup(self):
         self.mutes = dict()
         for guild in self.bot.guilds:
-            self.mutes[guild.id] = Configuration.get_persistent_var(f"react_mutes_{guild.id}", dict())
             self.init_guild(guild.id)
         self.check_reacts.start()
 
     def init_guild(self, guild_id):
         watch = ReactWatch.get_or_create(serverid=guild_id)[0]
+        self.mutes[guild_id] = Configuration.get_persistent_var(f"react_mutes_{guild_id}", dict())
         self.min_react_lifespan[guild_id] = Configuration.get_persistent_var(f"min_react_lifespan_{guild_id}", 0.5)
         self.mute_duration[guild_id] = watch.muteduration
 
@@ -63,6 +63,9 @@ class ReactMonitor(BaseCog):
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
         Configuration.del_persistent_var(f"min_react_lifespan_{guild.id}")
+        Configuration.del_persistent_var(f"react_mutes_{guild.id}")
+        del self.mutes[guild.id]
+        del self.mute_duration[guild.id]
         del self.min_react_lifespan[guild.id]
         del self.recent_reactions[guild.id]
         del self.react_removers[guild.id]
@@ -143,7 +146,7 @@ class ReactMonitor(BaseCog):
     async def cog_check(self, ctx):
         if ctx.guild is None:
             return False
-        return ctx.author.guild_permissions.mute_members
+        return ctx.author.guild_permissions.ban_members
 
     @tasks.loop(seconds=1.0)
     async def check_reacts(self):
@@ -276,11 +279,11 @@ class ReactMonitor(BaseCog):
         except Exception as e:
             await ctx.send(f"I couldn't find `{emoji}` on the emoji watch list, so I didn't remove it.")
 
-    @react_monitor.command()
+    @react_monitor.command(aliases=['on'])
     @commands.guild_only()
-    async def on(self, ctx: commands.Context):
+    async def monitor_removal_on(self, ctx: commands.Context):
         """
-        Turn on monitor for spammy fast-removal of reactions
+        Turn ON monitor for spammy fast-removal of reactions
         """
         if ctx.guild.id in self.react_watch_servers:
             await ctx.send("React monitor is already on")
@@ -288,11 +291,11 @@ class ReactMonitor(BaseCog):
             self.activate_react_watch(ctx.guild.id)
             await ctx.send("I'm on the lookout for reaction spam!")
 
-    @react_monitor.command()
+    @react_monitor.command(aliases=['off'])
     @commands.guild_only()
-    async def off(self, ctx: commands.Context):
+    async def monitor_removal_off(self, ctx: commands.Context):
         """
-        Turn off monitor for spammy fast-removal of reactions
+        Turn OFF monitor for spammy fast-removal of reactions
         """
         if ctx.guild.id in self.react_watch_servers:
             self.deactivate_react_watch(ctx.guild.id)
@@ -304,7 +307,7 @@ class ReactMonitor(BaseCog):
     @commands.guild_only()
     async def react_time(self, ctx: commands.Context, react_time: float):
         """
-        Set the threshold time below which reaction removal will trigger the react-watch
+        Reacts removed before this duration will trigger react-watch
 
         react_time: time in seconds, floating point e.g. 0.25
         """

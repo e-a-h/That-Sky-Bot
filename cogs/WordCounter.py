@@ -18,12 +18,15 @@ class WordCounter(BaseCog):
 
     async def startup_cleanup(self):
         for guild in self.bot.guilds:
-            my_words = set()
-            # fetch words and build matching pattern
-            for row in CountWord.select(CountWord.word).where(CountWord.serverid == guild.id):
-                my_words.add(re.escape(row.word))
-            self.words[guild.id] = "|".join(my_words)
+            self.init_guild(guild)
         self.loaded = True
+
+    def init_guild(self, guild):
+        my_words = set()
+        # fetch words and build matching pattern
+        for row in CountWord.select().where(CountWord.serverid == guild.id):
+            my_words.add(re.escape(row.word))
+        self.words[guild.id] = "|".join(my_words)
 
     async def cog_check(self, ctx):
         if ctx.guild is None:
@@ -32,7 +35,7 @@ class WordCounter(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        self.words[guild.id] = ""
+        self.init_guild(guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
@@ -51,7 +54,7 @@ class WordCounter(BaseCog):
             title=Lang.get_locale_string("word_counter/list_words", ctx, server_name=ctx.guild.name))
 
         word_list = set()
-        for row in CountWord.select(CountWord.word).where(CountWord.serverid == ctx.guild.id):
+        for row in CountWord.select().where(CountWord.serverid == ctx.guild.id):
             word_list.add(row.word)
 
         if word_list != set():
@@ -117,7 +120,7 @@ class WordCounter(BaseCog):
         for word in words:
             # increment counters
             word = str(word).lower()
-            m.word_counter.labels(word=word).inc()
+            m.word_counter.labels(word=word, guild_name=message.guild.name, guild_id=message.guild.id).inc()
 
 
 def setup(bot):

@@ -41,7 +41,18 @@ class GuildConfig(BaseCog):
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
         del self.guilds[guild.id]
-        Guild.get(serverid=guild.id).delete_instance()
+        # keep guild record and clear channel configs and default lang
+        guild_row = Guild.get(serverid=guild.id)
+        guild_row.memberrole = 0
+        guild_row.nonmemberrole = 0
+        guild_row.mutedrole = 0
+        guild_row.welcomechannelid = 0
+        guild_row.ruleschannelid = 0
+        guild_row.logchannelid = 0
+        guild_row.entrychannelid = 0
+        guild_row.rulesreactmessageid = 0
+        guild_row.defaultlocale = ''
+        guild_row.save()
 
     @commands.group(name="guildconfig",
                     aliases=['guild', 'guildconf'],

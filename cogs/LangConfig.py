@@ -13,6 +13,7 @@ class LangConfig(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
+        Lang.load_locales()
 
     async def cog_check(self, ctx):
         return ctx.author.guild_permissions.ban_members
