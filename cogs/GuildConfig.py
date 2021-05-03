@@ -46,10 +46,12 @@ class GuildConfig(BaseCog):
         guild_row.memberrole = 0
         guild_row.nonmemberrole = 0
         guild_row.mutedrole = 0
+        guild_row.betarole = 0
         guild_row.welcomechannelid = 0
         guild_row.ruleschannelid = 0
         guild_row.logchannelid = 0
         guild_row.entrychannelid = 0
+        guild_row.maintenancechannelid = 0
         guild_row.rulesreactmessageid = 0
         guild_row.defaultlocale = ''
         guild_row.save()
@@ -87,6 +89,12 @@ class GuildConfig(BaseCog):
             role_description = f"{role.name} ({role.id})"
         embed.add_field(name="Muted Role", value=role_description)
 
+        role_description = "none"
+        if my_guild.betarole:
+            role = ctx.guild.get_role(my_guild.betarole)
+            role_description = f"{role.name} ({role.id})"
+        embed.add_field(name="Beta Role", value=role_description)
+
         channel_description = "none"
         if my_guild.welcomechannelid:
             channel = ctx.guild.get_channel(my_guild.welcomechannelid)
@@ -110,6 +118,12 @@ class GuildConfig(BaseCog):
             channel = ctx.guild.get_channel(my_guild.entrychannelid)
             channel_description = f"{channel.name} ({channel.id})"
         embed.add_field(name="Entry Channel", value=channel_description)
+
+        channel_description = "none"
+        if my_guild.maintenancechannelid:
+            channel = ctx.guild.get_channel(my_guild.maintenancechannelid)
+            channel_description = f"{channel.name} ({channel.id})"
+        embed.add_field(name="Maintenance Channel", value=channel_description)
 
         rules_id = my_guild.rulesreactmessageid if my_guild.rulesreactmessageid else 'none'
         embed.add_field(name="Rules React Message ID", value=rules_id)
@@ -171,6 +185,17 @@ class GuildConfig(BaseCog):
         """
         await self.set_field(ctx, 'mutedrole', role)
 
+    @set.command(aliases=['beta', 'betarole'])
+    @commands.guild_only()
+    async def beta_role(self, ctx, role: Role):
+        """
+        Set the beta role
+
+        Used in cogs that read/set/unset the beta role in this server
+        role: Role name or role id
+        """
+        await self.set_field(ctx, 'betarole', role)
+
     @set.command(aliases=['welcome', 'welcomechannel'])
     @commands.guild_only()
     async def welcome_channel(self, ctx, chan: TextChannel):
@@ -214,6 +239,17 @@ class GuildConfig(BaseCog):
         role: Channel name or channel id
         """
         await self.set_field(ctx, 'entrychannelid', chan)
+
+    @set.command(aliases=['maintenance', 'maintenancechannel'])
+    @commands.guild_only()
+    async def maintenance_channel(self, ctx, chan: TextChannel):
+        """
+        Set the maintenance channel
+
+        Used in cogs that read/set/unset the maintenance channel in this server
+        role: Channel name or channel id
+        """
+        await self.set_field(ctx, 'maintenancechannelid', chan)
 
     @set.command(aliases=['rulesmessage', 'rulesreactmessage'])
     @commands.guild_only()

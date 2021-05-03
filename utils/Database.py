@@ -18,10 +18,12 @@ class Guild(Model):
     memberrole = BigIntegerField(default=0)
     nonmemberrole = BigIntegerField(default=0)
     mutedrole = BigIntegerField(default=0)
+    betarole = BigIntegerField(default=0)
     welcomechannelid = BigIntegerField(default=0)
     ruleschannelid = BigIntegerField(default=0)
     logchannelid = BigIntegerField(default=0)
     entrychannelid = BigIntegerField(default=0)
+    maintenancechannelid = BigIntegerField(default=0)
     rulesreactmessageid = BigIntegerField(default=0)
     defaultlocale = CharField(max_length=10)
 
@@ -48,6 +50,33 @@ class BugReport(Model):
     reported_at = TimestampField(utc=True)
 
     class Meta:
+        database = connection
+
+
+class BugReportingPlatform(Model):
+    id = AutoField()
+    platform = CharField()
+    branch = CharField()
+
+    class Meta:
+        indexes = (
+            # unique constraint for platform/branch
+            (('platform', 'branch'), True),
+        )
+        database = connection
+
+
+class BugReportingChannel(Model):
+    id = AutoField()
+    guild = ForeignKeyField(Guild, backref='bug_channels')
+    channelid = BigIntegerField(unique=True)
+    platform = ForeignKeyField(BugReportingPlatform, backref="bug_channels")
+
+    class Meta:
+        indexes = (
+            # unique constraint for guild/platform
+            (('guild', 'platform'), True),
+        )
         database = connection
 
 
@@ -247,11 +276,44 @@ class ModRole(Model):
         database = connection
 
 
+class BotAdmin(Model):
+    id = AutoField()
+    userid = BigIntegerField()
+
+    class Meta:
+        database = connection
+
+
+class TrustedRole(Model):
+    id = AutoField()
+    guild = ForeignKeyField(Guild, backref='trusted_roles')
+    roleid = BigIntegerField()
+
+    class Meta:
+        database = connection
+
+
+class UserPermission(Model):
+    id = AutoField()
+    guild = ForeignKeyField(Guild, backref='command_permissions')
+    userid = BigIntegerField()
+    command = CharField(max_length=200, default='')
+    allow = BooleanField(default=True)
+
+    class Meta:
+        database = connection
+
+
 def init():
     global connection
     connection.connect()
     connection.create_tables([
         Guild,
+        BotAdmin,
+        AdminRole,
+        ModRole,
+        TrustedRole,
+        UserPermission,
         ArtChannel,
         Attachments,
         AutoResponder,
@@ -269,7 +331,7 @@ def init():
         ReactWatch,
         WatchedEmoji,
         Localization,
-        AdminRole,
-        ModRole
+        BugReportingPlatform,
+        BugReportingChannel
     ])
     connection.close()

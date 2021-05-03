@@ -1016,7 +1016,8 @@ class AutoResponders(BaseCog):
                     author=message.author.mention,
                     channel=message.channel.mention,
                     link=message.jump_url,
-                    matched=matched
+                    matched=matched,
+                    trigger_message=message.content
                 )
 
                 m = self.bot.metrics
