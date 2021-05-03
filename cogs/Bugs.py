@@ -478,12 +478,10 @@ class Bugs(BaseCog):
 
             def set_platform(p):
                 nonlocal platform
-                Logging.info(f"platform is {p}")
                 platform = p
 
             def set_branch(b):
                 nonlocal branch
-                Logging.info(f"branch is {b}")
                 branch = b
 
             def add_additional():
@@ -637,17 +635,23 @@ class Bugs(BaseCog):
                 # question 4: stable or beta?
                 branches = set()
                 for platform_row in BugReportingPlatform.select():
-                    branches.add(platform_row.branch)
-                options = []
-                for branch_name in branches:
-                    options.append(
-                        Questions.Option(
-                            branch_name.upper(),
-                            branch_name,
-                            set_branch,
-                            [branch_name]))
-                await Questions.ask(self.bot, channel, user, Lang.get_locale_string("bugs/question_app_branch", ctx),
-                                    options, show_embed=True, locale=ctx)
+                    if platform_row.platform == platform:
+                        branches.add(platform_row.branch)
+                if len(branches) == 0:
+                    branch = "NONE"
+                elif len(branches) == 1:
+                    branch = branches.pop()
+                else:
+                    options = []
+                    for branch_name in branches:
+                        options.append(
+                            Questions.Option(
+                                branch_name.upper(),
+                                branch_name,
+                                set_branch,
+                                [branch_name]))
+                    await Questions.ask(self.bot, channel, user, Lang.get_locale_string("bugs/question_app_branch", ctx),
+                                        options, show_embed=True, locale=ctx)
                 update_metrics()
 
                 # question 5: sky app version
