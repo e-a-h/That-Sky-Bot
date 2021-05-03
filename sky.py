@@ -93,7 +93,6 @@ class Skybot(Bot):
                 pass
         return None
 
-    @staticmethod
     async def permission_manage_bot(self, ctx):
         db_admin = BotAdmin.get_or_none(userid=ctx.author.id) is not None
         # Logging.info(f"db_admin: {'yes' if db_admin else 'no'}")

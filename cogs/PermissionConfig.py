@@ -90,14 +90,14 @@ class PermissionConfig(BaseCog):
             for role in ctx.author.roles:
                 if role.id in self.admin_roles[ctx.guild.id]:
                     return True
-        if await Skybot.permission_manage_bot(ctx):
+        if await self.bot.permission_manage_bot(ctx):
             return True
         return False
 
     @commands.group(name="permission_config", aliases=["permission", "permissions"], invoke_without_command=True)
     @commands.guild_only()
     async def permission_config(self, ctx):
-        is_bot_admin = await Skybot.permission_manage_bot(ctx)
+        is_bot_admin = await self.bot.permission_manage_bot(ctx)
 
         embed = discord.Embed(
             timestamp=ctx.message.created_at,

@@ -38,7 +38,7 @@ class Bugs(BaseCog):
         return member.guild_permissions.mute_members
 
     async def can_admin(ctx):
-        return await Skybot.permission_manage_bot(ctx)
+        return await ctx.bot.permission_manage_bot(ctx)
 
     async def sweep_trash(self, user, ctx):
         await asyncio.sleep(Configuration.get_var("bug_trash_sweep_minutes") * 60)
