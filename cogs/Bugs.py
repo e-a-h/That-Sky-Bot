@@ -268,9 +268,7 @@ class Bugs(BaseCog):
 
     @platforms.command(aliases=['add'])
     @commands.check(can_admin)
-    async def add_platform(self, ctx,
-                           platform: clean_content(remove_markdown=True),
-                           branch: clean_content(remove_markdown=True)):
+    async def add_platform(self, ctx, platform, branch):
         row, create = BugReportingPlatform.get_or_create(platform=platform, branch=branch)
         if create:
             await ctx.send(f"Ok, I added `{platform}/{branch}` to my database")
@@ -325,10 +323,7 @@ class Bugs(BaseCog):
     @channels.command(aliases=['add'])
     @commands.guild_only()
     @commands.check(can_admin)
-    async def add_channel(self, ctx,
-                          channel: TextChannel,
-                          platform: clean_content(remove_markdown=True),
-                          branch: clean_content(remove_markdown=True)):
+    async def add_channel(self, ctx, channel: TextChannel, platform, branch):
         try:
             guild_row = Guild.get(serverid=ctx.guild.id)
         except DoesNotExist:
