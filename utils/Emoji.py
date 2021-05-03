@@ -11,6 +11,7 @@ BACKUPS = {
     "IOS": "🍎",
     "NO": "🚫",
     "STABLE": "🌞",
+    "SWITCH": "🍄",
     "WRENCH": "🔧",
     "YES": "✅",
     "CANDLE": "🕯",

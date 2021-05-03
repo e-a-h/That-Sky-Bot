@@ -40,7 +40,7 @@ bugs:
   attachments_yes: Yes, add pictures/videos
   attachment_info: "**Attachment to report {id}**\n{links}"
   attachment_info_plural: "**Attachments to report {id}**\n{links}"
-  report_confirmation: Thank you! Your report was submitted, and can be found in <#{channel_id}>!
+  report_confirmation: Thank you! Your report was submitted, and can be found in {channel_info}!
   question_ready: |
     ```css
     Report a Bug

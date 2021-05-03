@@ -53,11 +53,13 @@ class ChannelConfig(BaseCog):
     @commands.group(name="channel_config", aliases=["chanconf", "channelconfig"], invoke_without_command=True)
     @commands.guild_only()
     async def channel_config(self, ctx):
+        """
+        Show channel configuration for guild
+        """
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=0x663399,
             title=Lang.get_locale_string("channel_config/info", ctx, server_name=ctx.guild.name))
-        embed.add_field(name='Commands', value=Lang.get_locale_string("channel_config/commands", ctx), inline=False)
         embed.add_field(name='Configurable Channels',
                         value=f"[{Utils.welcome_channel}|{Utils.rules_channel}|"
                               f"{Utils.log_channel}|{Utils.ro_art_channel}|{Utils.entry_channel}]",
@@ -71,6 +73,9 @@ class ChannelConfig(BaseCog):
     @commands.is_owner()
     @commands.guild_only()
     async def reload(self, ctx: commands.Context):
+        """
+        Reload channel configs from database
+        """
         await self.startup_cleanup()
         await ctx.send("reloaded channel configs\n" + Utils.get_chanconf_description(self.bot, ctx.guild.id))
 
@@ -85,7 +90,8 @@ class ChannelConfig(BaseCog):
             return
         channel_added = await self.set_channel(ctx, channel_name, channel_id)
         if channel_added:
-            message = Lang.get_locale_string('channel_config/channel_set', ctx, channel_name=channel_name, channel_id=channel_id)
+            message = Lang.get_locale_string(
+                'channel_config/channel_set', ctx, channel_name=channel_name, channel_id=channel_id)
             await ctx.send(f"{Emoji.get_chat_emoji('YES')} {message}")
         else:
             await ctx.send(f"{Emoji.get_chat_emoji('BUG')} Failed")

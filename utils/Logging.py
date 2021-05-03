@@ -3,10 +3,6 @@ import os
 import sys
 from logging.handlers import TimedRotatingFileHandler
 
-from discord.ext.commands import Context
-
-from utils import Utils
-
 BOT_LOG_CHANNEL = None
 
 LOGGER = logging.getLogger('thatskybot')

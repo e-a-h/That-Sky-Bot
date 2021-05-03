@@ -10,11 +10,12 @@ import sentry_sdk
 from discord.ext import commands
 from discord.ext.commands import Bot
 from aiohttp import ClientOSError, ServerDisconnectedError
-from discord import ConnectionClosed, Intents, Embed, Colour
+from discord import ConnectionClosed, Intents
 from prometheus_client import CollectorRegistry
 from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 
 from utils import Logging, Configuration, Utils, Emoji, Database
+from utils.Database import BotAdmin
 from utils.PrometheusMon import PrometheusMon
 
 
@@ -65,6 +66,9 @@ class Skybot(Bot):
     def get_guild_entry_channel(self, guild_id):
         return self.get_guild_config_channel(guild_id, 'entry')
 
+    def get_guild_maintenance_channel(self, guild_id):
+        return self.get_guild_config_channel(guild_id, 'maintenance')
+
     def get_guild_config_channel(self, guild_id, name):
         config = self.get_config(guild_id)
         if config:
@@ -88,6 +92,21 @@ class Skybot(Bot):
             except Exception as ex:
                 pass
         return None
+
+    async def permission_manage_bot(self, ctx):
+        db_admin = BotAdmin.get_or_none(userid=ctx.author.id) is not None
+        # Logging.info(f"db_admin: {'yes' if db_admin else 'no'}")
+        owner = await ctx.bot.is_owner(ctx.author)
+        # Logging.info(f"owner: {'yes' if owner else 'no'}")
+        in_admins = ctx.author.id in Configuration.get_var("ADMINS", [])
+        # Logging.info(f"in_admins: {'yes' if in_admins else 'no'}")
+        has_admin_role = False
+        if ctx.guild:
+            for role in ctx.author.roles:
+                if role in Configuration.get_var("admin_roles", []):
+                    has_admin_role = True
+        # Logging.info(f"has_admin_role: {'yes' if has_admin_role else 'no'}")
+        return db_admin or owner or in_admins or has_admin_role
 
     async def guild_log(self, guild_id: int, message=None, embed=None):
         channel = self.get_guild_log_channel(guild_id)

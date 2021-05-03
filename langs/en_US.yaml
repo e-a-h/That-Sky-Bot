@@ -19,10 +19,10 @@ questions:
   error_reaction_timeout: "{error_emoji} You didn't react within {timeout}"
 channel_config:
   info: Channel Config for {server_name}
-  commands: |
-      `![channel_config|chanconf] reload`
-      `![channel_config|chanconf] set channel_name channel_id`
   channel_set: Config channel "{channel_name}" set to <#{channel_id}>
+permission_config:
+  info: Permission Configuration for {server_name}
+  permission_set: Permission for {subject} is now {status}
 bugs:
   bug_info: "**Report a New Bug!**\nBrowse or search this channel to see bug reports. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."
   shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
@@ -45,7 +45,7 @@ bugs:
   attachments_yes: Yes, add pictures/videos
   attachment_info: "**Attachment to report {id}**\n{links}"
   attachment_info_plural: "**Attachments to report {id}**\n{links}"
-  report_confirmation: Thank you! Your report was submitted, and can be found in <#{channel_id}>!
+  report_confirmation: Thank you! Your report was submitted, and can be found in {channel_info}!
   maint_check_fail: Sorry {author} but I give up. Maybe the bug queue is busted, as usual.
   bugs_all_done: Bug reports are all done, {author}!!
   none_in_progress: There are no bug reports in progress.
@@ -116,6 +116,12 @@ bugs:
     > 1. Device settings
     > 2. Scroll down to Sky
     > 3. Scroll down to find: Version X.X.X (build)
+    For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623643887977627658
+  version_switch: |
+    **To find Sky version and build on Nintendo Switch devices:**
+    > 1. TODO
+    > 2. TODO
+    > 3. TODO to find: Version X.X.X (build)
     For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623643887977627658
   title: Title/Topic
   question_title: |

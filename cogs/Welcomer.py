@@ -47,9 +47,13 @@ class Welcomer(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
-        Configuration.del_persistent_var(f"{guild.id}_mute_new_members")
-        Configuration.del_persistent_var(f"{guild.id}_mute_minutes_old_account")
-        Configuration.del_persistent_var(f"{guild.id}_mute_minutes_new_account")
+        try:
+            # These may not be stored if mute config is never used:
+            Configuration.del_persistent_var(f"{guild.id}_mute_new_members", True)
+            Configuration.del_persistent_var(f"{guild.id}_mute_minutes_old_account", True)
+            Configuration.del_persistent_var(f"{guild.id}_mute_minutes_new_account", True)
+        except KeyError as e:
+            pass
         del self.mute_minutes_old_account[guild.id]
         del self.mute_minutes_new_account[guild.id]
         del self.welcome_talkers[guild.id]

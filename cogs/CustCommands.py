@@ -192,7 +192,7 @@ class CustCommands(BaseCog):
             for trigger in self.commands[message.guild.id]:
                 if message.content.lower() == prefix+trigger or (message.content.lower().startswith(trigger, len(prefix)) and message.content.lower()[len(prefix+trigger)] == " "):
                     command = self.commands[message.guild.id][trigger]
-                    command_content = command.response.replace("@", "@\u200b")
+                    command_content = command.response.replace("@", "@\u200b").format(author=message.author.mention)
                     if command.deletetrigger:
                         await message.delete()
                     await message.channel.send(command_content)
