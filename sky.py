@@ -15,7 +15,7 @@ from prometheus_client import CollectorRegistry
 from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 
 from utils import Logging, Configuration, Utils, Emoji, Database
-from utils.Database import BotAdmin
+from utils.Database import BotAdmin, Guild
 from utils.PrometheusMon import PrometheusMon
 
 
@@ -70,14 +70,18 @@ class Skybot(Bot):
         return self.get_guild_config_channel(guild_id, 'maintenance')
 
     def get_guild_config_channel(self, guild_id, name):
-        config = self.get_config(guild_id)
+        config = self.get_guild_db_config(guild_id)
         if config:
             return self.get_channel(getattr(config, f'{name}channelid'))
         return None
 
-    def get_config(self, guild_id):
+    def get_guild_db_config(self, guild_id):
         try:
-            return self.get_cog('GuildConfig').get_config(guild_id)
+            if guild_id in Utils.GUILD_CONFIGS:
+                return Utils.GUILD_CONFIGS[guild_id]
+            row = Guild.get_or_create(serverid=guild_id)[0]
+            Utils.GUILD_CONFIGS[guild_id] = row
+            return row
         except Exception as e:
             Utils.get_embed_and_log_exception("--------Failed to get config--------", self, e)
             return None

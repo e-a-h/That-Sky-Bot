@@ -10,7 +10,7 @@ from discord.ext.commands import command
 
 from cogs.BaseCog import BaseCog
 from utils import Utils, Configuration
-from utils.Database import BugReport, Attachments, connection
+from utils.Database import BugReport, Attachments, connection, BugReportingPlatform
 from utils.Utils import save_to_disk
 
 
@@ -40,22 +40,30 @@ class Reporting(BaseCog):
         # TODO: migrate to async ORM like tortoise
 
         def get_branch(br):
-            br = br.lower()
-            if br == "beta":
-                return ["Beta"]
-            elif br == "stable":
-                return ["Stable"]
-            else:
-                return ["Beta", "Stable"]
+            platforms = dict()
+            branches = set()
+
+            for row in BugReportingPlatform.select():
+                branches.add(row.branch)
+                if row.branch not in platforms:
+                    platforms[row.branch] = set()
+                platforms[row.branch].add(row.platform)
+
+            br = br.lower().capitalize()
+            if br in branches:
+                return br
+            return ["Beta", "Stable"]
 
         def get_platform(pl):
+            platforms = dict()
+
+            for row in BugReportingPlatform.select():
+                platforms[row.platform.lower()] = row.platform
+
             pl = pl.lower()
-            if pl == "ios":
-                return ["iOS"]
-            elif pl == "android":
-                return ["Android"]
-            else:
-                return ["Android", "iOS"]
+            if pl in platforms:
+                return platforms[pl]
+            return ["Android", "iOS", "Switch"]
 
         # dashes at the start of text are interpreted as formulas by excel. replace with *
         def filter_hyphens(text):
@@ -68,7 +76,6 @@ class Reporting(BaseCog):
             await ctx.send(f"you requested more than {self.fetch_limit} records, "
                            f"so I'm only giving you {self.fetch_limit} because I'm a lazy bot")
             start = -self.fetch_limit
-            return
 
         try:
             # send feedback on command. Failure to send should end attempt.

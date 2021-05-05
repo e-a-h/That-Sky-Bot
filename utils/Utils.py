@@ -11,12 +11,13 @@ from json import JSONDecodeError
 import discord
 import sentry_sdk
 from aiohttp import ClientOSError, ServerDisconnectedError
-from discord import Embed, Colour, ConnectionClosed, NotFound
+from discord import Embed, Colour, ConnectionClosed, NotFound, guild
 from discord.abc import PrivateChannel
 
 from utils import Logging, Configuration
 
 BOT = None
+GUILD_CONFIGS = dict()
 ID_MATCHER = re.compile("<@!?([0-9]+)[\\\\]*>")
 ROLE_ID_MATCHER = re.compile("<@&([0-9]+)>")
 CHANNEL_ID_MATCHER = re.compile("<#([0-9]+)>")

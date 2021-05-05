@@ -73,6 +73,7 @@ class PermissionConfig(BaseCog):
 
         # remove all configured guild permissions
         guild_row = Guild.get(serverid=guild.id)
+        guild_row = self.bot.get_guild_db_config(guild.id)
         for row in guild_row.admin_roles:
             row.delete_instance()
         for row in guild_row.mod_roles:

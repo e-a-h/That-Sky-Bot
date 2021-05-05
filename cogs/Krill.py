@@ -104,7 +104,7 @@ class Krill(BaseCog):
     def init_guild(self, guild):
         my_channels = set()
         # Get or create db entries for guild and krill config
-        guild_row = Guild.get_or_create(serverid=guild.id)[0]
+        guild_row = self.bot.get_guild_db_config(guild.id)
         self.configs[guild.id] = KrillConfig.get_or_create(guild=guild_row)[0]
         for row in KrillChannel.select(KrillChannel.channelid).where(KrillChannel.serverid == guild.id):
             my_channels.add(row.channelid)

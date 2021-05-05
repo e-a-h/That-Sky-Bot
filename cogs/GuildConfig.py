@@ -9,7 +9,6 @@ from utils.Database import Guild
 
 class GuildConfig(BaseCog):
     def __init__(self, bot):
-        self.guilds = dict()
         super().__init__(bot)
         bot.loop.create_task(self.startup_cleanup())
 
@@ -19,7 +18,8 @@ class GuildConfig(BaseCog):
 
     def init_guild(self, guild):
         row = Guild.get_or_create(serverid=guild.id)[0]
-        self.guilds[guild.id] = row
+        Utils.GUILD_CONFIGS[guild.id] = row
+        return row
 
     def cog_unload(self):
         pass
@@ -29,10 +29,10 @@ class GuildConfig(BaseCog):
             return False
         return ctx.author.guild_permissions.ban_members
 
-    def get_config(self, guild_id):
-        if guild_id in self.guilds:
-            return self.guilds[guild_id]
-        return None
+    def get_guild_config(self, guild_id):
+        if guild_id in Utils.GUILD_CONFIGS:
+            return Utils.GUILD_CONFIGS[guild_id]
+        return self.init_guild(guild_id)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
@@ -40,7 +40,7 @@ class GuildConfig(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
-        del self.guilds[guild.id]
+        del Utils.GUILD_CONFIGS[guild.id]
         # keep guild record and clear channel configs and default lang
         guild_row = Guild.get(serverid=guild.id)
         guild_row.memberrole = 0
@@ -65,7 +65,7 @@ class GuildConfig(BaseCog):
         """
         List the guild settings
         """
-        my_guild = self.guilds[ctx.guild.id]
+        my_guild = Utils.GUILD_CONFIGS[ctx.guild.id]
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=Utils.COLOR_LIME,
@@ -134,7 +134,7 @@ class GuildConfig(BaseCog):
         await ctx.send(embed=embed)
 
     async def set_field(self, ctx, field, val):
-        my_guild = self.guilds[ctx.guild.id]
+        my_guild = Utils.GUILD_CONFIGS[ctx.guild.id]
         try:
             setattr(my_guild, field, val.id)
             my_guild.save()
@@ -260,7 +260,7 @@ class GuildConfig(BaseCog):
         Used in cogs that read/set/unset the rulesreactmessageid in this server
         role: chanelid-messageid, messageid, or url
         """
-        my_guild = self.guilds[ctx.guild.id]
+        my_guild = Utils.GUILD_CONFIGS[ctx.guild.id]
         try:
             my_guild.rulesreactmessageid = msg.id
             my_guild.save()

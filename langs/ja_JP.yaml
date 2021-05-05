@@ -49,7 +49,7 @@ bugs:
   maint_check_fail: --jp-- Sorry {author} but I give up. Maybe the bug queue is busted, as usual.
   bugs_all_done: --jp-- Bug reports are all done, {author}!!
   none_in_progress: --jp-- There are no bug reports in progress.
-  report_channel_permissions_fail: --jp-- Failed to set reporting channel permissions. Check channel permissions because I might have broken something...
+  report_channel_permissions_fail: --jp-- Failed to set permissions on channel {channel} in server `{server}`. Check channel permissions because I might have broken something...
   dead_bugs_cleaned: "--jp-- Ok. Number of dead bugs cleaned up: {active_keys}. Number still alive: {in_progress}"
   maint_on: "--jp-- bot maintenance mode **on**: Reporting channels **closed**."
   maint_off: "--jp-- bot maintenance mode **off**: Reporting channels **open**."

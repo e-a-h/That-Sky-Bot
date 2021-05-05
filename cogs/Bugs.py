@@ -181,6 +181,7 @@ class Bugs(BaseCog):
         """
         for guild in self.bot.guilds:
             try:
+                default_role = guild.default_role
                 # show/hide maintenance channel
                 maint_message_channel = self.bot.get_guild_maintenance_channel(guild.id)
                 if maint_message_channel is None:
@@ -189,12 +190,11 @@ class Bugs(BaseCog):
                     await ctx.send(message)
                     continue
 
-                default_role = ctx.guild.default_role
-                channel_overwrite = maint_message_channel.overwrites[default_role]
-                channel_overwrite.read_messages = active
+                channel_overwrite = maint_message_channel.overwrites_for(default_role)
+                channel_overwrite.view_channel = active
                 await maint_message_channel.set_permissions(default_role, overwrite=channel_overwrite)
 
-                guild_config = self.bot.get_config(guild.id)
+                guild_config = self.bot.get_guild_db_config(guild.id)
                 beta_role = None
                 if guild_config and guild_config.betarole:
                     beta_role = guild.get_role(guild_config.betarole)
@@ -213,7 +213,7 @@ class Bugs(BaseCog):
                     # show/hide reporting channels
                     channel = guild.get_channel(cid)
 
-                    channel_overwrite = channel.overwrites[default_role]
+                    channel_overwrite = channel.overwrites_for(default_role)
                     channel_overwrite.read_messages = False if active else True
                     await channel.set_permissions(default_role, overwrite=channel_overwrite)
 
@@ -222,7 +222,12 @@ class Bugs(BaseCog):
                         beta_overwrite.read_messages = False if active else True
                         await channel.set_permissions(beta_role, overwrite=beta_overwrite)
             except Exception as e:
-                await ctx.send(Lang.get_locale_string('bugs/report_channel_permissions_fail', ctx))
+                await ctx.send(
+                    Lang.get_locale_string(
+                        'bugs/report_channel_permissions_fail',
+                        ctx,
+                        channel=maint_message_channel.mention,
+                        server=guild.name))
                 await Utils.handle_exception("failed to set bug report channel permissions", self.bot, e)
             else:
                 if active:
@@ -245,13 +250,13 @@ class Bugs(BaseCog):
     async def platforms(self, ctx):
         platforms = dict()
 
-        for platform in BugReportingPlatform.select():
-            if platform.branch in platforms:
-                if platform.platform in platforms[platform.branch]:
-                    await self.bot.guild_log(ctx.guild.id, f"duplicate platform in db: {platform.platform}/{platform.branch}")
-            if platform.branch not in platforms:
-                platforms[platform.branch] = list()
-            platforms[platform.branch].append(platform.platform)
+        for row in BugReportingPlatform.select():
+            if row.branch in platforms:
+                if row.platform in platforms[row.branch]:
+                    await self.bot.guild_log(ctx.guild.id, f"duplicate platform in db: {row.platform}/{row.branch}")
+            if row.branch not in platforms:
+                platforms[row.branch] = list()
+            platforms[row.branch].append(row.platform)
 
         embed = Embed(
             timestamp=ctx.message.created_at,
@@ -385,18 +390,27 @@ class Bugs(BaseCog):
         last_message = last_message[0]
         ctx = await self.bot.get_context(last_message)
         await asyncio.sleep(1)
-        guild = trigger_channel.guild
-        member = guild.get_member(user.id)
-        #mute_role = guild.get_role(Configuration.get_var("muted_role"))
 
-        guild_config = self.bot.get_config(guild.id)
-        mute_role = guild_config.mutedrole
+        # Get member from home guild. failing that, check other bot.guilds for member
+        guild = self.bot.get_guild(Configuration.get_var("guild_id"))
+        member = guild.get_member(user.id)
+        if not member:
+            for my_guild in self.bot.guilds:
+                member = my_guild.get_member(user.id)
+                if member:
+                    guild = my_guild
+                    break
+
+        for bot_guild in self.bot.guilds:
+            guild_member = bot_guild.get_member(user.id)
+            guild_config = self.bot.get_guild_db_config(bot_guild.id)
+            guild_mute_role = bot_guild.get_role(guild_config.mutedrole)
+            if guild_member and guild_mute_role and (guild_mute_role in guild_member.roles):
+                # member is muted in at least one server. hard pass on letting them report
+                return
 
         if member is None:
             # user isn't even on the server, how did we get here?
-            return
-        if mute_role in member.roles:
-            # muted, hard ignore
             return
 
         if user.id in self.in_progress:

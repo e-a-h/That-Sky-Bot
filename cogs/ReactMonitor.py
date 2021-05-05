@@ -91,7 +91,7 @@ class ReactMonitor(BaseCog):
     async def on_member_join(self, member):
         if str(member.id) in self.mutes[member.guild.id]:
             guild = member.guild
-            guild_config = self.bot.get_config(guild.id)
+            guild_config = self.bot.get_guild_db_config(guild.id)
             if guild_config and guild_config.mutedrole:
                 try:
                     mute_role = guild.get_role(guild_config.mutedrole)
@@ -157,7 +157,7 @@ class ReactMonitor(BaseCog):
                     if float(mute_time) + float(self.mute_duration[guild_id]) < now:
                         try:
                             guild = self.bot.get_guild(guild_id)
-                            guild_config = self.bot.get_config(guild_id)
+                            guild_config = self.bot.get_guild_db_config(guild_id)
                             if guild_config and guild_config.mutedrole:
                                 mute_role = guild.get_role(guild_config.mutedrole)
                                 member = guild.get_member(int(user_id))
@@ -320,7 +320,7 @@ class ReactMonitor(BaseCog):
     async def list_mutes(self, ctx: commands.Context):
         if self.mutes[ctx.guild.id]:
             react_muted = list()
-            guild_config = self.bot.get_config(ctx.guild.id)
+            guild_config = self.bot.get_guild_db_config(ctx.guild.id)
             mute_role = ctx.guild.get_role(guild_config.mutedrole)
 
             for member_id, timestamp in self.mutes[ctx.guild.id].items():
@@ -342,7 +342,7 @@ class ReactMonitor(BaseCog):
     async def purge_mutes(self, ctx: commands.Context):
         if self.mutes[ctx.guild.id]:
             react_unmuted = list()
-            guild_config = self.bot.get_config(ctx.guild.id)
+            guild_config = self.bot.get_guild_db_config(ctx.guild.id)
             mute_role = ctx.guild.get_role(guild_config.mutedrole)
 
             for member_id, timestamp in dict(self.mutes[ctx.guild.id]).items():
@@ -420,7 +420,7 @@ class ReactMonitor(BaseCog):
             log_msg = f"{log_msg}\n--- I **removed** the reaction"
 
         if e_db.mute:
-            guild_config = self.bot.get_config(guild.id)
+            guild_config = self.bot.get_guild_db_config(guild.id)
             if guild_config and guild_config.mutedrole:
                 try:
                     mute_role = guild.get_role(guild_config.mutedrole)
