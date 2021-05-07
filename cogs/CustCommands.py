@@ -12,18 +12,21 @@ class CustCommands(BaseCog):
         super().__init__(bot)
 
         self.commands = dict()
-        self.bot.loop.create_task(self.reload_commands())
+        self.bot.loop.create_task(self.startup_cleanup())
         self.loaded = False
 
     async def cog_check (self, ctx):
         return ctx.author.guild_permissions.ban_members
 
-    async def reload_commands(self):
+    async def startup_cleanup(self):
         for guild in self.bot.guilds:
-            self.commands[guild.id] = dict()
-            for command in CustomCommand.select().where(CustomCommand.serverid == guild.id):
-                self.commands[guild.id][command.trigger] = command.response
+            self.init_guild(guild)
         self.loaded = True
+
+    def init_guild(self, guild):
+        self.commands[guild.id] = dict()
+        for command in CustomCommand.select().where(CustomCommand.serverid == guild.id):
+            self.commands[guild.id][command.trigger] = command
 
     @staticmethod
     async def send_response(ctx, emoji_name, lang_key, **kwargs):
@@ -57,11 +60,41 @@ class CustCommands(BaseCog):
                     if len(value) + len(trigger) > 1000:
                         embed.add_field(name="\u200b", value=value)
                         value = ""
-                    value = f"{value}{trigger}\n"
+                    value = f"{value}{trigger}"
+                    if self.commands[ctx.guild.id][trigger].deletetrigger:
+                        value = f"{value} (delete trigger)"
+                    value = f"{value}\n"
                 embed.add_field(name="\u200b", value=value)
                 await ctx.send(embed=embed)
             else:
                 await ctx.send(Lang.get_locale_string("custom_commands/no_commands", ctx))
+
+    @command.command(aliases=["set_delete", "unset_delete"])
+    @commands.guild_only()
+    async def delete_trigger(self, ctx: commands.Context, trigger: str, delete_trigger: bool = True):
+        trigger = trigger.lower()
+        trigger = await Utils.clean(trigger)
+
+        # Coerce flag based on command alias
+        if ctx.invoked_with == 'unset_delete':
+            delete_trigger = False
+        elif ctx.invoked_with == 'set_delete':
+            delete_trigger = True
+
+        if len(trigger) > 20:
+            emoji = 'WHAT'
+            lang_key = 'trigger_too_long'
+        elif trigger in self.commands[ctx.guild.id]:
+            self.commands[ctx.guild.id][trigger].deletetrigger = delete_trigger
+            self.commands[ctx.guild.id][trigger].save()
+            emoji = 'YES'
+            lang_key = 'delete_trigger_updated'
+            tokens = dict(trigger=trigger, delete_trigger='ON' if delete_trigger else 'OFF')
+        else:
+            emoji = 'NO'
+            lang_key = 'not_found'
+            tokens = dict(trigger=trigger)
+        await self.send_response(ctx, emoji, lang_key, **tokens)
 
     @command.command(aliases=["new", "add"])
     @commands.guild_only()
@@ -78,8 +111,8 @@ class CustCommands(BaseCog):
             trigger = await Utils.clean(trigger)
             command = CustomCommand.get_or_none(serverid=ctx.guild.id, trigger=trigger)
             if command is None:
-                CustomCommand.create(serverid=ctx.guild.id, trigger=trigger, response=reply)
-                self.commands[ctx.guild.id][trigger] = reply
+                command = CustomCommand.create(serverid=ctx.guild.id, trigger=trigger, response=reply)
+                self.commands[ctx.guild.id][trigger] = command
                 msg = Lang.get_locale_string('custom_commands/command_added', ctx, trigger=trigger)
                 await ctx.send(f"{Emoji.get_chat_emoji('YES')} {msg}")
             else:
@@ -101,7 +134,7 @@ class CustCommands(BaseCog):
 
     @command.command(aliases=["del", "delete"])
     @commands.guild_only()
-    async def remove(self, ctx:commands.Context, trigger:str):
+    async def remove(self, ctx: commands.Context, trigger: str):
         """command_remove_help"""
         trigger = trigger.lower()
         trigger = await Utils.clean(trigger)
@@ -111,7 +144,7 @@ class CustCommands(BaseCog):
             emoji = 'WHAT'
             lang_key = 'trigger_too_long'
         elif trigger in self.commands[ctx.guild.id]:
-            CustomCommand.get(serverid=ctx.guild.id, trigger=trigger).delete_instance()
+            self.commands[ctx.guild.id][trigger].delete_instance()
             del self.commands[ctx.guild.id][trigger]
             emoji = 'YES'
             lang_key = 'command_removed'
@@ -124,7 +157,7 @@ class CustCommands(BaseCog):
 
     @command.command(aliases=["edit", "set"])
     @commands.guild_only()
-    async def update(self, ctx:commands.Context, trigger:str, *, reply:str = None):
+    async def update(self, ctx: commands.Context, trigger: str, *, reply: str = None):
         """command_update_help"""
         trigger = trigger.lower()
         trigger = await Utils.clean(trigger)
@@ -141,7 +174,7 @@ class CustCommands(BaseCog):
             else:
                 command.response = reply
                 command.save()
-                self.commands[ctx.guild.id][trigger] = reply
+                self.commands[ctx.guild.id][trigger] = command
                 emoji = 'YES'
                 msg = 'command_updated'
                 tokens = dict(trigger=trigger)
@@ -158,7 +191,10 @@ class CustCommands(BaseCog):
         if message.content.startswith(prefix, 0):
             for trigger in self.commands[message.guild.id]:
                 if message.content.lower() == prefix+trigger or (message.content.lower().startswith(trigger, len(prefix)) and message.content.lower()[len(prefix+trigger)] == " "):
-                    command_content = self.commands[message.guild.id][trigger].replace("@", "@\u200b")
+                    command = self.commands[message.guild.id][trigger]
+                    command_content = command.response.replace("@", "@\u200b").format(author=message.author.mention)
+                    if command.deletetrigger:
+                        await message.delete()
                     await message.channel.send(command_content)
 
 

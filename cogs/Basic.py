@@ -1,14 +1,15 @@
 import time
 
-from discord.ext.commands import Cog, command, Context
+from discord.ext.commands import command, Context
 
 from cogs.BaseCog import BaseCog
+from utils import Utils
 
 
 class Basic(BaseCog):
 
     async def cog_check(self, ctx):
-        return ctx.author.guild_permissions.mute_members
+        return Utils.permission_official_mute(ctx.author.id)
 
     @command(hidden=True)
     async def ping(self, ctx: Context):

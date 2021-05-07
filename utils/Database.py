@@ -1,4 +1,4 @@
-from peewee import MySQLDatabase, Model, PrimaryKeyField, BigIntegerField, CharField, ForeignKeyField, AutoField, \
+from peewee import MySQLDatabase, Model, BigIntegerField, CharField, ForeignKeyField, AutoField, \
     TimestampField, SmallIntegerField, BooleanField
 
 from utils import Configuration
@@ -13,15 +13,17 @@ connection = MySQLDatabase(Configuration.get_var("DATABASE_NAME"),
 
 
 class Guild(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     serverid = BigIntegerField()
     memberrole = BigIntegerField(default=0)
     nonmemberrole = BigIntegerField(default=0)
     mutedrole = BigIntegerField(default=0)
+    betarole = BigIntegerField(default=0)
     welcomechannelid = BigIntegerField(default=0)
     ruleschannelid = BigIntegerField(default=0)
     logchannelid = BigIntegerField(default=0)
     entrychannelid = BigIntegerField(default=0)
+    maintenancechannelid = BigIntegerField(default=0)
     rulesreactmessageid = BigIntegerField(default=0)
     defaultlocale = CharField(max_length=10)
 
@@ -48,6 +50,33 @@ class BugReport(Model):
     reported_at = TimestampField(utc=True)
 
     class Meta:
+        database = connection
+
+
+class BugReportingPlatform(Model):
+    id = AutoField()
+    platform = CharField()
+    branch = CharField()
+
+    class Meta:
+        indexes = (
+            # unique constraint for platform/branch
+            (('platform', 'branch'), True),
+        )
+        database = connection
+
+
+class BugReportingChannel(Model):
+    id = AutoField()
+    guild = ForeignKeyField(Guild, backref='bug_channels')
+    channelid = BigIntegerField(unique=True)
+    platform = ForeignKeyField(BugReportingPlatform, backref="bug_channels")
+
+    class Meta:
+        indexes = (
+            # unique constraint for guild/platform
+            (('guild', 'platform'), True),
+        )
         database = connection
 
 
@@ -93,7 +122,7 @@ class KrillConfig(Model):
 
 
 class KrillByLines(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     krill_config = ForeignKeyField(KrillConfig, backref='bylines')
     byline = CharField(max_length=100, collation="utf8mb4_general_ci")
     type = SmallIntegerField(default=0)
@@ -105,7 +134,7 @@ class KrillByLines(Model):
 
 
 class OreoMap(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     letter_o = SmallIntegerField(default=1)
     letter_r = SmallIntegerField(default=2)
     letter_e = SmallIntegerField(default=3)
@@ -119,7 +148,7 @@ class OreoMap(Model):
 
 
 class OreoLetters(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     token = CharField(max_length=50, collation="utf8mb4_general_ci", default="")
     token_class = SmallIntegerField()
 
@@ -138,7 +167,7 @@ class ConfigChannel(Model):
 
 
 class CustomCommand(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     serverid = BigIntegerField()
     trigger = CharField(max_length=20, collation="utf8mb4_general_ci")
     response = CharField(max_length=2000, collation="utf8mb4_general_ci")
@@ -149,7 +178,7 @@ class CustomCommand(Model):
 
 
 class AutoResponder(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     serverid = BigIntegerField()
     trigger = CharField(max_length=300, collation="utf8mb4_general_ci")
     response = CharField(max_length=2000, collation="utf8mb4_general_ci")
@@ -157,13 +186,14 @@ class AutoResponder(Model):
     chance = SmallIntegerField(default=10000)
     responsechannelid = BigIntegerField(default=0)
     listenchannelid = BigIntegerField(default=0)
+    logchannelid = BigIntegerField(default=0)
 
     class Meta:
         database = connection
 
 
 class CountWord(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     serverid = BigIntegerField()
     # guild = ForeignKeyField(Guild, backref='watchwords')
     word = CharField(max_length=300, collation="utf8mb4_general_ci")
@@ -173,7 +203,7 @@ class CountWord(Model):
 
 
 class ReactWatch(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     serverid = BigIntegerField()
     # guild = ForeignKeyField(Guild, backref='watchemoji')
     muteduration = SmallIntegerField(default=600)
@@ -184,7 +214,7 @@ class ReactWatch(Model):
 
 
 class WatchedEmoji(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     watcher = ForeignKeyField(ReactWatch, backref='emoji')
     emoji = CharField(max_length=50, collation="utf8mb4_general_ci", default="")
     log = BooleanField(default=False)
@@ -196,7 +226,7 @@ class WatchedEmoji(Model):
 
 
 class ArtChannel(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     serverid = BigIntegerField()
     # guild = ForeignKeyField(Guild, backref='artchannels')
     listenchannelid = BigIntegerField(default=0)
@@ -208,7 +238,7 @@ class ArtChannel(Model):
 
 
 class DropboxChannel(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     serverid = BigIntegerField()
     sourcechannelid = BigIntegerField()
     targetchannelid = BigIntegerField(default=0)
@@ -219,7 +249,7 @@ class DropboxChannel(Model):
 
 
 class Localization(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     guild = ForeignKeyField(Guild, backref='locales')
     channelid = BigIntegerField(default=0)
     locale = CharField(max_length=10, default='')
@@ -229,7 +259,7 @@ class Localization(Model):
 
 
 class AdminRole(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     guild = ForeignKeyField(Guild, backref='admin_roles')
     roleid = BigIntegerField()
 
@@ -238,9 +268,37 @@ class AdminRole(Model):
 
 
 class ModRole(Model):
-    id = PrimaryKeyField()
+    id = AutoField()
     guild = ForeignKeyField(Guild, backref='mod_roles')
     roleid = BigIntegerField()
+
+    class Meta:
+        database = connection
+
+
+class BotAdmin(Model):
+    id = AutoField()
+    userid = BigIntegerField()
+
+    class Meta:
+        database = connection
+
+
+class TrustedRole(Model):
+    id = AutoField()
+    guild = ForeignKeyField(Guild, backref='trusted_roles')
+    roleid = BigIntegerField()
+
+    class Meta:
+        database = connection
+
+
+class UserPermission(Model):
+    id = AutoField()
+    guild = ForeignKeyField(Guild, backref='command_permissions')
+    userid = BigIntegerField()
+    command = CharField(max_length=200, default='')
+    allow = BooleanField(default=True)
 
     class Meta:
         database = connection
@@ -251,6 +309,11 @@ def init():
     connection.connect()
     connection.create_tables([
         Guild,
+        BotAdmin,
+        AdminRole,
+        ModRole,
+        TrustedRole,
+        UserPermission,
         ArtChannel,
         Attachments,
         AutoResponder,
@@ -268,7 +331,7 @@ def init():
         ReactWatch,
         WatchedEmoji,
         Localization,
-        AdminRole,
-        ModRole
+        BugReportingPlatform,
+        BugReportingChannel
     ])
     connection.close()

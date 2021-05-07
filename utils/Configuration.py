@@ -57,6 +57,15 @@ def set_persistent_var(key, value):
     Utils.save_to_disk("persistent", PERSISTENT)
 
 
-def del_persistent_var(key):
-    del PERSISTENT[key]
-    Utils.save_to_disk("persistent", PERSISTENT)
+def del_persistent_var(key, tolerate_missing=False):
+    try:
+        del PERSISTENT[key]
+        Utils.save_to_disk("persistent", PERSISTENT)
+    except KeyError as e:
+        if tolerate_missing:
+            Logging.info(f'skipping delete for `{key}`')
+            return
+        Logging.info(f'NOT skipping delete for `{key}`')
+        Utils.get_embed_and_log_exception(f"cannot delete nonexistent persistent var `{key}`", Utils.BOT, e)
+    except Exception as e:
+        Utils.get_embed_and_log_exception(f"---delete persistent var failed--- key `{key}`", Utils.BOT, e)

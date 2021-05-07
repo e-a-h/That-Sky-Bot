@@ -19,10 +19,10 @@ questions:
   error_reaction_timeout: "--jp-- {error_emoji} You didn't react within {timeout}"
 channel_config:
   info: --jp-- Channel Config for {server_name}
-  commands: |
-      --jp-- `![channel_config|chanconf] reload`
-      `![channel_config|chanconf] set channel_name channel_id`
   channel_set: --jp-- Config channel "{channel_name}" set to <#{channel_id}>
+permission_config:
+  info: --jp-- Permission Configuration for {server_name}
+  permission_set: --jp-- Permission for {subject} is now {status}
 bugs:
   bug_info: "--jp-- **Report a New Bug!**\nBrowse or search this channel to see bug reports. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."
   shutdown_message: --jp-- This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
@@ -45,11 +45,11 @@ bugs:
   attachments_yes: --jp-- Yes, add pictures/videos
   attachment_info: "--jp-- **Attachment to report {id}**\n{links}"
   attachment_info_plural: "--jp-- **Attachments to report {id}**\n{links}"
-  report_confirmation: --jp-- Thank you! Your report was submitted, and can be found in <#{channel_id}>!
+  report_confirmation: --jp-- Thank you! Your report was submitted, and can be found in {channel_info}!
   maint_check_fail: --jp-- Sorry {author} but I give up. Maybe the bug queue is busted, as usual.
   bugs_all_done: --jp-- Bug reports are all done, {author}!!
   none_in_progress: --jp-- There are no bug reports in progress.
-  report_channel_permissions_fail: --jp-- Failed to set reporting channel permissions. Check channel permissions because I might have broken something...
+  report_channel_permissions_fail: --jp-- Failed to set permissions on channel {channel} in server `{server}`. Check channel permissions because I might have broken something...
   dead_bugs_cleaned: "--jp-- Ok. Number of dead bugs cleaned up: {active_keys}. Number still alive: {in_progress}"
   maint_on: "--jp-- bot maintenance mode **on**: Reporting channels **closed**."
   maint_off: "--jp-- bot maintenance mode **off**: Reporting channels **open**."
@@ -72,7 +72,7 @@ bugs:
     --jp-- ```css
     Device Type
     ```
-    Are you using Android or iOS?
+    What kind of device do you play Sky on?
   question_platform_version: |
     --jp-- ```css
     Operating System Version
@@ -96,27 +96,36 @@ bugs:
     ```
     What **version** of the Sky app were you using when you experienced the bug?
     {version_help}
-    The version number is the number in place of "X.X.X"
   app_build: --jp-- Sky app build
   question_app_build: |
     --jp-- ```css
     Sky App Build Number
     ```
     What **build** of the Sky app were you using when you experienced the bug?
-    See the instructions above. The build number is in parentheses.
+    See the instructions above. The build number is in parentheses or 6 digits at the end of the version number.
   version_android: |
     --jp-- **To find Sky version and build on Android devices:**
     > 1. Device settings
     > 2. Apps
     > 3. Sky
-    > 4. Scroll down to find: Version X.X.X (build)
-    For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623647199427035147
+    > 4. Scroll down to find: `Version X.X.X (XXXXXX)`
+    > 5. The first 3 digits, `X.X.X` are the version, the 6 digits in parentheses are the build number
+    https://media.discordapp.net/attachments/575818186440572938/623647193143836674/sky_version_build3.jpg
   version_ios: |
     --jp-- **To find Sky version and build on iOS devices:**
     > 1. Device settings
     > 2. Scroll down to Sky
-    > 3. Scroll down to find: Version X.X.X (build)
-    For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623643887977627658
+    > 3. Scroll down to find: `Version X.X.X (XXXXXX)`
+    > 4. The first 3 digits, `X.X.X` are the version, the 6 digits in parentheses are the build number
+    https://media.discordapp.net/attachments/575818186440572938/623643882445471764/sky_version_ios2.png
+  version_switch: |
+    --jp-- **To find the Sky build number for bug reporting:**
+    > 1. Navigate to the Nintendo Switch home screen
+    > 2. Select sky
+    > 3. Press the **+** button on your controller
+    > 4. Version info will be in small print right beneath the game title. Find `Ver. X.X.X.XXXXXX`
+    > 5. The first 3 digits, `X.X.X` are the version, and the last 6 digits are the build number
+    https://media.discordapp.net/attachments/834518314264821810/840007394154774539/unknown.png
   title: --jp-- Title/Topic
   question_title: |
     --jp-- ```css
@@ -348,6 +357,8 @@ custom_commands:
   not_found: --jp-- Unable to remove `{trigger}` as it doesn't seem to exist.
   creating_command: --jp-- This command does not exist, making it for you instead.
   command_updated: --jp-- Command `{trigger}` has been updated!
+  delete_trigger_updated: |
+    --jp-- Command `{trigger}` delete triggering command: `{delete_trigger}`
 word_counter:
   list_words: --jp-- Words being counted for metrics in the {server_name} server
   no_words: --jp-- There are no words currently being counted.

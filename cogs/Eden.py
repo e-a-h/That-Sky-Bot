@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 
 import pytz
 from discord.ext import commands
-from discord.ext.commands import BucketType
 from pytz import UnknownTimeZoneError
 
 from cogs.BaseCog import BaseCog

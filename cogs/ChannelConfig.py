@@ -22,17 +22,23 @@ class ChannelConfig(BaseCog):
         # Load channels
         self.bot.config_channels = dict()
         for guild in self.bot.guilds:
-            my_channels = dict()
-            for row in ConfigChannel.select().where(ConfigChannel.serverid == guild.id):
-                if validate_channel_name(row.configname):
-                    my_channels[row.configname] = row.channelid
-                else:
-                    Logging.error(f"Misconfiguration in config channel: {row.configname}")
-            self.bot.config_channels[guild.id] = my_channels
+            self.load_guild(guild)
+
+    def init_guild(self, guild):
+        self.bot.config_channels[guild.id] = dict()
+
+    def load_guild(self, guild):
+        my_channels = dict()
+        for row in ConfigChannel.select().where(ConfigChannel.serverid == guild.id):
+            if validate_channel_name(row.configname):
+                my_channels[row.configname] = row.channelid
+            else:
+                Logging.error(f"Misconfiguration in config channel: {row.configname}")
+        self.bot.config_channels[guild.id] = my_channels
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        self.bot.config_channels[guild.id] = dict()
+        self.init_guild(guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
@@ -41,16 +47,20 @@ class ChannelConfig(BaseCog):
             row.delete_instance()
 
     def cog_check(self, ctx):
+        if ctx.guild is not None and ctx.author.guild_permissions.ban_members:
+            return True
         return ctx.bot.is_owner(ctx.author) or ctx.author.id in Configuration.get_var("ADMINS", [])
 
     @commands.group(name="channel_config", aliases=["chanconf", "channelconfig"], invoke_without_command=True)
     @commands.guild_only()
     async def channel_config(self, ctx):
+        """
+        Show channel configuration for guild
+        """
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=0x663399,
             title=Lang.get_locale_string("channel_config/info", ctx, server_name=ctx.guild.name))
-        embed.add_field(name='Commands', value=Lang.get_locale_string("channel_config/commands", ctx), inline=False)
         embed.add_field(name='Configurable Channels',
                         value=f"[{Utils.welcome_channel}|{Utils.rules_channel}|"
                               f"{Utils.log_channel}|{Utils.ro_art_channel}|{Utils.entry_channel}]",
@@ -64,6 +74,9 @@ class ChannelConfig(BaseCog):
     @commands.is_owner()
     @commands.guild_only()
     async def reload(self, ctx: commands.Context):
+        """
+        Reload channel configs from database
+        """
         await self.startup_cleanup()
         await ctx.send("reloaded channel configs\n" + Utils.get_chanconf_description(self.bot, ctx.guild.id))
 
@@ -78,7 +91,8 @@ class ChannelConfig(BaseCog):
             return
         channel_added = await self.set_channel(ctx, channel_name, channel_id)
         if channel_added:
-            message = Lang.get_locale_string('channel_config/channel_set', ctx, channel_name=channel_name, channel_id=channel_id)
+            message = Lang.get_locale_string(
+                'channel_config/channel_set', ctx, channel_name=channel_name, channel_id=channel_id)
             await ctx.send(f"{Emoji.get_chat_emoji('YES')} {message}")
         else:
             await ctx.send(f"{Emoji.get_chat_emoji('BUG')} Failed")

@@ -96,12 +96,13 @@ class AutoResponders(BaseCog):
         del self.mod_messages[guild.id]
         del self.mod_action_expiry[guild.id]
         try:
+            Configuration.del_persistent_var(f"mod_messages_{guild.id}")
             del Configuration.MASTER_CONFIG[f'auto_action_expiry_seconds_{guild.id}']
             Configuration.save()
         except Exception as e:
             Logging.error(f"Could not save config when removing auto_action_expiry_seconds_{guild.id}")
-        for command in AutoResponder.select().where(AutoResponder.serverid == guild.id):
-            command.delete_instance()
+        for autoresponder_row in AutoResponder.select().where(AutoResponder.serverid == guild.id):
+            autoresponder_row.delete_instance()
 
     def reload_mod_actions(self, ctx=None):
         guilds = self.bot.guilds if ctx is None else [ctx.guild]
@@ -957,8 +958,15 @@ class AutoResponders(BaseCog):
             if data['listenchannelid'] and data['listenchannelid'] != message.channel.id:
                 continue
 
+            def add_bounds(my_word):
+                if re.match(r'\w', my_word[0]):
+                    my_word = rf"\b{my_word}"
+                if re.match(r'\w', my_word[-1]):
+                    my_word = rf"{my_word}\b"
+                return my_word
+
             if data['match_list'] is not None:
-                # full match not allowed when using list-match so this check must come first.
+                # full match done as whole word match per item in list when using list-match
                 words = []
                 for word in data['match_list']:
                     if isinstance(word, list):
@@ -966,23 +974,27 @@ class AutoResponders(BaseCog):
                         for token in word:
                             token = re.escape(token)
                             if full_match:
-                                token = rf"\b{token}\b"
+                                token = add_bounds(token)
                             sub_list.append(token)
                         # a list of words at this level indicates one word from a list must match
                         word = f"({'|'.join(sub_list)})"
                     else:
                         word = re.escape(word)
                         if full_match:
-                            word = rf"\b{word}\b"
+                            word = add_bounds(word)
                     # escape the words and join together as a series of look-ahead searches
                     words.append(f'(?=.*{word})')
                 trigger = ''.join(words)
-                re_tag = re.compile(trigger, re.IGNORECASE if not match_case else 0)
+                parsed_trigger = trigger
             elif full_match:
-                re_tag = re.compile(rf"^{re.escape(trigger)}$", re.IGNORECASE if not match_case else 0)
+                parsed_trigger = rf"^{re.escape(trigger)}$"
             else:
-                re_tag = re.compile(re.escape(trigger), re.IGNORECASE if not match_case else 0)
+                parsed_trigger = re.escape(trigger)
 
+            # replace escaped spaces with whitespace character class for multiline matching
+            parsed_trigger = re.sub(r'\\ ', r'\\s+', parsed_trigger)
+            # ignorecase is set by flag. dotall is not optional
+            re_tag = re.compile(parsed_trigger, flags=(re.I if not match_case else 0) | re.S)
             match = re.search(re_tag, message.content)
 
             if match is not None:
@@ -1004,7 +1016,8 @@ class AutoResponders(BaseCog):
                     author=message.author.mention,
                     channel=message.channel.mention,
                     link=message.jump_url,
-                    matched=matched
+                    matched=matched,
+                    trigger_message=message.content
                 )
 
                 m = self.bot.metrics

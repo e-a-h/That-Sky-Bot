@@ -4,13 +4,15 @@ import time
 from concurrent.futures import CancelledError
 from datetime import datetime
 
-from discord import Forbidden, Embed, NotFound, HTTPException
+from discord import Forbidden, Embed, NotFound, HTTPException, TextChannel
 from discord.ext import commands, tasks
-from discord.ext.commands import Context
+from discord.ext.commands import Context, clean_content
+from peewee import DoesNotExist, IntegrityError
 
 from cogs.BaseCog import BaseCog
+from sky import Skybot
 from utils import Questions, Emoji, Utils, Configuration, Lang, Logging
-from utils.Database import BugReport, Attachments
+from utils.Database import BugReport, Attachments, BugReportingPlatform, BugReportingChannel, Guild
 
 
 class Bugs(BaseCog):
@@ -31,10 +33,12 @@ class Bugs(BaseCog):
         self.verify_empty_bug_queue.cancel()
 
     def can_mod(ctx):
-        return ctx.author.guild_permissions.mute_members
+        guild = Utils.BOT.get_guild(Configuration.get_var("guild_id"))
+        member = guild.get_member(ctx.author.id)
+        return member.guild_permissions.mute_members
 
-    def can_admin(ctx):
-        return ctx.author.guild_permissions.manage_channels
+    async def can_admin(ctx):
+        return await ctx.bot.permission_manage_bot(ctx)
 
     async def sweep_trash(self, user, ctx):
         await asyncio.sleep(Configuration.get_var("bug_trash_sweep_minutes") * 60)
@@ -55,67 +59,91 @@ class Bugs(BaseCog):
             self.sweeps[uid].cancel()
 
     async def shutdown(self):
-        for name, cid in Configuration.get_var("channels").items():
-            channel = self.bot.get_channel(cid)
-            message = await channel.send(Lang.get_locale_string("bugs/shutdown_message"))
-            Configuration.set_persistent_var(f"{name}_shutdown", message.id)
+        for row in BugReportingChannel.select():
+            try:
+                cid = row.channelid
+                name = f"{row.platform.platform}_{row.platform.branch}"
+                guild_id = row.guild.serverid
+                channel = self.bot.get_channel(cid)
+
+                message = await channel.send(Lang.get_locale_string("bugs/shutdown_message"))
+                Configuration.set_persistent_var(f"{guild_id}_{name}_shutdown", message.id)
+            except Exception as e:
+                message = f"Failed sending shutdown message <#{cid}> in server {guild_id} for {name}"
+                await self.bot.guild_log(guild_id, message)
+                await Utils.handle_exception(message, self.bot, e)
 
     async def startup_cleanup(self):
         Logging.info("starting bugs")
         # TODO: find out what the condition is we need to wait for instead of just sleep
         # await asyncio.sleep(20)
 
-        for name, cid in Configuration.get_var("channels").items():
+        # for name, cid in Configuration.get_var("channels").items():
+        reporting_channel_ids = []
+        for row in BugReportingChannel.select():
+            cid = row.channelid
+            name = f"{row.platform.platform}_{row.platform.branch}"
+            guild_id = row.guild.serverid
             channel = self.bot.get_channel(cid)
-            shutdown_id = Configuration.get_persistent_var(f"{name}_shutdown")
+
+            # tolerate old persistent var key without guild_id.
+            # TODO: This is a migration that can be removed *after* it goes live the first time
+            shutdown_key = f"{name}_shutdown"
+            shutdown_id = Configuration.get_persistent_var(shutdown_key)
+            if shutdown_id is None:
+                shutdown_key = f"{guild_id}_{name}_shutdown"
+                shutdown_id = Configuration.get_persistent_var(shutdown_key)
+
             if shutdown_id is not None:
                 try:
                     message = await channel.fetch_message(shutdown_id)
                     await message.delete()
                 except (NotFound, HTTPException) as e:
                     pass
-                Configuration.set_persistent_var(f"{name}_shutdown", None)
-            try:
-                await self.send_bug_info(name)
-            except Exception as e:
-                await Utils.handle_exception("bug startup failure", self.bot, e)
-                await Logging.bot_log(f'Bug message failed in {name}:{cid}')
+                Configuration.set_persistent_var(shutdown_key, None)
+                reporting_channel_ids.append(cid)
+        try:
+            await self.send_bug_info(*reporting_channel_ids)
+        except Exception as e:
+            await Utils.handle_exception("bug startup failure", self.bot, e)
 
-    async def send_bug_info(self, key):
-        channel = self.bot.get_channel(Configuration.get_var("channels")[key])
-        bug_info_id = Configuration.get_persistent_var(f"{key}_message")
+    async def send_bug_info(self, *args):
+        for channel_id in args:
+            channel = self.bot.get_channel(channel_id)
+            bug_info_id = Configuration.get_persistent_var(f"{channel.guild.id}_{channel_id}_bug_message")
 
-        ctx = None
-        while not ctx:
-            # Keep looking for channel history until we have it.
-            # this API call fails on startup because connection is not made yet.
-            # TODO: properly wait for connection to be initialized
+            ctx = None
+            tries = 0
+            while not ctx and tries < 5:
+                tries += 1
+                # this API call fails on startup because connection is not made yet.
+                # TODO: properly wait for connection to be initialized
+                try:
+                    last_message = await channel.send('preparing bug reporting...')
+                    ctx = await self.bot.get_context(last_message)
 
-            try:
-                last_message = await channel.history(limit=1).flatten()
-                last_message = last_message[0]
-                ctx = await self.bot.get_context(last_message)
+                    if bug_info_id is not None:
+                        try:
+                            message = await channel.fetch_message(bug_info_id)
+                        except (NotFound, HTTPException):
+                            pass
+                        else:
+                            await message.delete()
+                            if message.id in self.bug_messages:
+                                self.bug_messages.remove(message.id)
 
-                if bug_info_id is not None:
-                    try:
-                        message = await channel.fetch_message(bug_info_id)
-                    except (NotFound, HTTPException):
-                        pass
-                    else:
-                        await message.delete()
-                        if message.id in self.bug_messages:
-                            self.bug_messages.remove(message.id)
-
-                bugemoji = Emoji.get_emoji('BUG')
-                message = await channel.send(Lang.get_locale_string("bugs/bug_info", ctx, bug_emoji=bugemoji))
-                await message.add_reaction(bugemoji)
-                self.bug_messages.add(message.id)
-                Configuration.set_persistent_var(f"{key}_message", message.id)
-                Logging.info(f"Bug report message sent in channel #{channel.name} ({channel.id})")
-            except Exception as e:
-                # Ignore
-                await Utils.handle_exception(f"Bug report message failed to send in channel #{channel.name} ({channel.id})", self.bot, e)
-                await asyncio.sleep(1)
+                    bugemoji = Emoji.get_emoji('BUG')
+                    message = await channel.send(Lang.get_locale_string("bugs/bug_info", ctx, bug_emoji=bugemoji))
+                    await message.add_reaction(bugemoji)
+                    self.bug_messages.add(message.id)
+                    Configuration.set_persistent_var(f"{channel.guild.id}_{channel_id}_bug_message", message.id)
+                    Logging.info(f"Bug report message sent in channel #{channel.name} ({channel.id})")
+                    await last_message.delete()
+                except Exception as e:
+                    # Ignore
+                    await Utils.handle_exception(
+                        f"Bug report message failed to send in channel #{channel.name} ({channel.id})", self.bot, e)
+                    await asyncio.sleep(0.5)
 
     @tasks.loop(seconds=30.0)
     async def verify_empty_bug_queue(self, ctx):
@@ -142,6 +170,11 @@ class Bugs(BaseCog):
         self.maintenance_message = None
         self.verify_empty_bug_queue.cancel()
 
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild):
+        for row in self.bot.get_guild_db_config(guild.id).bug_channels:
+            row.delete_instance()
+
     @commands.command(aliases=["bugmaint", "maintenance", "maintenance_mode", "maint"])
     @commands.guild_only()
     @commands.check(can_mod)
@@ -152,44 +185,64 @@ class Bugs(BaseCog):
         Closes bug reporting channels and opens bug maintenance channel.
         Watches active bug reports for 10 minutes or so to give people a chance to finish reports in progress.
         """
-        try:
-            # show/hide maintenance channel
-            maint_message_channel = self.bot.get_channel(Configuration.get_var("bug_maintenance_channel"))
+        for guild in self.bot.guilds:
+            try:
+                default_role = guild.default_role
+                # show/hide maintenance channel
+                maint_message_channel = self.bot.get_guild_maintenance_channel(guild.id)
+                if maint_message_channel is None:
+                    message = f'maintenance channel is not configured for `{guild.name}`'
+                    await self.bot.guild_log(guild.id, message)
+                    await ctx.send(message)
+                    continue
 
-            default_role = ctx.guild.default_role
-            # member_role = ctx.guild.get_role(Configuration.get_var("member_role"))
-            beta_role = ctx.guild.get_role(Configuration.get_var("beta_role"))
+                channel_overwrite = maint_message_channel.overwrites_for(default_role)
+                channel_overwrite.view_channel = active
+                await maint_message_channel.set_permissions(default_role, overwrite=channel_overwrite)
 
-            channel_overwrite = maint_message_channel.overwrites[default_role]
-            channel_overwrite.read_messages = active
-            await maint_message_channel.set_permissions(default_role, overwrite=channel_overwrite)
+                guild_config = self.bot.get_guild_db_config(guild.id)
+                beta_role = None
+                if guild_config and guild_config.betarole:
+                    beta_role = guild.get_role(guild_config.betarole)
+                    beta_overwrite = maint_message_channel.overwrites[beta_role]
+                    beta_overwrite.read_messages = active
+                    await maint_message_channel.set_permissions(beta_role, overwrite=beta_overwrite)
+                else:
+                    message = f'beta role is not configured for `{guild.name}`'
+                    await self.bot.guild_log(guild.id, message)
+                    await ctx.send(message)
 
-            beta_overwrite = maint_message_channel.overwrites[beta_role]
-            beta_overwrite.read_messages = active
-            await maint_message_channel.set_permissions(beta_role, overwrite=beta_overwrite)
+                for row in guild_config.bug_channels:
+                    cid = row.channelid
+                    branch = row.platform.branch
 
-            for name, cid in Configuration.get_var("channels").items():
-                # show/hide reporting channels
-                channel = self.bot.get_channel(cid)
+                    # show/hide reporting channels
+                    channel = guild.get_channel(cid)
 
-                channel_overwrite = channel.overwrites[default_role]
-                channel_overwrite.read_messages = False if active else True
-                await channel.set_permissions(default_role, overwrite=channel_overwrite)
+                    channel_overwrite = channel.overwrites_for(default_role)
+                    channel_overwrite.read_messages = False if active else True
+                    await channel.set_permissions(default_role, overwrite=channel_overwrite)
 
-                if re.search(r'beta', name):
-                    beta_overwrite = channel.overwrites[beta_role]
-                    beta_overwrite.read_messages = False if active else True
-                    await channel.set_permissions(beta_role, overwrite=beta_overwrite)
-        except Exception as e:
-            await ctx.send(Lang.get_locale_string('bugs/report_channel_permissions_fail', ctx))
-            await Utils.handle_exception("failed to set bug report channel permissions", self.bot, e)
-        else:
-            if active:
-                self.maint_check_count = 0
-                self.verify_empty_bug_queue.start(ctx)
-                await ctx.send(Lang.get_locale_string('bugs/maint_on', ctx))
+                    if re.search(r'beta', branch, re.I) and beta_role:
+                        beta_overwrite = channel.overwrites[beta_role]
+                        beta_overwrite.read_messages = False if active else True
+                        await channel.set_permissions(beta_role, overwrite=beta_overwrite)
+            except Exception as e:
+                await ctx.send(
+                    Lang.get_locale_string(
+                        'bugs/report_channel_permissions_fail',
+                        ctx,
+                        channel=maint_message_channel.mention,
+                        server=guild.name))
+                await Utils.handle_exception("failed to set bug report channel permissions", self.bot, e)
             else:
-                await ctx.send(Lang.get_locale_string('bugs/maint_off', ctx))
+                if active:
+                    self.maint_check_count = 0
+                    if not self.verify_empty_bug_queue.is_running():
+                        self.verify_empty_bug_queue.start(ctx)
+                    await ctx.send(Lang.get_locale_string('bugs/maint_on', ctx))
+                else:
+                    await ctx.send(Lang.get_locale_string('bugs/maint_off', ctx))
 
     @commands.group(name='bug', invoke_without_command=True)
     async def bug(self, ctx: Context):
@@ -198,6 +251,127 @@ class Bugs(BaseCog):
         if ctx.guild is not None:
             await ctx.message.delete()
         await self.report_bug(ctx.author, ctx.channel)
+
+    @bug.group(name='platforms', aliases=['platform'], invoke_without_command=True)
+    @commands.check(can_admin)
+    async def platforms(self, ctx):
+        platforms = dict()
+
+        for row in BugReportingPlatform.select():
+            if row.branch in platforms:
+                if row.platform in platforms[row.branch]:
+                    await self.bot.guild_log(ctx.guild.id, f"duplicate platform in db: {row.platform}/{row.branch}")
+            if row.branch not in platforms:
+                platforms[row.branch] = list()
+            platforms[row.branch].append(row.platform)
+
+        embed = Embed(
+            timestamp=ctx.message.created_at,
+            color=0x50f3d7,
+            title='Bug Reporting Platforms')
+
+        for branch, platforms in platforms.items():
+            embed.add_field(name=branch, value='\n'.join(platforms), inline=False)
+
+        if not platforms:
+            await ctx.send("There are no bug reporting platforms in my database")
+        else:
+            await ctx.send(embed=embed)
+
+    @platforms.command(aliases=['add'])
+    @commands.check(can_admin)
+    async def add_platform(self, ctx, platform, branch):
+        row, create = BugReportingPlatform.get_or_create(platform=platform, branch=branch)
+        if create:
+            await ctx.send(f"Ok, I added `{platform}/{branch}` to my database")
+        else:
+            await ctx.send(f"That platform/branch combination is already in my database")
+
+    @bug.group(name='channels', aliases=['channel'], invoke_without_command=True)
+    @commands.guild_only()
+    @commands.check(can_admin)
+    async def channels(self, ctx):
+        # TODO: allow guild admins to use this, restricted to single guild
+        embed = Embed(
+            timestamp=ctx.message.created_at,
+            color=0x50f3d7,
+            title='Bug Reporting Channels')
+        guild_row = Guild.get_or_none(serverid=ctx.guild.id)
+        guild_channels = []
+        non_guild_channels = dict()
+        for row in BugReportingPlatform.select():
+            for channel_row in row.bug_channels:
+                channel = self.bot.get_channel(channel_row.channelid)
+                if not channel:
+                    channel_row.delete_instance()
+                    continue
+                description = f"{row.platform}/{row.branch}: {channel.mention}"
+                if channel_row.guild == guild_row:
+                    guild_channels.append(description)
+                else:
+                    # TODO: get guild names and add to description
+                    if channel_row.guild.serverid not in non_guild_channels:
+                        non_guild_channels[channel_row.guild.serverid] = []
+                    non_guild_channels[channel_row.guild.serverid].append(description)
+        if guild_channels:
+            embed.add_field(name=f'`{ctx.guild.name}` server', value="\n".join(guild_channels))
+        for guild_id, channel_list in non_guild_channels.items():
+            guild = self.bot.get_guild(guild_id)
+            server_name = self.bot.get_guild(guild_id).name or f"[{guild_id}][MISSING GUILD]"
+            embed.add_field(name=f'`{server_name}` server', value="\n".join(channel_list))
+        if not guild_channels and not non_guild_channels:
+            await ctx.send("There are no configured bug reporting channels")
+        else:
+            await ctx.send(embed=embed)
+
+    @channels.command(aliases=['remove'])
+    @commands.guild_only()
+    @commands.check(can_admin)
+    async def remove_channel(self, ctx, channel: TextChannel):
+        try:
+            row = BugReportingChannel.get(channelid=channel.id)
+            platform = row.platform.platform
+            branch = row.platform.branch
+            row.delete_instance()
+            await ctx.send(f"Removed `{platform}`/`{branch}`/{channel.mention} from my database")
+        except DoesNotExist:
+            await ctx.send(f"Could not find {channel.mention} in my database")
+
+    @channels.command(aliases=['add'])
+    @commands.guild_only()
+    @commands.check(can_admin)
+    async def add_channel(self, ctx, channel: TextChannel, platform, branch):
+        try:
+            guild_row = Guild.get(serverid=ctx.guild.id)
+        except DoesNotExist:
+            await ctx.send(f"I couldn't find a record for guild id {ctx.guild.id}... call a plumber!")
+            return
+
+        try:
+            platform_row = BugReportingPlatform.get(platform=platform, branch=branch)
+        except DoesNotExist:
+            await ctx.send(f"I couldn't find a record for platform/branch `{platform}`/`{branch}`")
+            return
+
+        try:
+            record, created = BugReportingChannel.get_or_create(guild=guild_row, platform=platform_row, channelid=channel.id)
+        except IntegrityError:
+            await ctx.send(f"channel{channel.mention} is already in used for bug reporting")
+            return
+
+        if created:
+            await ctx.send(f"{channel.mention} will now be used to record `{platform}/{branch}` bug reports")
+        else:
+            await ctx.send(f"{channel.mention} was already configured for `{platform}/{branch}` bug reports")
+
+        """
+        "channels": {
+            "android_beta": 622127033631113218,
+            "android_stable": 622126928954130453,
+            "ios_beta": 622127058113265665,
+            "ios_stable": 622127005705437185
+        },
+        """
 
     @bug.command(aliases=["resetactive", "reset_in_progress", "resetinprogress", "reset", "clean"])
     @commands.guild_only()
@@ -228,14 +402,27 @@ class Bugs(BaseCog):
         last_message = last_message[0]
         ctx = await self.bot.get_context(last_message)
         await asyncio.sleep(1)
+
+        # Get member from home guild. failing that, check other bot.guilds for member
         guild = self.bot.get_guild(Configuration.get_var("guild_id"))
         member = guild.get_member(user.id)
-        mute_role = guild.get_role(Configuration.get_var("muted_role"))
+        if not member:
+            for my_guild in self.bot.guilds:
+                member = my_guild.get_member(user.id)
+                if member:
+                    guild = my_guild
+                    break
+
+        for bot_guild in self.bot.guilds:
+            guild_member = bot_guild.get_member(user.id)
+            guild_config = self.bot.get_guild_db_config(bot_guild.id)
+            guild_mute_role = bot_guild.get_role(guild_config.mutedrole)
+            if guild_member and guild_mute_role and (guild_mute_role in guild_member.roles):
+                # member is muted in at least one server. hard pass on letting them report
+                return
+
         if member is None:
             # user isn't even on the server, how did we get here?
-            return
-        if mute_role in member.roles:
-            # muted, hard ignore
             return
 
         if user.id in self.in_progress:
@@ -360,19 +547,50 @@ class Bugs(BaseCog):
 
                 # send report
                 channel_name = f"{platform}_{branch}".lower()
-                c = Configuration.get_var("channels")[channel_name]
-                message = await self.bot.get_channel(c).send(
-                    content=Lang.get_locale_string("bugs/report_header", ctx, id=br.id, user=user.mention),
-                    embed=report)
-                if len(attachment_links) != 0:
-                    key = "attachment_info" if len(attachment_links) == 1 else "attachment_info_plural"
-                    attachment = await self.bot.get_channel(c).send(
-                        Lang.get_locale_string(f"bugs/{key}", ctx, id=br.id, links="\n".join(attachment_links)))
-                    br.attachment_message_id = attachment.id
-                br.message_id = message.id
-                br.save()
-                await channel.send(Lang.get_locale_string("bugs/report_confirmation", ctx, channel_id=c))
-                await self.send_bug_info(channel_name)
+
+                report_id_saved = False
+                attachment_id_saved = False
+                user_reported_channels = list()
+                all_reported_channels = list()
+                selected_platform = BugReportingPlatform.get(platform=platform, branch=branch)
+
+                for row in BugReportingChannel.select().where(BugReportingChannel.platform == selected_platform):
+                    report_channel = self.bot.get_channel(row.channelid)
+                    message = await report_channel.send(
+                        content=Lang.get_locale_string("bugs/report_header", ctx, id=br.id, user=user.mention),
+                        embed=report)
+                    attachment = None
+                    if len(attachment_links) != 0:
+                        key = "attachment_info" if len(attachment_links) == 1 else "attachment_info_plural"
+                        attachment = await report_channel.send(
+                            Lang.get_locale_string(f"bugs/{key}", ctx, id=br.id, links="\n".join(attachment_links)))
+
+                    if report_channel.guild.id == Configuration.get_var('guild_id'):
+                        # Only save report and attachment IDs for posts in the official server
+                        if not report_id_saved and not attachment_id_saved:
+                            if attachment is not None:
+                                br.attachment_message_id = attachment.id
+                                attachment_id_saved = True
+                            br.message_id = message.id
+                            report_id_saved = True
+                            br.save()
+                            user_reported_channels.append(report_channel.mention)
+                    else:
+                        # guild is not the official server. if author is member, include user_reported_channels
+                        this_guild = self.bot.get_guild(report_channel.guild.id)
+                        if this_guild.get_member(user.id) is not None:
+                            user_reported_channels.append(report_channel.mention)
+
+                    all_reported_channels.append(report_channel)
+
+                channels_mentions = []
+                channels_ids = set()
+                for report_channel in all_reported_channels:
+                    channels_mentions.append(report_channel.mention)
+                    channels_ids.add(report_channel.id)
+                await channel.send(
+                    Lang.get_locale_string("bugs/report_confirmation", ctx, channel_info=', '.join(channels_mentions)))
+                await self.send_bug_info(*channels_ids)
 
             async def restart():
                 nonlocal restarting
@@ -409,11 +627,20 @@ class Bugs(BaseCog):
 
             if asking:
                 # question 1: android or ios?
+                platforms = set()
+                options = []
+                for platform_row in BugReportingPlatform.select():
+                    platforms.add(platform_row.platform)
+                for platform_name in platforms:
+                    options.append(
+                        Questions.Option(
+                            platform_name.upper(),
+                            platform_name,
+                            set_platform,
+                            [platform_name]))
+
                 await Questions.ask(self.bot, channel, user, Lang.get_locale_string("bugs/question_platform", ctx),
-                                    [
-                                        Questions.Option("ANDROID", "Android", lambda: set_platform("Android")),
-                                        Questions.Option("IOS", "iOS", lambda: set_platform("iOS"))
-                                    ], show_embed=True, locale=ctx)
+                                    options, show_embed=True, locale=ctx)
                 update_metrics()
 
                 # question 2: android/ios version
@@ -432,11 +659,25 @@ class Bugs(BaseCog):
                 update_metrics()
 
                 # question 4: stable or beta?
-                await Questions.ask(self.bot, channel, user, Lang.get_locale_string("bugs/question_app_branch", ctx),
-                                    [
-                                        Questions.Option("STABLE", "Live", lambda: set_branch("Stable")),
-                                        Questions.Option("BETA", "Beta", lambda: set_branch("Beta"))
-                                    ], show_embed=True, locale=ctx)
+                branches = set()
+                for platform_row in BugReportingPlatform.select():
+                    if platform_row.platform == platform:
+                        branches.add(platform_row.branch)
+                if len(branches) == 0:
+                    branch = "NONE"
+                elif len(branches) == 1:
+                    branch = branches.pop()
+                else:
+                    options = []
+                    for branch_name in branches:
+                        options.append(
+                            Questions.Option(
+                                branch_name.upper(),
+                                branch_name,
+                                set_branch,
+                                [branch_name]))
+                    await Questions.ask(self.bot, channel, user, Lang.get_locale_string("bugs/question_app_branch", ctx),
+                                        options, show_embed=True, locale=ctx)
                 update_metrics()
 
                 # question 5: sky app version

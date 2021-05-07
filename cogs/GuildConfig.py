@@ -9,7 +9,6 @@ from utils.Database import Guild
 
 class GuildConfig(BaseCog):
     def __init__(self, bot):
-        self.guilds = dict()
         super().__init__(bot)
         bot.loop.create_task(self.startup_cleanup())
 
@@ -19,7 +18,8 @@ class GuildConfig(BaseCog):
 
     def init_guild(self, guild):
         row = Guild.get_or_create(serverid=guild.id)[0]
-        self.guilds[guild.id] = row
+        Utils.GUILD_CONFIGS[guild.id] = row
+        return row
 
     def cog_unload(self):
         pass
@@ -29,10 +29,10 @@ class GuildConfig(BaseCog):
             return False
         return ctx.author.guild_permissions.ban_members
 
-    def get_config(self, guild_id):
-        if guild_id in self.guilds:
-            return self.guilds[guild_id]
-        return None
+    def get_guild_config(self, guild_id):
+        if guild_id in Utils.GUILD_CONFIGS:
+            return Utils.GUILD_CONFIGS[guild_id]
+        return self.init_guild(guild_id)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
@@ -40,8 +40,21 @@ class GuildConfig(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
-        del self.guilds[guild.id]
-        Guild.get(serverid=guild.id).delete_instance()
+        del Utils.GUILD_CONFIGS[guild.id]
+        # keep guild record and clear channel configs and default lang
+        guild_row = Guild.get(serverid=guild.id)
+        guild_row.memberrole = 0
+        guild_row.nonmemberrole = 0
+        guild_row.mutedrole = 0
+        guild_row.betarole = 0
+        guild_row.welcomechannelid = 0
+        guild_row.ruleschannelid = 0
+        guild_row.logchannelid = 0
+        guild_row.entrychannelid = 0
+        guild_row.maintenancechannelid = 0
+        guild_row.rulesreactmessageid = 0
+        guild_row.defaultlocale = ''
+        guild_row.save()
 
     @commands.group(name="guildconfig",
                     aliases=['guild', 'guildconf'],
@@ -52,7 +65,7 @@ class GuildConfig(BaseCog):
         """
         List the guild settings
         """
-        my_guild = self.guilds[ctx.guild.id]
+        my_guild = Utils.GUILD_CONFIGS[ctx.guild.id]
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=Utils.COLOR_LIME,
@@ -75,6 +88,12 @@ class GuildConfig(BaseCog):
             role = ctx.guild.get_role(my_guild.mutedrole)
             role_description = f"{role.name} ({role.id})"
         embed.add_field(name="Muted Role", value=role_description)
+
+        role_description = "none"
+        if my_guild.betarole:
+            role = ctx.guild.get_role(my_guild.betarole)
+            role_description = f"{role.name} ({role.id})"
+        embed.add_field(name="Beta Role", value=role_description)
 
         channel_description = "none"
         if my_guild.welcomechannelid:
@@ -100,6 +119,12 @@ class GuildConfig(BaseCog):
             channel_description = f"{channel.name} ({channel.id})"
         embed.add_field(name="Entry Channel", value=channel_description)
 
+        channel_description = "none"
+        if my_guild.maintenancechannelid:
+            channel = ctx.guild.get_channel(my_guild.maintenancechannelid)
+            channel_description = f"{channel.name} ({channel.id})"
+        embed.add_field(name="Maintenance Channel", value=channel_description)
+
         rules_id = my_guild.rulesreactmessageid if my_guild.rulesreactmessageid else 'none'
         embed.add_field(name="Rules React Message ID", value=rules_id)
 
@@ -109,7 +134,7 @@ class GuildConfig(BaseCog):
         await ctx.send(embed=embed)
 
     async def set_field(self, ctx, field, val):
-        my_guild = self.guilds[ctx.guild.id]
+        my_guild = Utils.GUILD_CONFIGS[ctx.guild.id]
         try:
             setattr(my_guild, field, val.id)
             my_guild.save()
@@ -160,6 +185,17 @@ class GuildConfig(BaseCog):
         """
         await self.set_field(ctx, 'mutedrole', role)
 
+    @set.command(aliases=['beta', 'betarole'])
+    @commands.guild_only()
+    async def beta_role(self, ctx, role: Role):
+        """
+        Set the beta role
+
+        Used in cogs that read/set/unset the beta role in this server
+        role: Role name or role id
+        """
+        await self.set_field(ctx, 'betarole', role)
+
     @set.command(aliases=['welcome', 'welcomechannel'])
     @commands.guild_only()
     async def welcome_channel(self, ctx, chan: TextChannel):
@@ -204,6 +240,17 @@ class GuildConfig(BaseCog):
         """
         await self.set_field(ctx, 'entrychannelid', chan)
 
+    @set.command(aliases=['maintenance', 'maintenancechannel'])
+    @commands.guild_only()
+    async def maintenance_channel(self, ctx, chan: TextChannel):
+        """
+        Set the maintenance channel
+
+        Used in cogs that read/set/unset the maintenance channel in this server
+        role: Channel name or channel id
+        """
+        await self.set_field(ctx, 'maintenancechannelid', chan)
+
     @set.command(aliases=['rulesmessage', 'rulesreactmessage'])
     @commands.guild_only()
     async def rules_react_message(self, ctx, msg: Message):
@@ -213,7 +260,7 @@ class GuildConfig(BaseCog):
         Used in cogs that read/set/unset the rulesreactmessageid in this server
         role: chanelid-messageid, messageid, or url
         """
-        my_guild = self.guilds[ctx.guild.id]
+        my_guild = Utils.GUILD_CONFIGS[ctx.guild.id]
         try:
             my_guild.rulesreactmessageid = msg.id
             my_guild.save()

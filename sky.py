@@ -10,11 +10,12 @@ import sentry_sdk
 from discord.ext import commands
 from discord.ext.commands import Bot
 from aiohttp import ClientOSError, ServerDisconnectedError
-from discord import ConnectionClosed, Intents, Embed, Colour
+from discord import ConnectionClosed, Intents
 from prometheus_client import CollectorRegistry
 from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 
 from utils import Logging, Configuration, Utils, Emoji, Database
+from utils.Database import BotAdmin, Guild
 from utils.PrometheusMon import PrometheusMon
 
 
@@ -65,15 +66,22 @@ class Skybot(Bot):
     def get_guild_entry_channel(self, guild_id):
         return self.get_guild_config_channel(guild_id, 'entry')
 
+    def get_guild_maintenance_channel(self, guild_id):
+        return self.get_guild_config_channel(guild_id, 'maintenance')
+
     def get_guild_config_channel(self, guild_id, name):
-        config = self.get_config(guild_id)
+        config = self.get_guild_db_config(guild_id)
         if config:
             return self.get_channel(getattr(config, f'{name}channelid'))
         return None
 
-    def get_config(self, guild_id):
+    def get_guild_db_config(self, guild_id):
         try:
-            return self.get_cog('GuildConfig').get_config(guild_id)
+            if guild_id in Utils.GUILD_CONFIGS:
+                return Utils.GUILD_CONFIGS[guild_id]
+            row = Guild.get_or_create(serverid=guild_id)[0]
+            Utils.GUILD_CONFIGS[guild_id] = row
+            return row
         except Exception as e:
             Utils.get_embed_and_log_exception("--------Failed to get config--------", self, e)
             return None
@@ -88,6 +96,21 @@ class Skybot(Bot):
             except Exception as ex:
                 pass
         return None
+
+    async def permission_manage_bot(self, ctx):
+        db_admin = BotAdmin.get_or_none(userid=ctx.author.id) is not None
+        # Logging.info(f"db_admin: {'yes' if db_admin else 'no'}")
+        owner = await ctx.bot.is_owner(ctx.author)
+        # Logging.info(f"owner: {'yes' if owner else 'no'}")
+        in_admins = ctx.author.id in Configuration.get_var("ADMINS", [])
+        # Logging.info(f"in_admins: {'yes' if in_admins else 'no'}")
+        has_admin_role = False
+        if ctx.guild:
+            for role in ctx.author.roles:
+                if role in Configuration.get_var("admin_roles", []):
+                    has_admin_role = True
+        # Logging.info(f"has_admin_role: {'yes' if has_admin_role else 'no'}")
+        return db_admin or owner or in_admins or has_admin_role
 
     async def guild_log(self, guild_id: int, message=None, embed=None):
         channel = self.get_guild_log_channel(guild_id)
@@ -136,7 +159,10 @@ class Skybot(Bot):
                 f"{Emoji.get_chat_emoji('NO')} Failed to parse the ``{param._name}`` param: ``{error}``\n{Emoji.get_chat_emoji('WRENCH')} Command usage: `{bot.help_command.get_command_signature(ctx.command)}`")
         elif isinstance(error, commands.CommandNotFound):
             return
-
+        elif isinstance(error, commands.UnexpectedQuoteError):
+            bot.help_command.context = ctx
+            await ctx.send(
+                f"{Emoji.get_chat_emoji('NO')} There are quotes in there that I don't like\n{Emoji.get_chat_emoji('WRENCH')} Command usage: `{bot.help_command.get_command_signature(ctx.command)}`")
         else:
             await Utils.handle_exception("Command execution failed", bot,
                                          error.original if hasattr(error, "original") else error, ctx=ctx)
@@ -153,6 +179,7 @@ class Skybot(Bot):
 
 def run_db_migrations():
     dbv = int(Configuration.get_persistent_var('db_version', 0))
+    Logging.info(f"db version is {dbv}")
     dbv_list = [f for f in glob.glob("db_migrations/db_migrate_*.py")]
     dbv_pattern = re.compile(r'db_migrations/db_migrate_(\d+)\.py', re.IGNORECASE)
     migration_count = 0
@@ -161,7 +188,7 @@ def run_db_migrations():
         version = int(re.match(dbv_pattern, filename)[1])
         if version > dbv:
             try:
-                print(f"--- running db migration version number {version}")
+                Logging.info(f"--- running db migration version number {version}")
                 spec = importlib.util.spec_from_file_location(f"migrator_{version}", filename)
                 dbm = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(dbm)
@@ -170,7 +197,7 @@ def run_db_migrations():
             except Exception as e:
                 # throw a fit if it doesn't work
                 raise e
-    print(f"--- {migration_count if migration_count else 'no'} db migration{'' if migration_count == 1 else 's'} run")
+    Logging.info(f"--- {migration_count if migration_count else 'no'} db migration{'' if migration_count == 1 else 's'} run")
 
 
 def before_send(event, hint):
@@ -194,11 +221,15 @@ if __name__ == '__main__':
 
     dsn = Configuration.get_var('SENTRY_DSN', '')
     dsn_env = Configuration.get_var('SENTRY_ENV', 'Dev')
+    Logging.info(f"DSN info - dsn:{dsn} env:{dsn_env}")
     if dsn != '':
         sentry_sdk.init(dsn, before_send=before_send, environment=dsn_env, integrations=[AioHttpIntegration()])
 
+    # TODO: exception handling for db migration error
     run_db_migrations()
+    Logging.info('dg migrations go')
     Database.init()
+    Logging.info('db init go')
 
     intents = Intents(members=True, messages=True, guilds=True, bans=True, emojis=True, presences=True, reactions=True)
     loop = asyncio.get_event_loop()
@@ -208,6 +239,7 @@ if __name__ == '__main__':
         case_insensitive=True,
         intents=intents,
         loop=loop)
+    Logging.info('skybot instantiated')
     skybot.help_command = commands.DefaultHelpCommand(command_attrs=dict(name='snelp', checks=[can_help]))
 
     Utils.BOT = skybot

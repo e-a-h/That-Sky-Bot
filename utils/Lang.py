@@ -70,6 +70,8 @@ def get_defaulted_locale(ctx):
                 return locales
             return [locale]
 
+        # TODO: create lookup table so we don't hit database every time
+        #  github issue #91
         gid = ctx.guild.id
         guild_row = Guild.get_or_none(serverid=gid)
         chan_locale = Localization.get_or_none(channelid=cid)

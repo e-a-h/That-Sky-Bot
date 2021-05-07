@@ -3,8 +3,12 @@ import prometheus_client as prom
 
 class PrometheusMon:
     def __init__(self, bot) -> None:
-        self.command_counter = prom.Counter("command_counter", "Number of commands run", ["command_name"])
-        self.word_counter = prom.Counter("word_counter", "Count of occurrences of words in chat", ["word"])
+        self.command_counter = prom.Counter("command_counter", "Number of commands run", ["command_name", "guild_id"])
+        self.word_counter = prom.Counter(
+            "word_counter",
+            "Count of occurrences of words in chat",
+            ["word", "guild_name", "guild_id"]
+        )
 
         self.guild_messages = prom.Counter("guild_messages", "What messages have been sent and by who", [
             "guild_id"

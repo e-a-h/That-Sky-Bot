@@ -26,8 +26,10 @@ questions:
   error_reaction_timeout:
 channel_config:
   info:
-  commands:
   channel_set:
+permission_config:
+  info:
+  permission_set:
 bugs:
   bug_info:
   shutdown_message:
@@ -71,6 +73,7 @@ bugs:
   question_app_build:
   version_android:
   version_ios:
+  version_switch:
   title:
   question_title:
   description:
@@ -229,6 +232,7 @@ custom_commands:
   not_found:
   creating_command:
   command_updated:
+  delete_trigger_updated:
 word_counter:
   list_words:
   no_words:

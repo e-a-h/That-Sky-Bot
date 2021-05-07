@@ -11,12 +11,13 @@ from json import JSONDecodeError
 import discord
 import sentry_sdk
 from aiohttp import ClientOSError, ServerDisconnectedError
-from discord import Embed, Colour, ConnectionClosed, NotFound
+from discord import Embed, Colour, ConnectionClosed, NotFound, guild
 from discord.abc import PrivateChannel
 
 from utils import Logging, Configuration
 
 BOT = None
+GUILD_CONFIGS = dict()
 ID_MATCHER = re.compile("<@!?([0-9]+)[\\\\]*>")
 ROLE_ID_MATCHER = re.compile("<@&([0-9]+)>")
 CHANNEL_ID_MATCHER = re.compile("<#([0-9]+)>")
@@ -47,6 +48,25 @@ def get_chanconf_description(bot, guild_id):
     except Exception as ex:
         pass
     return message
+
+
+def permission_official_mute(member_id):
+    return permission_official(member_id, 'mute_members')
+
+
+def permission_official_ban(member_id):
+    return permission_official(member_id, 'ban_members')
+
+
+def permission_official(member_id, permission_name):
+    # ban permission on official server - sort of a hack to propagate perms
+    # TODO: better permissions model
+    try:
+        official_guild = BOT.get_guild(Configuration.get_var("guild_id"))
+        official_member = official_guild.get_member(member_id)
+        return getattr(official_member.guild_permissions, permission_name)
+    except Exception:
+        return False
 
 
 def get_channel_description(bot, channel_id):
