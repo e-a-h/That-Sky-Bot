@@ -51,7 +51,7 @@ class Reporting(BaseCog):
 
             br = br.lower().capitalize()
             if br in branches:
-                return br
+                return [br]
             return ["Beta", "Stable"]
 
         def get_platform(pl):
@@ -62,7 +62,7 @@ class Reporting(BaseCog):
 
             pl = pl.lower()
             if pl in platforms:
-                return platforms[pl]
+                return [platforms[pl]]
             return ["Android", "iOS", "Switch"]
 
         # dashes at the start of text are interpreted as formulas by excel. replace with *

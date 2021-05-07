@@ -96,33 +96,36 @@ bugs:
     ```
     What **version** of the Sky app were you using when you experienced the bug?
     {version_help}
-    The version number is the number in place of "X.X.X"
   app_build: --jp-- Sky app build
   question_app_build: |
     --jp-- ```css
     Sky App Build Number
     ```
     What **build** of the Sky app were you using when you experienced the bug?
-    See the instructions above. The build number is in parentheses.
+    See the instructions above. The build number is in parentheses or 6 digits at the end of the version number.
   version_android: |
     --jp-- **To find Sky version and build on Android devices:**
     > 1. Device settings
     > 2. Apps
     > 3. Sky
-    > 4. Scroll down to find: Version X.X.X (build)
-    For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623647199427035147
+    > 4. Scroll down to find: `Version X.X.X (XXXXXX)`
+    > 5. The first 3 digits, `X.X.X` are the version, the 6 digits in parentheses are the build number
+    https://media.discordapp.net/attachments/575818186440572938/623647193143836674/sky_version_build3.jpg
   version_ios: |
     --jp-- **To find Sky version and build on iOS devices:**
     > 1. Device settings
     > 2. Scroll down to Sky
-    > 3. Scroll down to find: Version X.X.X (build)
-    For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623643887977627658
+    > 3. Scroll down to find: `Version X.X.X (XXXXXX)`
+    > 4. The first 3 digits, `X.X.X` are the version, the 6 digits in parentheses are the build number
+    https://media.discordapp.net/attachments/575818186440572938/623643882445471764/sky_version_ios2.png
   version_switch: |
-    --jp-- **To find Sky version and build on Nintendo Switch devices:**
-    > 1. TODO
-    > 2. TODO
-    > 3. TODO to find: Version X.X.X (build)
-    For instructions with helpful graphics, see https://discordapp.com/channels/575762611111592007/575818186440572938/623643887977627658
+    --jp-- **To find the Sky build number for bug reporting:**
+    > 1. Navigate to the Nintendo Switch home screen
+    > 2. Select sky
+    > 3. Press the **+** button on your controller
+    > 4. Version info will be in small print right beneath the game title. Find `Ver. X.X.X.XXXXXX`
+    > 5. The first 3 digits, `X.X.X` are the version, and the last 6 digits are the build number
+    https://media.discordapp.net/attachments/834518314264821810/840007394154774539/unknown.png
   title: --jp-- Title/Topic
   question_title: |
     --jp-- ```css

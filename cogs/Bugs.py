@@ -59,18 +59,19 @@ class Bugs(BaseCog):
             self.sweeps[uid].cancel()
 
     async def shutdown(self):
-        # for name, cid in Configuration.get_var("channels").items():
         for row in BugReportingChannel.select():
-            cid = row.channelid
-            name = f"{row.platform.platform}_{row.platform.branch}"
-            guild_id = row.guild.serverid
-            channel = self.bot.get_channel(cid)
+            try:
+                cid = row.channelid
+                name = f"{row.platform.platform}_{row.platform.branch}"
+                guild_id = row.guild.serverid
+                channel = self.bot.get_channel(cid)
 
-            message = await channel.send(Lang.get_locale_string("bugs/shutdown_message"))
-            Configuration.set_persistent_var(f"{guild_id}_{name}_shutdown", message.id)
-
-            # TODO: This is a migration that can be removed *after* it goes live the first time
-            Configuration.del_persistent_var(f"{name}_shutdown", True)
+                message = await channel.send(Lang.get_locale_string("bugs/shutdown_message"))
+                Configuration.set_persistent_var(f"{guild_id}_{name}_shutdown", message.id)
+            except Exception as e:
+                message = f"Failed sending shutdown message <#{cid}> in server {guild_id} for {name}"
+                await self.bot.guild_log(guild_id, message)
+                await Utils.handle_exception(message, self.bot, e)
 
     async def startup_cleanup(self):
         Logging.info("starting bugs")
@@ -169,6 +170,11 @@ class Bugs(BaseCog):
         self.maintenance_message = None
         self.verify_empty_bug_queue.cancel()
 
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild):
+        for row in self.bot.get_guild_db_config(guild.id).bug_channels:
+            row.delete_instance()
+
     @commands.command(aliases=["bugmaint", "maintenance", "maintenance_mode", "maint"])
     @commands.guild_only()
     @commands.check(can_mod)
@@ -232,7 +238,8 @@ class Bugs(BaseCog):
             else:
                 if active:
                     self.maint_check_count = 0
-                    self.verify_empty_bug_queue.start(ctx)
+                    if not self.verify_empty_bug_queue.is_running():
+                        self.verify_empty_bug_queue.start(ctx)
                     await ctx.send(Lang.get_locale_string('bugs/maint_on', ctx))
                 else:
                     await ctx.send(Lang.get_locale_string('bugs/maint_off', ctx))
@@ -294,7 +301,11 @@ class Bugs(BaseCog):
         non_guild_channels = dict()
         for row in BugReportingPlatform.select():
             for channel_row in row.bug_channels:
-                description = f"{row.platform}/{row.branch}: {self.bot.get_channel(channel_row.channelid).mention}"
+                channel = self.bot.get_channel(channel_row.channelid)
+                if not channel:
+                    channel_row.delete_instance()
+                    continue
+                description = f"{row.platform}/{row.branch}: {channel.mention}"
                 if channel_row.guild == guild_row:
                     guild_channels.append(description)
                 else:
@@ -305,7 +316,8 @@ class Bugs(BaseCog):
         if guild_channels:
             embed.add_field(name=f'`{ctx.guild.name}` server', value="\n".join(guild_channels))
         for guild_id, channel_list in non_guild_channels.items():
-            server_name = self.bot.get_guild(guild_id).name or guild_id
+            guild = self.bot.get_guild(guild_id)
+            server_name = self.bot.get_guild(guild_id).name or f"[{guild_id}][MISSING GUILD]"
             embed.add_field(name=f'`{server_name}` server', value="\n".join(channel_list))
         if not guild_channels and not non_guild_channels:
             await ctx.send("There are no configured bug reporting channels")
@@ -626,7 +638,7 @@ class Bugs(BaseCog):
                             platform_name,
                             set_platform,
                             [platform_name]))
-                Logging.info(options)
+
                 await Questions.ask(self.bot, channel, user, Lang.get_locale_string("bugs/question_platform", ctx),
                                     options, show_embed=True, locale=ctx)
                 update_metrics()
