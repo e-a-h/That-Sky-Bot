@@ -9,6 +9,7 @@ from json import JSONDecodeError
 import discord
 from discord.ext import commands, tasks
 from discord.errors import NotFound, HTTPException, Forbidden
+from peewee import DoesNotExist
 
 from cogs.BaseCog import BaseCog
 from utils import Lang, Utils, Questions, Emoji, Configuration, Logging
@@ -65,7 +66,7 @@ class AutoResponders(BaseCog):
     async def get_db_trigger(guild_id: int, trigger: str):
         if guild_id is None or trigger is None:
             return None
-        trigger = await Utils.clean(trigger, links=False)
+        # trigger = await Utils.clean(trigger, links=False)
         return AutoResponder.get_or_none(serverid=guild_id, trigger=trigger)
 
     async def cog_check(self, ctx):
@@ -562,12 +563,15 @@ class AutoResponders(BaseCog):
         except ValueError:
             return
 
-        trigger = await Utils.clean(trigger, links=False)
-        AutoResponder.get(serverid=ctx.guild.id, trigger=trigger).delete_instance()
-        del self.triggers[ctx.guild.id][trigger]
-        msg = Lang.get_locale_string('autoresponder/removed', ctx, trigger=self.get_trigger_description(trigger))
-        await ctx.send(f"{Emoji.get_chat_emoji('YES')} {msg}")
-        await self.reload_triggers(ctx)
+        try:
+            # trigger = await Utils.clean(trigger, links=False)
+            AutoResponder.get(serverid=ctx.guild.id, trigger=trigger).delete_instance()
+            del self.triggers[ctx.guild.id][trigger]
+            msg = Lang.get_locale_string('autoresponder/removed', ctx, trigger=self.get_trigger_description(trigger))
+            await ctx.send(f"{Emoji.get_chat_emoji('YES')} {msg}")
+            await self.reload_triggers(ctx)
+        except DoesNotExist:
+            await ctx.send(f"I didn't find a matching AutoResponder with trigger ```{trigger}```")
 
     @autor.command(aliases=["raw"])
     @commands.guild_only()
@@ -629,7 +633,7 @@ class AutoResponders(BaseCog):
             except ValueError:
                 return
 
-            trigger = await Utils.clean(trigger, links=False)
+            # trigger = await Utils.clean(trigger, links=False)
             if reply is None:
                 try:
                     reply = await Questions.ask_text(self.bot,
@@ -673,7 +677,7 @@ class AutoResponders(BaseCog):
         except ValueError:
             return
 
-        trigger = await Utils.clean(trigger, links=False)
+        # trigger = await Utils.clean(trigger, links=False)
         if new_trigger is None:
             try:
                 new_trigger = await Questions.ask_text(self.bot,

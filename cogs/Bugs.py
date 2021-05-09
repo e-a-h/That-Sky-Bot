@@ -85,23 +85,17 @@ class Bugs(BaseCog):
             name = f"{row.platform.platform}_{row.platform.branch}"
             guild_id = row.guild.serverid
             channel = self.bot.get_channel(cid)
-
-            # tolerate old persistent var key without guild_id.
-            # TODO: This is a migration that can be removed *after* it goes live the first time
-            shutdown_key = f"{name}_shutdown"
+            shutdown_key = f"{guild_id}_{name}_shutdown"
             shutdown_id = Configuration.get_persistent_var(shutdown_key)
-            if shutdown_id is None:
-                shutdown_key = f"{guild_id}_{name}_shutdown"
-                shutdown_id = Configuration.get_persistent_var(shutdown_key)
 
             if shutdown_id is not None:
+                Configuration.del_persistent_var(shutdown_key)
                 try:
                     message = await channel.fetch_message(shutdown_id)
                     await message.delete()
                 except (NotFound, HTTPException) as e:
                     pass
-                Configuration.set_persistent_var(shutdown_key, None)
-                reporting_channel_ids.append(cid)
+            reporting_channel_ids.append(cid)
         try:
             await self.send_bug_info(*reporting_channel_ids)
         except Exception as e:
@@ -110,6 +104,10 @@ class Bugs(BaseCog):
     async def send_bug_info(self, *args):
         for channel_id in args:
             channel = self.bot.get_channel(channel_id)
+            if channel is None:
+                await Logging.bot_log(f"can't send bug info to nonexistent channel {channel_id}")
+                continue
+
             bug_info_id = Configuration.get_persistent_var(f"{channel.guild.id}_{channel_id}_bug_message")
 
             ctx = None
@@ -134,13 +132,13 @@ class Bugs(BaseCog):
 
                     bugemoji = Emoji.get_emoji('BUG')
                     message = await channel.send(Lang.get_locale_string("bugs/bug_info", ctx, bug_emoji=bugemoji))
-                    await message.add_reaction(bugemoji)
                     self.bug_messages.add(message.id)
+                    await message.add_reaction(bugemoji)
                     Configuration.set_persistent_var(f"{channel.guild.id}_{channel_id}_bug_message", message.id)
                     Logging.info(f"Bug report message sent in channel #{channel.name} ({channel.id})")
                     await last_message.delete()
                 except Exception as e:
-                    # Ignore
+                    await self.bot.guild_log(channel.guild.id, f'Having trouble sending bug message in {channel.mention}')
                     await Utils.handle_exception(
                         f"Bug report message failed to send in channel #{channel.name} ({channel.id})", self.bot, e)
                     await asyncio.sleep(0.5)
@@ -149,7 +147,7 @@ class Bugs(BaseCog):
     async def verify_empty_bug_queue(self, ctx):
         if len(self.in_progress) > 0:
 
-            if self.maint_check_count == 10:
+            if self.maint_check_count == 20:
                 await ctx.send(Lang.get_locale_string('bugs/maint_check_fail', ctx, author=ctx.author.mention))
                 self.verify_empty_bug_queue.cancel()
                 return
@@ -158,7 +156,7 @@ class Bugs(BaseCog):
             if self.maintenance_message is None:
                 self.maintenance_message = await ctx.send(msg)
             else:
-                self.maint_check_count = self.maint_check_count + 1
+                self.maint_check_count += 1
                 await self.maintenance_message.edit(content=msg + (" ." * self.maint_check_count))
             return
         elif self.maint_check_count > 0:
@@ -364,15 +362,6 @@ class Bugs(BaseCog):
             await ctx.send(f"{channel.mention} will now be used to record `{platform}/{branch}` bug reports")
         else:
             await ctx.send(f"{channel.mention} was already configured for `{platform}/{branch}` bug reports")
-
-        """
-        "channels": {
-            "android_beta": 622127033631113218,
-            "android_stable": 622126928954130453,
-            "ios_beta": 622127058113265665,
-            "ios_stable": 622127005705437185
-        },
-        """
 
     @bug.command(aliases=["resetactive", "reset_in_progress", "resetinprogress", "reset", "clean"])
     @commands.guild_only()
@@ -586,6 +575,9 @@ class Bugs(BaseCog):
 
                 channels_mentions = []
                 channels_ids = set()
+                if not all_reported_channels:
+                    await Logging.bot_log(f"no report channels for bug report #{br.id}")
+                
                 for report_channel in all_reported_channels:
                     channels_mentions.append(report_channel.mention)
                     channels_ids.add(report_channel.id)
@@ -674,10 +666,11 @@ class Bugs(BaseCog):
                 else:
                     options = []
                     for branch_name in branches:
+                        branch_display_name = "Live" if branch_name.lower() == 'stable' else branch_name
                         options.append(
                             Questions.Option(
                                 branch_name.upper(),
-                                branch_name,
+                                branch_display_name,
                                 set_branch,
                                 [branch_name]))
                     await Questions.ask(self.bot, channel, user, Lang.get_locale_string("bugs/question_app_branch", ctx),

@@ -169,6 +169,8 @@ class DropBox(BaseCog):
                 except (CancelledError, TimeoutError, discord.DiscordServerError) as e:
                     # I think these are safe to ignore...
                     pass
+                except RuntimeError as e:
+                    await self.bot.guild_log(guild.id, f"Dropbox error for guild `{guild.name}`. What's broken?")
                 except Exception as e:
                     # ignore but log
                     await Utils.handle_exception('dropbox clean failure', self.bot, e)
