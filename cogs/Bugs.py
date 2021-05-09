@@ -239,6 +239,7 @@ class Bugs(BaseCog):
                 if active:
                     self.maint_check_count = 0
                     if not self.verify_empty_bug_queue.is_running():
+                        self.maintenance_message = None
                         self.verify_empty_bug_queue.start(ctx)
                     await ctx.send(Lang.get_locale_string('bugs/maint_on', ctx))
                 else:
@@ -652,9 +653,12 @@ class Bugs(BaseCog):
                 update_metrics()
 
                 # question 3: hardware info
+                device_info_platform = Lang.get_locale_string(f"bugs/device_info_{platform.lower()}", ctx)
                 deviceinfo = await Questions.ask_text(self.bot, channel, user,
                                                       Lang.get_locale_string("bugs/question_device_info",
-                                                                             ctx, platform=platform, max=200),
+                                                                             ctx, platform=platform,
+                                                                             device_info_help=device_info_platform,
+                                                                             max=200),
                                                       validator=max_length(200), locale=ctx)
                 update_metrics()
 
@@ -838,10 +842,18 @@ class Bugs(BaseCog):
                 message = await channel.fetch_message(event.message_id)
                 await message.remove_reaction(event.emoji, user)
             except (NotFound, HTTPException) as e:
-                await Utils.handle_exception(f"Failed to get message {channel.id}/{event.message_id}", self, e)
-                # TODO: Does anyone need to know about this?
-                #  Consider letting user know why report didn't start?
-                return
+                await self.bot.guild_log(
+                    channel.guild.id,
+                    f"Failed to clear bug report reaction in {channel.mention} "
+                    f"for message id {event.message_id}. Is the bug reporting message missing?")
+                try:
+                    await channel.send(
+                        f"Sorry {user.mention}, I got a crab stuck in my gears."
+                        "If your bug report doesn't start, ask a mod for help.",
+                        delete_after=10
+                    )
+                except Exception as e:
+                    await Utils.handle_exception("bug invocation failure", self.bot, e)
             await self.report_bug(user, channel)
 
 

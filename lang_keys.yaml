@@ -66,6 +66,9 @@ bugs:
   question_platform_version:
   device_info:
   question_device_info:
+  device_info_switch:
+  device_info_ios:
+  device_info_android:
   question_app_branch:
   app_version:
   question_app_version:

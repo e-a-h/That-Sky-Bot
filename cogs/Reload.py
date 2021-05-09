@@ -9,8 +9,29 @@ from utils import Logging, Emoji, Reloader, Utils, Configuration, Lang
 
 class Reload(BaseCog):
 
+    def __init__(self, bot):
+        super().__init__(bot)
+        bot.loop.create_task(self.startup_cleanup())
+
     async def cog_check(self, ctx):
-        return await ctx.bot.is_owner(ctx.author) or ctx.author.id in Configuration.get_var("ADMINS", [])
+        return await self.bot.permission_manage_bot(ctx)
+
+    async def startup_cleanup(self):
+        restart_mid = Configuration.get_persistent_var("bot_restart_message_id")
+        restart_cid = Configuration.get_persistent_var("bot_restart_channel_id")
+        author_id = Configuration.get_persistent_var("bot_restart_author_id")
+        Configuration.del_persistent_var("bot_restart_message_id", True)
+        Configuration.del_persistent_var("bot_restart_channel_id", True)
+        Configuration.del_persistent_var("bot_restart_author_id", True)
+        # TODO: write pop_persistent_var
+        if restart_cid and restart_mid:
+            try:
+                channel = self.bot.get_channel(restart_cid)
+                message = await channel.fetch_message(restart_mid)
+                author = self.bot.get_user(author_id)
+                await message.edit(content=f"Restart complete {author.mention}")
+            except Exception:
+                pass
 
     @commands.command()
     async def reload(self, ctx, *, cog: str):
@@ -106,9 +127,16 @@ class Reload(BaseCog):
         await message.edit(content="Hot reload complete")
 
     @commands.command()
+    @commands.has_guild_permissions(ban_members=True)
     async def restart(self, ctx):
         """Restart the bot"""
-        await ctx.send("Restarting...")
+        shutdown_message = await ctx.send("Restarting...")
+        if shutdown_message:
+            cid = shutdown_message.channel.id
+            mid = shutdown_message.id
+            Configuration.set_persistent_var("bot_restart_channel_id", cid)
+            Configuration.set_persistent_var("bot_restart_message_id", mid)
+            Configuration.set_persistent_var("bot_restart_author_id", ctx.author.id)
         await self.bot.close()
 
 

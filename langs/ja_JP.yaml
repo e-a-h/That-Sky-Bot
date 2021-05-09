@@ -84,11 +84,21 @@ bugs:
     Device Info
     ```
     What model of {platform} device were you using when the bug occurred ({max} characters max)?
+    {device_info_help}
+  device_info_switch: |
+    --jp-- **To find your Nintendo Switch hardware version:**
+    > 1. Look on the back of your Switch
+    > 2. The version looks like `MOD. XXX-000` with 3 letters and 3 numbers. Some Switch devices have additional numbers in parentheses
+    https://media.discordapp.net/attachments/834518314264821810/840396032457965578/switch_version.jpg
+  device_info_ios:
+  device_info_android:
   question_app_branch: |
     --jp-- ```css
     Sky App Type
     ```
-    Are you using the Live or Beta version of Sky? Beta is installed through TestFlight on iOS or through Google Groups on Android. If you are unsure, then choose Live
+    Are you using the `Live` or `Beta` version of Sky?
+    Beta is installed through TestFlight on iOS, through Google Groups on Android, or via invite code on Nintendo Switch.
+    If you are unsure, then choose Live
   app_version: --jp-- Sky app version
   question_app_version: |
     --jp-- ```css

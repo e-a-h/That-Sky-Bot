@@ -18,7 +18,7 @@ class LangConfig(BaseCog):
     async def cog_check(self, ctx):
         if ctx.guild:
             return ctx.author.guild_permissions.ban_members
-        return self.bot.permission_manage_bot(ctx)
+        return await self.bot.permission_manage_bot(ctx)
 
     @commands.guild_only()
     @commands.group(name="lang", invoke_without_command=True)
