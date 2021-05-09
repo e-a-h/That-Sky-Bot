@@ -746,8 +746,8 @@ class Welcomer(BaseCog):
         welcome_channel = self.bot.get_config_channel(message.guild.id, Utils.welcome_channel)
         rules_channel = self.bot.get_config_channel(message.guild.id, Utils.rules_channel)
         log_channel = self.bot.get_config_channel(message.guild.id, Utils.log_channel)
-        member_role = message.guild.get_role(Configuration.get_var("member_role"))
-        nonmember_role = message.guild.get_role(Configuration.get_var("nonmember_role"))
+        member_role = message.guild.get_role(self.bot.get_guild_db_config(message.guild.id).memberrole)
+        nonmember_role = message.guild.get_role(self.bot.get_guild_db_config(message.guild.id).nonmemberrole)
 
         if message.author.id == 349977940198555660:  # is gearbot
             pattern = re.compile(r'\(``(\d+)``\) has re-joined the server before their mute expired')

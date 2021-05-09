@@ -50,6 +50,14 @@ def get_chanconf_description(bot, guild_id):
     return message
 
 
+async def fetch_last_message_by_channel(channel):
+    try:
+        last_message = await channel.history(limit=1).flatten()
+        return last_message[0]
+    except NotFound:
+        return None
+
+
 def permission_official_mute(member_id):
     return permission_official(member_id, 'mute_members')
 
