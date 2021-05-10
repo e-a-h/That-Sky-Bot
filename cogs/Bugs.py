@@ -251,6 +251,13 @@ class Bugs(BaseCog):
             await ctx.message.delete()
         await self.report_bug(ctx.author, ctx.channel)
 
+    @bug.command()
+    @commands.check(can_mod)
+    async def cleanup(self, ctx):
+        await ctx.send("Attempting to re-send bug channel prompt messages...")
+        await self.startup_cleanup()
+        await ctx.send("Done! ||I think?||")
+
     @bug.group(name='platforms', aliases=['platform'], invoke_without_command=True)
     @commands.check(can_admin)
     async def platforms(self, ctx):
@@ -577,7 +584,7 @@ class Bugs(BaseCog):
                 channels_ids = set()
                 if not all_reported_channels:
                     await Logging.bot_log(f"no report channels for bug report #{br.id}")
-                
+
                 for report_channel in all_reported_channels:
                     channels_mentions.append(report_channel.mention)
                     channels_ids.add(report_channel.id)
