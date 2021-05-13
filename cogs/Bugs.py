@@ -9,6 +9,7 @@ from discord.ext import commands, tasks
 from discord.ext.commands import Context, clean_content
 from peewee import DoesNotExist, IntegrityError
 
+import sky
 from cogs.BaseCog import BaseCog
 from sky import Skybot
 from utils import Questions, Emoji, Utils, Configuration, Lang, Logging
@@ -36,9 +37,6 @@ class Bugs(BaseCog):
         guild = Utils.BOT.get_guild(Configuration.get_var("guild_id"))
         member = guild.get_member(ctx.author.id)
         return member.guild_permissions.mute_members
-
-    async def can_admin(ctx):
-        return await ctx.bot.permission_manage_bot(ctx)
 
     async def sweep_trash(self, user, ctx):
         await asyncio.sleep(Configuration.get_var("bug_trash_sweep_minutes") * 60)
@@ -259,7 +257,7 @@ class Bugs(BaseCog):
         await ctx.send("Done! ||I think?||")
 
     @bug.group(name='platforms', aliases=['platform'], invoke_without_command=True)
-    @commands.check(can_admin)
+    @sky.can_admin()
     async def platforms(self, ctx):
         platforms = dict()
 
@@ -285,7 +283,7 @@ class Bugs(BaseCog):
             await ctx.send(embed=embed)
 
     @platforms.command(aliases=['add'])
-    @commands.check(can_admin)
+    @sky.can_admin()
     async def add_platform(self, ctx, platform, branch):
         row, create = BugReportingPlatform.get_or_create(platform=platform, branch=branch)
         if create:
@@ -295,7 +293,7 @@ class Bugs(BaseCog):
 
     @bug.group(name='channels', aliases=['channel'], invoke_without_command=True)
     @commands.guild_only()
-    @commands.check(can_admin)
+    @sky.can_admin()
     async def channels(self, ctx):
         # TODO: allow guild admins to use this, restricted to single guild
         embed = Embed(
@@ -332,7 +330,7 @@ class Bugs(BaseCog):
 
     @channels.command(aliases=['remove'])
     @commands.guild_only()
-    @commands.check(can_admin)
+    @sky.can_admin()
     async def remove_channel(self, ctx, channel: TextChannel):
         try:
             row = BugReportingChannel.get(channelid=channel.id)
@@ -345,7 +343,7 @@ class Bugs(BaseCog):
 
     @channels.command(aliases=['add'])
     @commands.guild_only()
-    @commands.check(can_admin)
+    @sky.can_admin()
     async def add_channel(self, ctx, channel: TextChannel, platform, branch):
         try:
             guild_row = Guild.get(serverid=ctx.guild.id)
@@ -372,7 +370,7 @@ class Bugs(BaseCog):
 
     @bug.command(aliases=["resetactive", "reset_in_progress", "resetinprogress", "reset", "clean"])
     @commands.guild_only()
-    @commands.check(can_admin)
+    @sky.can_admin()
     async def reset_active(self, ctx):
         """Reset active bug reports. Bot will attempt to DM users whose reports are cancelled."""
         to_kill = len(self.in_progress)

@@ -1,3 +1,4 @@
+
 import asyncio
 import copy
 import re
@@ -6,7 +7,12 @@ from datetime import datetime
 
 import discord
 from discord.ext import commands, tasks
+import io
+import mimetypes
+import requests
+from discord.ext.commands import MemberConverter
 
+import sky
 from cogs.BaseCog import BaseCog
 from utils import Configuration, Logging, Utils, Lang, Emoji
 
@@ -258,6 +264,97 @@ class Welcomer(BaseCog):
         """Configure welcome message settings"""
         if not ctx.invoked_subcommand:
             await ctx.send_help(ctx.command)
+
+    @welcome.command()
+    @commands.guild_only()
+    @sky.can_admin()
+    async def verify_invited(self, ctx, *, member_list=""):
+        with ctx.channel.typing():
+            attachment_links = [str(a.url) for a in ctx.message.attachments]
+            if attachment_links:
+                if len(attachment_links) != 1:
+                    await ctx.send(f"I can only handle one attachment for this command (or past in a list of names)")
+                    return
+                url = str(attachment_links[0])
+                # download attachment and put it in a buffer
+                u = requests.get(url)
+                content_type = u.headers['content-type']
+                extension = mimetypes.guess_extension(content_type)
+                f = io.StringIO()
+                buffer = io.BytesIO()
+                # use it as any other file here to write to it
+                buffer.write(u.content)
+                buffer.seek(0)  # reset the reader to the beginning
+                # TODO: read list
+                done = False
+                names = []
+                with buffer as f:
+                    names = [i.strip() for i in f.readlines()]
+            else:
+                names = [i.strip() for i in member_list.splitlines()]
+
+            my_converter = MemberConverter()
+            members = []
+            if not members:
+                await ctx.send("You didn't give me any names to check. Try again with a list or file")
+                return
+
+            for name in names:
+                try:
+                    members.append(await my_converter.convert(ctx, str(name)))
+                except Exception:
+                    pass
+
+            sus = []
+            for member in ctx.guild.members:
+                if member not in members:
+                    sus.append(member)
+
+            if sus:
+                sus_list = [f"{member.display_name}#{member.discriminator} ({member.id})" for member in sus]
+                sus_list = '\n'.join(sus_list)
+                buffer = io.StringIO()
+                buffer.write(sus_list)
+                buffer.seek(0)
+
+                await ctx.send(
+                    content=f"yo, these members aren't on the approved list",
+                    file=discord.File(buffer, f"impostors.txt"))
+            else:
+                await ctx.send("OMG, nobody sneaked into the server while I wasn't looking!")
+
+    # TODO:
+    #  store members invites
+    #  store verified members
+    #  match invites to verified members
+
+    # @welcome.group(name="members", invoke_without_command=True)
+    # @commands.guild_only()
+    # @sky.can_admin()
+    # async def members(self, ctx):
+    #     # todo: list?
+    #     pass
+    #
+    # @members.command()
+    # @commands.guild_only()
+    # @sky.can_admin()
+    # async def remove(self, ctx, *, member_list):
+    #     # todo: add individual by br-separated list, one, or by csv
+    #     pass
+    #
+    # @members.command()
+    # @commands.guild_only()
+    # @sky.can_admin()
+    # async def verify(self, ctx, *, member_list):
+    #     # todo: add individual by br-separated list, one, or by csv
+    #     pass
+    #
+    # @members.command()
+    # @commands.guild_only()
+    # @sky.can_admin()
+    # async def verify_all(self, ctx):
+    #     # todo: check all members whether they are on the list
+    #     pass
 
     @welcome.command(aliases=['configmute', 'muteconfig', 'configure_mute', 'mute_configure', 'mute'])
     @commands.guild_only()

@@ -215,6 +215,12 @@ def can_help(ctx):
     return ctx.author.guild_permissions.mute_members
 
 
+def can_admin():
+    async def predicate(ctx):
+        return await ctx.bot.permission_manage_bot(ctx)
+    return commands.check(predicate)
+
+
 if __name__ == '__main__':
     Logging.init()
     Logging.info("Launching Skybot!")
