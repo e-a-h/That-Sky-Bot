@@ -265,7 +265,7 @@ class Welcomer(BaseCog):
         if not ctx.invoked_subcommand:
             await ctx.send_help(ctx.command)
 
-    @welcome.command()
+    @welcome.command(aliases=['verify'])
     @commands.guild_only()
     @sky.can_admin()
     async def verify_invited(self, ctx, *, member_list=""):
@@ -280,35 +280,31 @@ class Welcomer(BaseCog):
                 u = requests.get(url)
                 content_type = u.headers['content-type']
                 extension = mimetypes.guess_extension(content_type)
-                f = io.StringIO()
                 buffer = io.BytesIO()
-                # use it as any other file here to write to it
                 buffer.write(u.content)
-                buffer.seek(0)  # reset the reader to the beginning
-                # TODO: read list
-                done = False
-                names = []
+                buffer.seek(0)  # start reading at the beginning
                 with buffer as f:
-                    names = [i.strip() for i in f.readlines()]
+                    names = [i.decode('UTF-8').strip() for i in f.readlines()]
             else:
                 names = [i.strip() for i in member_list.splitlines()]
 
-            my_converter = MemberConverter()
             members = []
-            if not members:
-                await ctx.send("You didn't give me any names to check. Try again with a list or file")
-                return
-
+            my_converter = MemberConverter()
             for name in names:
                 try:
-                    members.append(await my_converter.convert(ctx, str(name)))
-                except Exception:
+                    a_member = await my_converter.convert(ctx, name)
+                    members.append(a_member)
+                except Exception as e:
                     pass
 
             sus = []
             for member in ctx.guild.members:
                 if member not in members:
                     sus.append(member)
+
+            if not members:
+                await ctx.send("You didn't give me any names to check. Try again with a list or file")
+                return
 
             if sus:
                 sus_list = [f"{member.display_name}#{member.discriminator} ({member.id})" for member in sus]
