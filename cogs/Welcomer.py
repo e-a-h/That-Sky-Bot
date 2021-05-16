@@ -270,6 +270,7 @@ class Welcomer(BaseCog):
     @sky.can_admin()
     async def verify_invited(self, ctx, *, member_list=""):
         with ctx.channel.typing():
+            await ctx.send("This might take a while. rate limiting stops me searching all members quickly...")
             attachment_links = [str(a.url) for a in ctx.message.attachments]
             if attachment_links:
                 if len(attachment_links) != 1:

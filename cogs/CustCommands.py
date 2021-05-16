@@ -30,6 +30,9 @@ class CustCommands(BaseCog):
 
     @staticmethod
     async def send_response(ctx, emoji_name, lang_key, **kwargs):
+        if 'trigger' in kwargs:
+            kwargs['trigger'] = kwargs['trigger'].encode('utf-8').decode('unicode-escape')
+
         msg = Lang.get_locale_string(f'custom_commands/{lang_key}', ctx, **kwargs)
         emoji = Emoji.get_chat_emoji(emoji_name)
         await ctx.send(f"{emoji} {msg}")
@@ -84,6 +87,7 @@ class CustCommands(BaseCog):
         if len(trigger) > 20:
             emoji = 'WHAT'
             lang_key = 'trigger_too_long'
+            tokens = dict()
         elif trigger in self.commands[ctx.guild.id]:
             self.commands[ctx.guild.id][trigger].deletetrigger = delete_trigger
             self.commands[ctx.guild.id][trigger].save()
@@ -108,13 +112,12 @@ class CustCommands(BaseCog):
             await self.send_response(ctx, "WHAT", 'trigger_too_long')
         else:
             trigger = trigger.lower()
-            trigger = await Utils.clean(trigger)
-            command = CustomCommand.get_or_none(serverid=ctx.guild.id, trigger=trigger)
+            cleaned_trigger = await Utils.clean(trigger)
+            command = CustomCommand.get_or_none(serverid=ctx.guild.id, trigger=cleaned_trigger)
             if command is None:
-                command = CustomCommand.create(serverid=ctx.guild.id, trigger=trigger, response=reply)
-                self.commands[ctx.guild.id][trigger] = command
-                msg = Lang.get_locale_string('custom_commands/command_added', ctx, trigger=trigger)
-                await ctx.send(f"{Emoji.get_chat_emoji('YES')} {msg}")
+                command = CustomCommand.create(serverid=ctx.guild.id, trigger=cleaned_trigger, response=reply)
+                self.commands[ctx.guild.id][cleaned_trigger] = command
+                await self.send_response(ctx, "YES", 'command_added', trigger=trigger)
             else:
                 async def yes():
                     await ctx.send(Lang.get_locale_string('custom_commands/updating_command', ctx))
@@ -137,15 +140,15 @@ class CustCommands(BaseCog):
     async def remove(self, ctx: commands.Context, trigger: str):
         """command_remove_help"""
         trigger = trigger.lower()
-        trigger = await Utils.clean(trigger)
+        cleaned_trigger = await Utils.clean(trigger)
 
         tokens = dict()
-        if len(trigger) > 20:
+        if len(cleaned_trigger) > 20:
             emoji = 'WHAT'
             lang_key = 'trigger_too_long'
-        elif trigger in self.commands[ctx.guild.id]:
-            self.commands[ctx.guild.id][trigger].delete_instance()
-            del self.commands[ctx.guild.id][trigger]
+        elif cleaned_trigger in self.commands[ctx.guild.id]:
+            self.commands[ctx.guild.id][cleaned_trigger].delete_instance()
+            del self.commands[ctx.guild.id][cleaned_trigger]
             emoji = 'YES'
             lang_key = 'command_removed'
             tokens = dict(trigger=trigger)
@@ -160,13 +163,13 @@ class CustCommands(BaseCog):
     async def update(self, ctx: commands.Context, trigger: str, *, reply: str = None):
         """command_update_help"""
         trigger = trigger.lower()
-        trigger = await Utils.clean(trigger)
+        cleaned_trigger = await Utils.clean(trigger)
         tokens = dict()
         if reply is None:
             emoji = 'NO'
             msg = 'empty_reply'
         else:
-            command = CustomCommand.get_or_none(serverid=ctx.guild.id, trigger=trigger)
+            command = CustomCommand.get_or_none(serverid=ctx.guild.id, trigger=cleaned_trigger)
             if command is None:
                 emoji = 'WARNING'
                 msg = 'creating_command'
@@ -174,7 +177,7 @@ class CustCommands(BaseCog):
             else:
                 command.response = reply
                 command.save()
-                self.commands[ctx.guild.id][trigger] = command
+                self.commands[ctx.guild.id][cleaned_trigger] = command
                 emoji = 'YES'
                 msg = 'command_updated'
                 tokens = dict(trigger=trigger)
@@ -190,7 +193,8 @@ class CustCommands(BaseCog):
         prefix = Configuration.get_var("bot_prefix")
         if message.content.startswith(prefix, 0):
             for trigger in self.commands[message.guild.id]:
-                if message.content.lower() == prefix+trigger or (message.content.lower().startswith(trigger, len(prefix)) and message.content.lower()[len(prefix+trigger)] == " "):
+                cleaned_message = await Utils.clean(message.content.lower())
+                if cleaned_message == prefix+trigger or (cleaned_message.startswith(trigger, len(prefix)) and cleaned_message[len(prefix+trigger)] == " "):
                     command = self.commands[message.guild.id][trigger]
                     command_content = command.response.replace("@", "@\u200b").format(author=message.author.mention)
                     if command.deletetrigger:
