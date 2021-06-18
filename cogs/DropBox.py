@@ -106,7 +106,14 @@ class DropBox(BaseCog):
                     await drop_channel.send(
                         f"Attachment from {source_message.author.mention} failed. Censored or deleted by member?")
 
-            await drop_channel.send(embed=embed, content=source_message.content)
+            pages = Utils.paginate(source_message.content)
+            page_count = len(pages)
+            for i, page in enumerate(pages[:-1]):
+                if len(pages) > 1:
+                    page = f"**{i} of {page_count}**\n{page}"
+                await drop_channel.send(page)
+            last_page = pages[-1] if page_count == 1 else f"**{page_count} of {page_count}**\n{pages[-1]}"
+            await drop_channel.send(embed=embed, content=last_page)
 
             # TODO: try/ignore: add reaction for "claim" "flag" "followup" "delete"
             msg = Lang.get_locale_string('dropbox/msg_delivered', ctx, author=source_message.author.mention)

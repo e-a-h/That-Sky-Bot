@@ -608,7 +608,7 @@ class Welcomer(BaseCog):
             else:
                 failed_welcome.append(member[1])
 
-        failed_lists = list(Utils.split_list(not_welcomed, 50))
+        failed_lists = list(Utils.chunk_list_or_string(not_welcomed, 50))
 
         content = f"**Ignored {len(verified)} members who already have a verified role**" + '\n'
         content += f"**There are {len(too_old)} unverified members who joined too long ago**" + '\n'

@@ -364,7 +364,7 @@ def to_pretty_time(seconds):
     return duration.strip()
 
 
-def split_list(input_list, chunk_size):
+def chunk_list_or_string(input_list, chunk_size):
     for i in range(0, len(input_list), chunk_size):
         yield input_list[i:i + chunk_size]
 
@@ -376,19 +376,33 @@ def paginate(input, max_lines=20, max_chars=1900, prefix="", suffix=""):
     page = ""
     count = 0
 
+    def add_page(content):
+        nonlocal pages
+        pages.append(f"{prefix}{content}{suffix}")
+
     for line in lines:
+        # if word is longer than available space > if word longer than max, split on char, else newpage = word
         if len(page) + len(line) > max_chars or count == max_lines:
             # single 2k line, split smaller
             words = line.split(" ")
             for word in words:
                 if len(page) + len(word) > max_chars:
-                    pages.append(f"{prefix}{page}{suffix}")
-                    count += 1
-                    page = f"{word} "
+                    if page:
+                        add_page(page)
+                        count += 1
+                    if len(word) > max_chars:
+                        for chunk in chunk_list_or_string(word, max_chars):
+                            page = f"{chunk} "
+                            if len(chunk) == max_chars:
+                                add_page(page)
+                            # fall through here because this chunk doesn't fill the page yet
+                            continue
+                    else:
+                        page = f"{word} "
                 else:
                     page += f"{word} "
         else:
             page += line
     # append the last page
-    pages.append(f"{prefix}{page}{suffix}")
+    add_page(page)
     return pages
