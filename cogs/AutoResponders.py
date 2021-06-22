@@ -263,6 +263,7 @@ class AutoResponders(BaseCog):
                 my_list.append(ar_line)
 
             list_page = []
+            self.ar_list[ctx.guild.id] = []
             for line in my_list:
                 # split to groups of 10, max 2000 char
                 if len(list_page) == 8 or len(''.join(list_page) + line + 50*'_') > 2000:
