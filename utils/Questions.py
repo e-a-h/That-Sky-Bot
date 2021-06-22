@@ -1,11 +1,19 @@
 import asyncio
 import inspect
 import re
-from collections import namedtuple
 from discord import Embed, Reaction
 from utils import Emoji, Utils, Configuration, Lang
+from dataclasses import dataclass
 
-Option = namedtuple("Option", "emoji text handler args", defaults=(None, None, None, None))
+# Option = namedtuple("Option", "emoji text handler args", defaults=(None, None, None, None))
+
+
+@dataclass
+class Option:
+    emoji: str = None
+    text: str = None
+    handler: 'function' = None
+    args: str = None
 
 
 def timeout_format(total_seconds: int) -> str:
@@ -20,7 +28,7 @@ def timeout_format(total_seconds: int) -> str:
 
 
 async def ask(bot, channel, author, text, options, timeout=60, show_embed=False, delete_after=False, locale="en_US"):
-    description = '\n'.join(f"{Emoji.get_chat_emoji(option.emoji)} {option.text}" for option in options)
+    description = '\n'.join(f"{Emoji.get_chat_emoji(option.emoji)} {option.text or ''}" for option in options)
     embed = Embed(color=0x68a910, description=description)
     message = await channel.send(text, embed=embed if show_embed else None)
     handlers = dict()
@@ -47,8 +55,8 @@ async def ask(bot, channel, author, text, options, timeout=60, show_embed=False,
                 await message.delete()
             await channel.send(
                 Lang.get_locale_string("questions/error_reaction_timeout", locale,
-                                error_emoji=Emoji.get_emoji("WARNING"),
-                                timeout=timeout_format(timeout)),
+                                       error_emoji=Emoji.get_emoji("WARNING"),
+                                       timeout=timeout_format(timeout)),
                 delete_after=10 if delete_after else None)
         except Exception as e:
             # ignore all failures at this point
@@ -127,8 +135,8 @@ async def ask_text(
             await channel.send(
                 # TODO: remove "bug" from lang string. send report cancel language from Bugs.py exception handler
                 Lang.get_locale_string("questions/error_reaction_timeout", locale,
-                                error_emoji=Emoji.get_emoji("WARNING"),
-                                timeout=timeout_format(timeout))
+                                       error_emoji=Emoji.get_emoji("WARNING"),
+                                       timeout=timeout_format(timeout))
             )
             raise ex
         else:
@@ -218,8 +226,8 @@ async def ask_attachements(
             except asyncio.TimeoutError as ex:
                 await channel.send(
                     Lang.get_locale_string("questions/error_reaction_timeout", locale,
-                                    error_emoji=Emoji.get_emoji("WARNING"),
-                                    timeout=timeout_format(timeout))
+                                           error_emoji=Emoji.get_emoji("WARNING"),
+                                           timeout=timeout_format(timeout))
                 )
                 raise ex
             else:

@@ -7,7 +7,7 @@ from discord import NotFound, HTTPException
 from discord.ext import commands, tasks
 
 from cogs.BaseCog import BaseCog
-from utils import Utils, Configuration, Lang, Logging
+from utils import Utils, Configuration, Lang
 
 
 class ReactMonitor(BaseCog):
@@ -190,7 +190,7 @@ class ReactMonitor(BaseCog):
                     await p(timestamp, event)
 
             except Exception as ex:
-                await Utils.handle_exception('react watch loop error...', self, ex)
+                await Utils.handle_exception('react watch loop error...', self.bot, ex)
 
     @commands.group(name="reactmonitor",
                     aliases=['reactmon', 'reactwatch', 'react', 'watcher'],

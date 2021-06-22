@@ -1,13 +1,18 @@
+import asyncio
+import re
+
 import discord
-from discord import Role, TextChannel, Message
+from discord import Role, TextChannel, Message, AllowedMentions, Forbidden, HTTPException
 from discord.ext import commands
 
 from cogs.BaseCog import BaseCog
-from utils import Configuration, Utils, Lang
+from utils import Utils, Lang, Questions
 from utils.Database import Guild
 
 
 class GuildConfig(BaseCog):
+    power_task = dict()
+
     def __init__(self, bot):
         super().__init__(bot)
         bot.loop.create_task(self.startup_cleanup())
@@ -268,6 +273,215 @@ class GuildConfig(BaseCog):
             await ctx.send(f"Ok! `rulesreactmessageid` is now `{msg.id}`")
         except Exception as e:
             await ctx.send(f"I failed to set `rulesreactmessageid` value to `{msg.id}`")
+
+    @commands.command(aliases=["stop"])
+    @commands.guild_only()
+    async def stop_kick(self, ctx):
+        if ctx.guild.id in self.power_task:
+            self.power_task[ctx.guild.id].cancel()
+            del self.power_task[ctx.guild.id]
+            await ctx.send("Ok, I stopped the task")
+        else:
+            await ctx.send("No task to stop")
+
+    @commands.command(aliases=["powerkick"])
+    @commands.guild_only()
+    @commands.has_permissions(manage_channels=True)
+    async def power_kick(self, ctx):
+        """
+        Kick EVERYONE (except certain roles or channel members)
+        """
+        protected_roles = dict()
+        protected_channels = dict()
+
+        if ctx.guild.id in self.power_task:
+            await ctx.send("power task is already in progress... try again later")
+            return
+
+        async def ask_for_roles():
+            nonlocal protected_roles
+
+            # prompt for roles to protect
+            try:
+                role_list = await Questions.ask_text(
+                    self.bot,
+                    ctx.channel,
+                    ctx.author,
+                    "Give me a list of role IDs to protect from kick (separated by spaces). Mods and higher will not be kicked.",
+                    locale=ctx)
+            except asyncio.TimeoutError as ex:
+                return
+
+            role_list = re.sub('[, ]+', ' ', role_list)
+            role_list = role_list.strip().split(' ')
+            protected_roles = set()
+
+            for role_id in role_list:
+                try:
+                    a_role = ctx.guild.get_role(int(role_id))
+                    if a_role:
+                        protected_roles.add(a_role)
+                except ValueError:
+                    pass
+
+            if not protected_roles:
+                await ctx.send("You didn't give me any known role IDs. There will be NO protected roles")
+
+        async def ask_for_channels():
+            nonlocal protected_channels
+
+            # prompt for channels to protect
+            try:
+                channel_list = await Questions.ask_text(
+                    self.bot,
+                    ctx.channel,
+                    ctx.author,
+                    "Give me a list of channel IDs to protect from kick (separated by spaces)",
+                    locale=ctx)
+            except asyncio.TimeoutError as ex:
+                return
+
+            channel_list = re.sub('[, ]+', ' ', channel_list)
+            channel_list = channel_list.strip().split(' ')
+            protected_channels = set()
+
+            for channel_id in channel_list:
+                try:
+                    a_channel = ctx.guild.get_channel(int(channel_id))
+                    if a_channel:
+                        protected_channels.add(a_channel)
+                except ValueError:
+                    pass
+
+            if not channel_list:
+                await ctx.send("You didn't give me any known channel IDs. There will be NO protected channels")
+
+        await ask_for_roles()
+        await ask_for_channels()
+
+        kick_members = set()
+        protected_members = set()
+        protected_roles_descriptions = []
+        protected_channels_descriptions = []
+
+        for this_role in protected_roles:
+            protected_roles_descriptions.append(f"`{this_role.name} ({this_role.id})`")
+            for member in this_role.members:
+                protected_members.add(member)
+
+        for this_channel in protected_channels:
+            protected_channels_descriptions.append(f"`{this_channel.name} ({this_channel.id})`")
+            for member in this_channel.members:
+                protected_members.add(member)
+
+        # protect bots, mods, and higher
+        for member in ctx.guild.members:
+            if member.bot or member.guild_permissions.ban_members or member.guild_permissions.manage_channels:
+                protected_members.add(member)
+            if member not in protected_members:
+                kick_members.add(member)
+
+        if not protected_members:
+            await ctx.send("There are no members in the roles and/or channels you specified. Try again!")
+            return
+
+        protected_roles_descriptions = '\n'.join(protected_roles_descriptions)
+        protected_channels_descriptions = '\n'.join(protected_channels_descriptions)
+
+        prompt = ""
+        if protected_roles_descriptions:
+            prompt += f"These roles will be protected from power_kick:\n{protected_roles_descriptions}"
+            prompt += "\n"
+        if protected_channels_descriptions:
+            prompt += f"These channels will be protected from power_kick:\n{protected_channels_descriptions}"
+            prompt += "\n"
+        prompt += f"That's a total of `{len(kick_members)}` members to kick," \
+                  f" and `{len(protected_members)}` member(s) who will NOT be kicked"
+        prompt += "\nI can't kick nobody. Try again, but do it better" if not kick_members else ''
+
+        await ctx.send(prompt, allowed_mentions=AllowedMentions.none())
+
+        if not kick_members:
+            return
+
+        show_protected_members = False
+        kick_approved = False
+
+        def show_protected():
+            nonlocal show_protected_members
+            show_protected_members = True
+
+        def approve_kick():
+            nonlocal kick_approved
+            kick_approved = True
+
+        try:
+            await Questions.ask(
+                self.bot, ctx.channel, ctx.author, "Would you like to see a list of members who will not be kicked?",
+                [
+                    Questions.Option('YES', 'Yes', handler=lambda: show_protected()),
+                    Questions.Option('NO', 'No')
+                ], show_embed=True, timeout=30, locale=ctx)
+        except asyncio.TimeoutError as ex:
+            pass
+
+        if show_protected_members:
+            protected_members_descriptions = []
+            for this_member in protected_members:
+                protected_members_descriptions.append(Utils.get_member_log_name(this_member))
+
+            protected_members_descriptions = '\n'.join(protected_members_descriptions)
+            protected_members_descriptions = Utils.paginate(protected_members_descriptions)
+            for page in protected_members_descriptions:
+                await ctx.send(page, allowed_mentions=AllowedMentions.none())
+
+        try:
+            await Questions.ask(
+                self.bot, ctx.channel, ctx.author,
+                "If that looks right, should I start kicking everyone else (it might take a little while)?",
+                [
+                    Questions.Option('YES', 'Yes', handler=lambda: approve_kick()),
+                    Questions.Option('NO', 'No')
+                ], show_embed=True, timeout=10, locale=ctx)
+        except asyncio.TimeoutError as ex:
+            return
+
+        if kick_approved:
+            # start task and exit command
+            self.power_task[ctx.guild.id] = self.bot.loop.create_task(self.do_power_kick(ctx, protected_members))
+            return
+        else:
+            await ctx.send(f"Ok, nobody was kicked")
+
+    async def do_power_kick(self, ctx, protected_members):
+        the_saved = []
+        for member in ctx.guild.members:
+            if member not in protected_members and \
+                    not member.bot and \
+                    not member.guild_permissions.ban_members and \
+                    not member.guild_permissions.manage_channels:
+                await ctx.send(f"kicking {Utils.get_member_log_name(member)}",
+                               allowed_mentions=AllowedMentions.none())
+                try:
+                    await ctx.guild.kick(member)
+                except Forbidden:
+                    await ctx.send(f"I'm not allowed to kick {Utils.get_member_log_name(member)} (forbidden)",
+                                   allowed_mentions=AllowedMentions.none())
+                except HTTPException:
+                    await ctx.send(f"I failed to kick {Utils.get_member_log_name(member)} (http exception)",
+                                   allowed_mentions=AllowedMentions.none())
+            else:
+                the_saved.append(Utils.get_member_log_name(member))
+
+        # list count of members who will remain
+        the_saved_description = '\n'.join(the_saved)
+        the_saved_description = Utils.paginate(the_saved_description)
+        await ctx.send("`These members were not kicked:`")
+        for page in the_saved_description:
+            await ctx.send(page, allowed_mentions=AllowedMentions.none())
+
+        # TODO: ping on task completion?
+        del self.power_task[ctx.guild.id]
 
 
 def setup(bot):

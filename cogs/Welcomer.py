@@ -1,4 +1,3 @@
-
 import asyncio
 import copy
 import re
@@ -566,7 +565,7 @@ class Welcomer(BaseCog):
                     count += 1
                     await asyncio.sleep(0.3)
             except Exception as ex:
-                await Utils.handle_exception("problem adding shadow role", self, ex)
+                await Utils.handle_exception("problem adding shadow role", self.bot, ex)
             string_name = 'welcome/darkened' if count == 1 else 'welcome/darkened_plural'
             await ctx.send(Lang.get_locale_string(string_name, ctx, count=count))
 

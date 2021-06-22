@@ -110,7 +110,7 @@ class DropBox(BaseCog):
             page_count = len(pages)
             for i, page in enumerate(pages[:-1]):
                 if len(pages) > 1:
-                    page = f"**{i} of {page_count}**\n{page}"
+                    page = f"**{i+1} of {page_count}**\n{page}"
                 await drop_channel.send(page)
             last_page = pages[-1] if page_count == 1 else f"**{page_count} of {page_count}**\n{pages[-1]}"
             await drop_channel.send(embed=embed, content=last_page)

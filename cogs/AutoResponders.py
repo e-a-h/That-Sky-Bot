@@ -1,5 +1,6 @@
 import asyncio
 import collections
+from dataclasses import dataclass
 import json
 import random
 import re
@@ -7,6 +8,7 @@ from datetime import datetime
 from json import JSONDecodeError
 
 import discord
+from discord import AllowedMentions
 from discord.ext import commands, tasks
 from discord.errors import NotFound, HTTPException, Forbidden
 from peewee import DoesNotExist
@@ -14,6 +16,12 @@ from peewee import DoesNotExist
 from cogs.BaseCog import BaseCog
 from utils import Lang, Utils, Questions, Emoji, Configuration, Logging
 from utils.Database import AutoResponder
+
+
+@dataclass
+class ArPager:
+    active_page: int = 0
+    message: discord.Message = None
 
 
 class AutoResponders(BaseCog):
@@ -39,6 +47,8 @@ class AutoResponders(BaseCog):
         self.triggers = dict()
         self.mod_messages = dict()
         self.mod_action_expiry = dict()
+        self.ar_list = dict()
+        self.ar_list_messages = dict()
         for guild in self.bot.guilds:
             self.init_guild(guild)
         self.reload_mod_actions()
@@ -82,6 +92,8 @@ class AutoResponders(BaseCog):
     def init_guild(self, guild):
         self.triggers[guild.id] = dict()
         self.mod_messages[guild.id] = dict()
+        self.ar_list[guild.id] = []
+        self.ar_list_messages[guild.id] = dict()
         self.mod_action_expiry[guild.id] = Configuration.get_var(
             f'auto_action_expiry_seconds_{guild.id}',
             self.action_expiry_default
@@ -95,6 +107,8 @@ class AutoResponders(BaseCog):
     async def on_guild_remove(self, guild):
         del self.triggers[guild.id]
         del self.mod_messages[guild.id]
+        del self.ar_list[guild.id]
+        del self.ar_list_messages[guild.id]
         del self.mod_action_expiry[guild.id]
         try:
             Configuration.del_persistent_var(f"mod_messages_{guild.id}")
@@ -232,51 +246,40 @@ class AutoResponders(BaseCog):
             color=0x663399,
             title=Lang.get_locale_string("autoresponder/list", ctx, server_name=ctx.guild.name))
 
-        embed_count = 1  # must be <= 10
-        embeds = list()
-
         if len(self.triggers[ctx.guild.id].keys()) > 0:
             guild_triggers = self.triggers[ctx.guild.id]
 
+            my_list = []
             for trigger in guild_triggers.keys():
-
-                # Limit of embed count per message. Requires new message
-                if (len(embed.fields) == 25) or (len(embed) > 5500):  # 5500 in case next embed is close to 500 len
-                    # TODO: see below and use: if embed_count == 10:
-                    if len(embed) <= 6000:
-                        await ctx.send(embed=embed)
-                    else:
-                        await ctx.send(f"embed was too long ({len(embed)})... trying to log the error")
-                        Logging.info(f'Bad AR embed:')
-                        Logging.info(embed)
-                    embed = discord.Embed(
-                        color=0x663399,
-                        title='...')
-                    embed_count = embed_count + 1
-                    # embed_count = 0
-                # Limits for this embed. Requires new embed
-                # TODO: multiple embeds not supported by d.py. revisit this
-                # if (len(embed.fields) == 25) or (len(embed) > 5500):  # 5500 in case next embed is close to 500 len
-                #     embeds.append(embed)
-                #     # create a new embed
-                #     embed = discord.Embed(
-                #         color=0x663399,
-                #         title='...')
-                #     embed_count = embed_count + 1
-
                 trigger_obj = guild_triggers[trigger]
-                flags_description = self.get_flags_description(trigger_obj)  # 148
+                flags_description = self.get_flags_description(trigger_obj, "**\u200b \u200b **")
                 if trigger_obj['chance'] < 1:
-                    flags_description += f"\n**\u200b \u200b **Chance of response: {trigger_obj['chance']*100}%"  # 33
+                    flags_description += f"\n**\u200b \u200b ** Chance of response: {trigger_obj['chance']*100}%"
                 if trigger_obj['responsechannelid']:
-                    flags_description += f"\n**\u200b \u200b **Respond in Channel: <#{trigger_obj['responsechannelid']}>"  # 51
+                    flags_description += f"\n**\u200b \u200b ** Respond in Channel: <#{trigger_obj['responsechannelid']}>"
                 if trigger_obj['listenchannelid']:
-                    flags_description += f"\n**\u200b \u200b **Listen in Channel: <#{trigger_obj['listenchannelid']}>"  # 50
-                embed.add_field(name=f"**[{trigger_obj['id']}]** {self.get_trigger_description(trigger)}",  # 47
-                                value=flags_description,  # 282
-                                inline=False)  # total length 329 max
-            # embeds.append(embed)
-            await ctx.send(embed=embed)
+                    flags_description += f"\n**\u200b \u200b ** Listen in Channel: <#{trigger_obj['listenchannelid']}>"
+                ar_line = f"__**[{trigger_obj['id']}]**__ {self.get_trigger_description(trigger)}\n{flags_description}"
+                my_list.append(ar_line)
+
+            list_page = []
+            for line in my_list:
+                # split to groups of 10, max 2000 char
+                if len(list_page) == 8 or len(''.join(list_page) + line + 50*'_') > 2000:
+                    self.ar_list[ctx.guild.id].append(list_page)
+                    list_page = []
+                list_page.append(line)
+            if list_page:
+                # one more page to attach
+                self.ar_list[ctx.guild.id].append(list_page)
+
+            embed.add_field(name="page", value=f"1 of {len(self.ar_list[ctx.guild.id])}", inline=False)
+            list_message = await ctx.send(embed=embed,
+                                          content='\n'.join(self.ar_list[ctx.guild.id][0]),
+                                          allowed_mentions=AllowedMentions.none())
+            for emoji in ['LEFT', 'RIGHT']:
+                await list_message.add_reaction(Emoji.get_emoji(emoji))
+            self.ar_list_messages[ctx.guild.id][list_message.id] = ArPager(0, list_message)
         else:
             await ctx.send(Lang.get_locale_string("autoresponder/none_set", ctx))
 
@@ -1046,6 +1049,9 @@ class AutoResponders(BaseCog):
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):
+        action = None
+        message = None
+
         try:
             channel = self.bot.get_channel(event.channel_id)
             my_guild = self.bot.get_guild(channel.guild.id)
@@ -1054,17 +1060,50 @@ class AutoResponders(BaseCog):
             has_permission = member.guild_permissions.mute_members  # TODO: change to role-based?
             if user_is_bot or not has_permission:
                 return
-            action = self.mod_messages[channel.guild.id][channel.id].pop(event.message_id)
-            message = await channel.fetch_message(event.message_id)
-            Configuration.set_persistent_var(f"mod_messages_{channel.guild.id}", self.mod_messages[channel.guild.id])
+
+            if event.message_id in self.ar_list_messages[channel.guild.id]:
+                await self.update_list_message(self.ar_list_messages[channel.guild.id][event.message_id], event)
+                return
+
+            if event.message_id in self.mod_messages[channel.guild.id][channel.id]:
+                action = self.mod_messages[channel.guild.id][channel.id].pop(event.message_id)
+                message = await channel.fetch_message(event.message_id)
+                Configuration.set_persistent_var(f"mod_messages_{channel.guild.id}", self.mod_messages[channel.guild.id])
+
         except (NotFound, KeyError, AttributeError, HTTPException) as e:
             # couldn't find channel, message, member, or action
             return
         except Exception as e:
-            await Utils.handle_exception("auto-responder generic exception", self, e)
+            await Utils.handle_exception("auto-responder generic exception", self.bot, e)
             return
 
-        await self.do_mod_action(action, member, message, event.emoji)
+        if action:
+            await self.do_mod_action(action, member, message, event.emoji)
+
+    async def update_list_message(self, ar_pager: ArPager, event):
+        direction = 0
+        if str(event.emoji) == str(Emoji.get_emoji("RIGHT")):
+            direction = 1
+        elif str(event.emoji) == str(Emoji.get_emoji("LEFT")):
+            direction = -1
+        # Updating a list message
+        if direction == 0:
+            return
+
+        page = ArPager.active_page
+        try:
+            guild_id = ar_pager.message.channel.guild.id
+            my_ar_list = self.ar_list[guild_id]
+            step = 1 if direction > 0 else -1
+            next_page = (ArPager.active_page + step) % len(my_ar_list)
+            embed = ar_pager.message.embeds[0]
+            embed.set_field_at(-1, name="page", value=f"{next_page+1} of {len(self.ar_list[guild_id])}", inline=False)
+            await ar_pager.message.edit(content='\n'.join(my_ar_list[next_page]), embed=embed)
+            page = next_page
+            await ar_pager.message.remove_reaction(event.emoji, self.bot.get_user(event.user_id))
+        except Exception as e:
+            await Utils.handle_exception('AR Pager Failed', self.bot, e)
+        ArPager.active_page = page
 
     async def do_mod_action(self, action, member, message, emoji):
         """

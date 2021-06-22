@@ -267,17 +267,18 @@ class ArtCollector(BaseCog):
                 return
 
             message = await my_channel.fetch_message(m_id)
-            await message.clear_reactions()  # any reaction will remove the bot reacts
             if str(my_emoji) == str(Emoji.get_emoji("NO")):
                 # delete message
                 await message.delete()
                 return
+            else:
+                await message.clear_reactions()  # any reaction will remove the bot reacts
 
         except (NotFound, HTTPException, KeyError, AttributeError) as e:
             # couldn't find channel, message, member, or action
             return
         except Exception as e:
-            await Utils.handle_exception("art collector generic exception", self, e)
+            await Utils.handle_exception("art collector generic exception", self.bot, e)
             return
 
 

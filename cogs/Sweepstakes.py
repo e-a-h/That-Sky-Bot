@@ -7,7 +7,7 @@ from discord.ext import commands
 from discord.ext.commands import Context
 
 from cogs.BaseCog import BaseCog
-from utils import Utils, Lang, Questions, Logging
+from utils import Utils, Lang, Questions
 from datetime import datetime
 from utils.Utils import save_to_disk
 
@@ -38,7 +38,7 @@ class Sweepstakes(BaseCog):
             message = await channel.fetch_message(message_id)
             return message
         except Exception as e:
-            await Utils.handle_exception(f"Failed to get message {channel_id}/{message_id}", self, e)
+            await Utils.handle_exception(f"Failed to get message {channel_id}/{message_id}", self.bot, e)
             await ctx.send(Lang.get_locale_string('sweeps/fetch_message_failed', ctx, channel_id=channel_id, message_id=message_id))
 
     async def get_unique_react_users(self, message: Message):
@@ -102,7 +102,7 @@ class Sweepstakes(BaseCog):
             await ctx.send(Lang.get_locale_string('sweeps/unique_result', ctx, count=len(unique_users['data'])))
             await self.send_csv(ctx, unique_users['fields'], unique_users['data'])
         except Exception as e:
-            await Utils.handle_exception(f"Failed to get entries {channel_id}/{message_id}", self, e)
+            await Utils.handle_exception(f"Failed to get entries {channel_id}/{message_id}", self.bot, e)
             await ctx.send(f"Failed to get entries {channel_id}/{message_id}")
 
     async def fetch_all(self, ctx: Context, message: Message):
@@ -113,7 +113,7 @@ class Sweepstakes(BaseCog):
             await ctx.send(Lang.get_locale_string('sweeps/total_entries', ctx, count=len(reactions['data'])))
             await self.send_csv(ctx, reactions['fields'], reactions['data'])
         except Exception as e:
-            await Utils.handle_exception(f"Failed to get entries {channel_id}/{message_id}", self, e)
+            await Utils.handle_exception(f"Failed to get entries {channel_id}/{message_id}", self.bot, e)
             await ctx.send(Lang.get_locale_string('sweeps/fetch_entries_failed', ctx, channel_id=channel_id, message_id=message_id))
 
     async def send_csv(self, ctx, fields: list, data: tuple):
@@ -163,7 +163,7 @@ class Sweepstakes(BaseCog):
         except Exception as e:
             msg = f"Failed to clear reactions {message.channel.id}/{message.id}"
             await ctx.send(msg)
-            await Utils.handle_exception(msg, self, e)
+            await Utils.handle_exception(msg, self.bot, e)
             raise e
         await ctx.send(Lang.get_locale_string('sweeps/drawing_closed', ctx))
 
