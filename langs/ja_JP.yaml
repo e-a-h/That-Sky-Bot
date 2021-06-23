@@ -368,7 +368,9 @@ custom_commands:
   creating_command: --jp-- This command does not exist, making it for you instead.
   command_updated: --jp-- Command `{trigger}` has been updated!
   delete_trigger_updated: |
-    --jp-- Command `{trigger}` delete triggering command: `{delete_trigger}`
+    --jp-- Command `{trigger}` delete triggering command: `{value}`
+  reply_trigger_updated: |
+    --jp-- Command `{trigger}` reply to command author: `{value}`
 word_counter:
   list_words: --jp-- Words being counted for metrics in the {server_name} server
   no_words: --jp-- There are no words currently being counted.

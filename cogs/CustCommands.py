@@ -72,28 +72,50 @@ class CustCommands(BaseCog):
             else:
                 await ctx.send(Lang.get_locale_string("custom_commands/no_commands", ctx))
 
-    @command.command(aliases=["set_delete", "unset_delete"])
+    @command.command(aliases=["set_delete", "unset_delete", "set_reply", "unset_reply"])
     @commands.guild_only()
-    async def delete_trigger(self, ctx: commands.Context, trigger: str, delete_trigger: bool = True):
+    async def command_flag(self, ctx: commands.Context, trigger: str):
+        """
+        Command must be invoked with one of the aliases.
+
+        Sets and unsets the respective command flags based on alias used.
+        """
+        if ctx.invoked_with not in ctx.command.aliases:
+            await ctx.send_help(ctx.command)
+            return
+
         trigger = trigger.lower()
         trigger = await Utils.clean(trigger)
+        flag_val = False
 
         # Coerce flag based on command alias
-        if ctx.invoked_with == 'unset_delete':
-            delete_trigger = False
-        elif ctx.invoked_with == 'set_delete':
-            delete_trigger = True
+        if ctx.invoked_with.startswith('unset'):
+            flag_val = False
+
+        if ctx.invoked_with.startswith('set'):
+            flag_val = True
+
+        if ctx.invoked_with.endswith('delete'):
+            flag = 'deletetrigger'
+
+        if ctx.invoked_with.endswith('reply'):
+            flag = 'reply'
 
         if len(trigger) > 20:
             emoji = 'WHAT'
             lang_key = 'trigger_too_long'
             tokens = dict()
         elif trigger in self.commands[ctx.guild.id]:
-            self.commands[ctx.guild.id][trigger].deletetrigger = delete_trigger
-            self.commands[ctx.guild.id][trigger].save()
+            try:
+                setattr(self.commands[ctx.guild.id][trigger], flag, flag_val)
+                self.commands[ctx.guild.id][trigger].save()
+            except Exception as e:
+                await Utils.handle_exception("Custom Commands set flag exception", self.bot, e)
+                raise commands.CommandError
+
             emoji = 'YES'
-            lang_key = 'delete_trigger_updated'
-            tokens = dict(trigger=trigger, delete_trigger='ON' if delete_trigger else 'OFF')
+            lang_key = f'{flag}_trigger_updated'
+            tokens = dict(trigger=trigger, value='ON' if flag_val else 'OFF')
         else:
             emoji = 'NO'
             lang_key = 'not_found'
@@ -102,11 +124,11 @@ class CustCommands(BaseCog):
 
     @command.command(aliases=["new", "add"])
     @commands.guild_only()
-    async def create(self, ctx: commands.Context, trigger: str, *, reply: str = None):
+    async def create(self, ctx: commands.Context, trigger: str, *, response: str = None):
         """command_create_help"""
         if len(trigger) == 0:
             await self.send_response(ctx, "WHAT", 'empty_trigger')
-        elif reply is None or reply == "":
+        elif response is None or response == "":
             await self.send_response(ctx, "WHAT", 'empty_reply')
         elif len(trigger) > 20:
             await self.send_response(ctx, "WHAT", 'trigger_too_long')
@@ -115,13 +137,13 @@ class CustCommands(BaseCog):
             cleaned_trigger = await Utils.clean(trigger)
             command = CustomCommand.get_or_none(serverid=ctx.guild.id, trigger=cleaned_trigger)
             if command is None:
-                command = CustomCommand.create(serverid=ctx.guild.id, trigger=cleaned_trigger, response=reply)
+                command = CustomCommand.create(serverid=ctx.guild.id, trigger=cleaned_trigger, response=response)
                 self.commands[ctx.guild.id][cleaned_trigger] = command
                 await self.send_response(ctx, "YES", 'command_added', trigger=trigger)
             else:
                 async def yes():
                     await ctx.send(Lang.get_locale_string('custom_commands/updating_command', ctx))
-                    await ctx.invoke(self.update, trigger, reply=reply)
+                    await ctx.invoke(self.update, trigger, response=response)
 
                 async def no():
                     await ctx.send(Lang.get_locale_string('custom_commands/not_updating_command', ctx))
@@ -160,12 +182,12 @@ class CustCommands(BaseCog):
 
     @command.command(aliases=["edit", "set"])
     @commands.guild_only()
-    async def update(self, ctx: commands.Context, trigger: str, *, reply: str = None):
+    async def update(self, ctx: commands.Context, trigger: str, *, response: str = None):
         """command_update_help"""
         trigger = trigger.lower()
         cleaned_trigger = await Utils.clean(trigger)
         tokens = dict()
-        if reply is None:
+        if response is None:
             emoji = 'NO'
             msg = 'empty_reply'
         else:
@@ -173,9 +195,9 @@ class CustCommands(BaseCog):
             if command is None:
                 emoji = 'WARNING'
                 msg = 'creating_command'
-                await ctx.invoke(self.create, trigger, reply=reply)
+                await ctx.invoke(self.create, trigger, response=response)
             else:
-                command.response = reply
+                command.response = response
                 command.save()
                 self.commands[ctx.guild.id][cleaned_trigger] = command
                 emoji = 'YES'
@@ -196,10 +218,11 @@ class CustCommands(BaseCog):
                 cleaned_message = await Utils.clean(message.content.lower())
                 if cleaned_message == prefix+trigger or (cleaned_message.startswith(trigger, len(prefix)) and cleaned_message[len(prefix+trigger)] == " "):
                     command = self.commands[message.guild.id][trigger]
+                    reference = message if command.reply else None
                     command_content = command.response.replace("@", "@\u200b").format(author=message.author.mention)
                     if command.deletetrigger:
                         await message.delete()
-                    await message.channel.send(command_content)
+                    await message.channel.send(command_content, reference=reference)
 
 
 def setup(bot):

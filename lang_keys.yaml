@@ -236,6 +236,7 @@ custom_commands:
   creating_command:
   command_updated:
   delete_trigger_updated:
+  reply_trigger_updated:
 word_counter:
   list_words:
   no_words:
