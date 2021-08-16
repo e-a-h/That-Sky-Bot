@@ -187,7 +187,7 @@ eden:
   dm_prompt: --jp-- Did you know you can use the `!edenreset` or `!er` command in my DMs? Shorter cooldown there too.
   reset: |
     --jp-- The Eye of Eden resets once per week.
-    Next reset is on {date} at {time} (In {countdown})
+    Next reset happens {reset} (In {countdown})
   tz_help: --jp-- I couldn't find a timezone called '{tz}.' Maybe you can find your timezone in this list <https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568>
   tz_mention: --jp-- I'm not falling for that again
   cool_it: --jp-- Cool it, {author}. Try again in {remain}

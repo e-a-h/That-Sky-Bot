@@ -1,6 +1,3 @@
-import json
-from collections import namedtuple
-
 import discord
 from discord.ext import commands
 

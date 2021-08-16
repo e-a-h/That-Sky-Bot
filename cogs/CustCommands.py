@@ -15,8 +15,8 @@ class CustCommands(BaseCog):
         self.bot.loop.create_task(self.startup_cleanup())
         self.loaded = False
 
-    async def cog_check (self, ctx):
-        return ctx.author.guild_permissions.ban_members
+    async def cog_check(self, ctx):
+        return hasattr(ctx.author, 'guild_permissions') and ctx.author.guild_permissions.ban_members
 
     async def startup_cleanup(self):
         for guild in self.bot.guilds:

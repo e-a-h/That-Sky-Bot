@@ -1,14 +1,9 @@
-import json
-from collections import namedtuple
-
 import discord
 from discord.ext import commands
 
 from cogs.BaseCog import BaseCog
-from sky import Skybot
-from utils import Configuration, Logging, Emoji, Lang
-from utils.Database import ConfigChannel, AdminRole, Guild, BotAdmin
-from utils.Utils import validate_channel_name
+from utils import Lang
+from utils.Database import Guild, BotAdmin
 from utils import Utils
 
 
@@ -72,7 +67,6 @@ class PermissionConfig(BaseCog):
         del self.command_permissions[guild.id]
 
         # remove all configured guild permissions
-        guild_row = Guild.get(serverid=guild.id)
         guild_row = self.bot.get_guild_db_config(guild.id)
         for row in guild_row.admin_roles:
             row.delete_instance()

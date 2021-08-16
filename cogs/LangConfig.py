@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands
 
 from cogs.BaseCog import BaseCog
-from utils import Lang, Logging, Utils
+from utils import Lang
 from utils.Database import Guild, Localization
 
 
