@@ -1,9 +1,11 @@
 import discord
+from discord import Role
+from discord import guild
 from discord.ext import commands
 
 from cogs.BaseCog import BaseCog
 from utils import Lang
-from utils.Database import Guild, BotAdmin
+from utils.Database import Guild, BotAdmin, TrustedRole
 from utils import Utils
 
 
@@ -145,17 +147,55 @@ class PermissionConfig(BaseCog):
         await ctx.send(embed=embed)
 
     @permission_config.command()
-    @commands.is_owner()
     @commands.guild_only()
     async def reload(self, ctx: commands.Context):
         await self.startup_cleanup()
         await ctx.send("reloaded permissions from db...")
         await ctx.invoke(self.permission_config)
 
+    @permission_config.command()
+    @commands.guild_only()
+    async def add_trusted_role(self, ctx, role: Role):
+        '''add a role to trusted_roles list for this guild'''
+        guildid = ctx.guild.id
+        if role.id in self.trusted_roles[guildid]:
+            # if role already here, then it has to be in db because that's where we fetched from
+            await ctx.send("role already there!")
+            return
+        self.trusted_roles[guildid].add(role.id)
+        guild_row = Guild.get_or_create(serverid=guildid)[0]
+        role_row = TrustedRole.create(guild=guild_row, roleid=role.id)
+        role_row.save()
+        await ctx.send(f"role added!")
+        #TODO: add more checks for edge cases/errors???
+        #TODO: make sure duplicates can't be inserted
+        # consider how to ensure memory and db are in sync?
+        #TODO: names long and not very friendly. is there any better?
+        #TODO: bot response strings should use Lang files
+
+    @permission_config.command()
+    @commands.guild_only()
+    async def remove_trusted_role(self, ctx, role: Role):
+        '''remove a role from trusted_roles list for this guild'''
+        guildid = ctx.guild.id
+        if not role.id in self.trusted_roles[guildid]:
+            await ctx.send("role not there!")
+            return
+        try:
+            self.trusted_roles[guildid].discard(role.id)
+            guild_row = Guild.get_or_create(serverid=guildid)[0]
+            role_row = TrustedRole.get(guild=guild_row, roleid=role.id)
+            role_row.delete_instance()
+            await ctx.send(f"role removed!")
+        except Exception as e:
+            await ctx.send("removing failed")
+    # see todos for add_trusted_role
+
     # TODO: set user permission
     # TODO: add role to [admin|mod|trusted]
     # TODO: add user to bot_admins
 
+    # TODO: method for checking if user has permission that accepts ctx with command info?
 
 def setup(bot):
     bot.add_cog(PermissionConfig(bot))
