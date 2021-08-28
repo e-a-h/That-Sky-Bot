@@ -30,12 +30,14 @@ class Skybot(Bot):
         self.metrics = PrometheusMon(self)
         self.config_channels = dict()
         self.db_keepalive = None
+        self.loaded = False
         sys.path.append(
             os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          "sky-python-music-sheet-maker",
                          "python"))
 
     async def on_ready(self):
+        Logging.info(f"Skybot... {'RECONNECT!' if self.loaded else 'STARTUP!'}")
         if self.loaded:
             Logging.info("Skybot reconnect")
             return
@@ -122,7 +124,6 @@ class Skybot(Bot):
         if not self.shutting_down:
             Logging.info("Shutting down...")
             self.shutting_down = True
-            await Logging.bot_log(f"Skybot shutting down!")
             self.db_keepalive.cancel()
             temp = []
             for cog in self.cogs:
@@ -201,6 +202,7 @@ def run_db_migrations():
 
 
 def before_send(event, hint):
+    # TODO: this is broken obvs becuase logger is named 'thatskybot' - used by sentry, but how?
     if event['level'] == "error" and 'logger' in event.keys() and event['logger'] == 'gearbot':
         return None  # we send errors manually, in a much cleaner way
     if 'exc_info' in hint:
