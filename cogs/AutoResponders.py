@@ -523,10 +523,12 @@ class AutoResponders(BaseCog):
         if trigger is not False and await self.validate_reply(ctx, reply):
             db_trigger = await self.get_db_trigger(ctx.guild.id, trigger)
             if db_trigger is None:
-                AutoResponder.create(serverid=ctx.guild.id, trigger=trigger, response=reply)
+                row = AutoResponder.create(serverid=ctx.guild.id, trigger=trigger, response=reply)
                 await self.reload_triggers(ctx)
+                added_message = Lang.get_locale_string('autoresponder/added', ctx,
+                                                        trigger=trigger, trigid=row.id)
                 await ctx.send(
-                    f"{Emoji.get_chat_emoji('YES')} {Lang.get_locale_string('autoresponder/added', ctx, trigger=trigger)}"
+                    f"{Emoji.get_chat_emoji('YES')} {added_message}"
                 )
             else:
                 async def yes():

@@ -260,7 +260,7 @@ autoresponder:
   none_set: --jp-- No auto-responders have been created yet.
   no_commands: --jp-- No auto-responders have been created yet.
   trigger_too_long: --jp-- Auto-responder triggers can only be up to 100 chars long
-  added: --jp-- Auto-responder for `{trigger}` has been added!
+  added: --jp-- Auto-responder for `{trigger}` has been added! id is `{trigid}`.
   removed: --jp-- Auto-responder `{trigger}` has been removed.
   updated: --jp-- Auto-responder `{trigger}` has been updated!
   chanceset: --jp-- Chance that `{trigger}` will trigger a response is now {chance}%

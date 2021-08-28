@@ -260,7 +260,7 @@ autoresponder:
   none_set: No auto-responders have been created yet.
   no_commands: No auto-responders have been created yet.
   trigger_too_long: Auto-responder triggers can only be up to 100 chars long
-  added: Auto-responder for `{trigger}` has been added!
+  added: Auto-responder for `{trigger}` has been added! id is `{trigid}`.
   removed: Auto-responder `{trigger}` has been removed.
   updated: Auto-responder `{trigger}` has been updated!
   chanceset: Chance that `{trigger}` will trigger a response is now {chance}%
