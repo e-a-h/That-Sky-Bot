@@ -5,7 +5,7 @@ from discord.ext import commands
 
 from cogs.BaseCog import BaseCog
 from utils import Lang
-from utils.Database import Guild, BotAdmin, TrustedRole
+from utils.Database import Guild, BotAdmin, TrustedRole, AdminRole, ModRole, UserPermission
 from utils import Utils
 
 
@@ -20,6 +20,7 @@ class PermissionConfig(BaseCog):
         bot.loop.create_task(self.startup_cleanup())
 
     async def startup_cleanup(self):
+        '''load info for permissions for all guilds bot is in'''
         for guild in self.bot.guilds:
             self.init_guild(guild)
             self.load_guild(guild)
@@ -31,6 +32,9 @@ class PermissionConfig(BaseCog):
         self.command_permissions[guild.id] = dict()
 
     def load_guild(self, guild):
+        '''load from database all admin, mod, and trusted roles, and command overrides for given guild
+        
+        guild: guild object we want to load'''
         guild_row = Guild.get_or_create(serverid=guild.id)[0]
         for row in guild_row.admin_roles:
             role = guild.get_role(row.roleid)
@@ -63,6 +67,7 @@ class PermissionConfig(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
+        #remove local cached guild permission info
         del self.admin_roles[guild.id]
         del self.mod_roles[guild.id]
         del self.trusted_roles[guild.id]
@@ -94,6 +99,8 @@ class PermissionConfig(BaseCog):
     @commands.group(name="permission_config", aliases=["permission", "permissions"], invoke_without_command=True)
     @commands.guild_only()
     async def permission_config(self, ctx):
+        '''configure permissions for this server'''
+        #this command displays server permissions if no subcommands called
         is_bot_admin = await self.bot.permission_manage_bot(ctx)
 
         embed = discord.Embed(
@@ -111,6 +118,7 @@ class PermissionConfig(BaseCog):
 
         guild_row = Guild.get(serverid=ctx.guild.id)
 
+        # guild_row.admin_roles is of peewee.ModelSelect type
         for row in guild_row.admin_roles:
             role = ctx.guild.get_role(row.roleid)
             if role:
@@ -131,7 +139,7 @@ class PermissionConfig(BaseCog):
                 user_permissions.add(desc)
 
         no_roles_string = "None"
-
+        #empty set will cause join to return empty string. display no_roles_string in that case
         embed.add_field(name="Admin Roles", value='\n'.join(admin_roles) if len(admin_roles) > 0 else no_roles_string, inline=False)
         embed.add_field(name="Mod Roles", value='\n'.join(mod_roles) if len(mod_roles) > 0 else no_roles_string, inline=False)
         embed.add_field(name="Trusted Roles", value='\n'.join(trusted_roles) if len(trusted_roles) > 0 else no_roles_string, inline=False)
@@ -149,50 +157,87 @@ class PermissionConfig(BaseCog):
     @permission_config.command()
     @commands.guild_only()
     async def reload(self, ctx: commands.Context):
+        '''reloads permissions from db'''
         await self.startup_cleanup()
         await ctx.send("reloaded permissions from db...")
         await ctx.invoke(self.permission_config)
 
-    @permission_config.command()
-    @commands.guild_only()
-    async def add_trusted_role(self, ctx, role: Role):
-        '''add a role to trusted_roles list for this guild'''
+    async def add_role(self, ctx, role: Role, local_list, db_model):
+        '''adds given role to given local list and database table
+        role: discord role to add
+        local_list: the dictionary that is the permission level we want to add to
+        db_model: ORM model for the table that stores list'''
+        #role has to be a vaild role in this server
         guildid = ctx.guild.id
-        if role.id in self.trusted_roles[guildid]:
+        if role.id in local_list[guildid]:
             # if role already here, then it has to be in db because that's where we fetched from
             await ctx.send("role already there!")
             return
-        self.trusted_roles[guildid].add(role.id)
+        local_list[guildid].add(role.id)
         guild_row = Guild.get_or_create(serverid=guildid)[0]
-        role_row = TrustedRole.create(guild=guild_row, roleid=role.id)
-        role_row.save()
+        role_row = db_model.create(guild=guild_row, roleid=role.id)
         await ctx.send(f"role added!")
-        #TODO: add more checks for edge cases/errors???
-        #TODO: make sure duplicates can't be inserted
-        # consider how to ensure memory and db are in sync?
-        #TODO: names long and not very friendly. is there any better?
+        #duplicates shouldn't be added as long as local cache and db are in sync
+        # consider how can be sure memory and db are in sync?
+        #TODO: command names long and not the easiest to type. is there any better?
         #TODO: bot response strings should use Lang files
 
     @permission_config.command()
     @commands.guild_only()
-    async def remove_trusted_role(self, ctx, role: Role):
-        '''remove a role from trusted_roles list for this guild'''
+    async def add_trusted_role(self, ctx, role: Role):
+        '''add a role to trusted roles list for this guild'''
+        await self.add_role(ctx, role, self.trusted_roles, TrustedRole)
+
+    @permission_config.command()
+    @commands.guild_only()
+    async def add_mod_role(self, ctx, role: Role):
+        '''add a role to mod roles list for this guild'''
+        await self.add_role(ctx, role, self.mod_roles, ModRole)
+
+    @permission_config.command()
+    @commands.guild_only()
+    async def add_admin_role(self, ctx, role: Role):
+        '''add a role to trusted_roles list for this guild'''
+        await self.add_role(ctx, role, self.admin_roles, AdminRole)
+
+    async def remove_role(self, ctx, role: Role, local_list, db_model):
+        '''removes given role from given local list and database table
+        role: discord role to remove
+        local_list: the dictionary that is the permission level we want to remove from
+        db_model: ORM model for the table that stores list'''
         guildid = ctx.guild.id
-        if not role.id in self.trusted_roles[guildid]:
+        if not role.id in local_list[guildid]:
             await ctx.send("role not there!")
             return
         try:
-            self.trusted_roles[guildid].discard(role.id)
+            local_list[guildid].discard(role.id)
             guild_row = Guild.get_or_create(serverid=guildid)[0]
-            role_row = TrustedRole.get(guild=guild_row, roleid=role.id)
+            role_row = db_model.get(guild=guild_row, roleid=role.id)
             role_row.delete_instance()
             await ctx.send(f"role removed!")
-        except Exception as e:
+        except Exception as e: # get can throw a DoesNotExist exception
             await ctx.send("removing failed")
-    # see todos for add_trusted_role
+    # see todos for add_role
+
+    @permission_config.command()
+    @commands.guild_only()
+    async def remove_trusted_role(self, ctx, role: Role):
+        '''remove a role from trusted roles list for this guild'''
+        await self.remove_role(ctx,role,self.trusted_roles,TrustedRole)
+
+    @permission_config.command()
+    @commands.guild_only()
+    async def remove_mod_role(self, ctx, role: Role):
+        '''remove a role from mod roles list for this guild'''
+        await self.remove_role(ctx, role, self.mod_roles, ModRole)
+
+    @permission_config.command()
+    @commands.guild_only()
+    async def remove_admin_role(self, ctx, role: Role):
+        '''remove a role from admin roles list for this guild'''
+        await self.remove_role(ctx, role, self.admin_roles, AdminRole)
 
     # TODO: set user permission
-    # TODO: add role to [admin|mod|trusted]
     # TODO: add user to bot_admins
 
     # TODO: method for checking if user has permission that accepts ctx with command info?
