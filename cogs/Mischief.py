@@ -61,7 +61,7 @@ class Mischief(BaseCog):
 
     @commands.command()
     async def mischief(self, ctx):
-        if not ctx.guild or not Utils.can_mod_official(ctx):
+        if not ctx.guild or (ctx.guild and not Utils.can_mod_official(ctx)):
             return
 
         member_counts = Configuration.get_persistent_var(f"mischief_usage", dict())
@@ -74,7 +74,7 @@ class Mischief(BaseCog):
 
     @commands.command()
     async def team_mischief(self, ctx):
-        if not ctx.guild or not Utils.can_mod_official(ctx):
+        if not ctx.guild or (ctx.guild and not Utils.can_mod_official(ctx)):
             return
 
         embed = discord.Embed(
@@ -83,10 +83,18 @@ class Mischief(BaseCog):
             title="Mischief!")
 
         for role_name, role_id in self.role_map.items():
-            this_role: discord.role = ctx.guild.get_role(role_id)
+            guild = Utils.get_home_guild()
+            this_role: discord.role = guild.get_role(role_id)
             if this_role is None:
                 continue
             embed.add_field(name=this_role.name, value=str(len(this_role.members)), inline=True)
+            if len(embed.fields) == 25:
+                await ctx.send(embed=embed,
+                               allowed_mentions=AllowedMentions.none())
+                embed = discord.Embed(
+                    timestamp=ctx.message.created_at,
+                    color=0xFFBD1C,
+                    title="mischief continued...")
 
         await ctx.send(embed=embed,
                        allowed_mentions=AllowedMentions.none())
