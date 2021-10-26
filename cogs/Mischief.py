@@ -4,6 +4,7 @@ from datetime import datetime
 import discord
 from discord import AllowedMentions
 from discord.ext import commands
+from discord.ext.commands import BucketType
 
 from cogs.BaseCog import BaseCog
 from utils import Utils, Configuration, Logging
@@ -59,6 +60,8 @@ class Mischief(BaseCog):
     async def on_guild_remove(self, guild):
         pass
 
+    @commands.cooldown(1, 300, BucketType.member)
+    @commands.max_concurrency(3, wait=True)
     @commands.command()
     async def mischief(self, ctx):
         if not ctx.guild or (ctx.guild and not Utils.can_mod_official(ctx)):
@@ -72,6 +75,8 @@ class Mischief(BaseCog):
                        f"{max_user.mention} has spammed it the most, with {member_counts[max_member_id]} tries.",
                        allowed_mentions=AllowedMentions.none())
 
+    @commands.cooldown(1, 300, BucketType.member)
+    @commands.max_concurrency(3, wait=True)
     @commands.command()
     async def team_mischief(self, ctx):
         if not ctx.guild or (ctx.guild and not Utils.can_mod_official(ctx)):
