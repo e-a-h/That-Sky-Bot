@@ -147,7 +147,7 @@ class Krill(BaseCog):
         pass
 
     def can_mod_krill(ctx):
-        return Utils.permission_official_ban(ctx.author.id)
+        return Utils.can_mod_official(ctx)
 
     def can_admin_krill(ctx):
         return ctx.author.guild_permissions.manage_channels

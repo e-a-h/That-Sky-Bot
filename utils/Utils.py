@@ -36,6 +36,11 @@ entry_channel = "entry_channel"
 
 COLOR_LIME = 0xbefc03
 
+
+def get_home_guild():
+    return BOT.get_guild(Configuration.get_var("guild_id"))
+
+
 def validate_channel_name(channel_name):
     return channel_name in (welcome_channel, rules_channel, log_channel, ro_art_channel, entry_channel)
 
@@ -66,11 +71,15 @@ def permission_official_ban(member_id):
     return permission_official(member_id, 'ban_members')
 
 
+def can_mod_official(ctx):
+    return permission_official_ban(ctx.author.id)
+
+
 def permission_official(member_id, permission_name):
     # ban permission on official server - sort of a hack to propagate perms
     # TODO: better permissions model
     try:
-        official_guild = BOT.get_guild(Configuration.get_var("guild_id"))
+        official_guild = get_home_guild()
         official_member = official_guild.get_member(member_id)
         return getattr(official_member.guild_permissions, permission_name)
     except Exception:

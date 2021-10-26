@@ -206,7 +206,7 @@ class Welcomer(BaseCog):
 
     def is_member_verified(self, member):
         try:
-            guild = self.bot.get_guild(Configuration.get_var("guild_id"))
+            guild = Utils.get_home_guild()
             if member.guild.id != guild.id:
                 return True  # non-members are "verified" so we don't try to interact with them
             member_role = guild.get_role(Configuration.get_var("member_role"))
@@ -218,7 +218,7 @@ class Welcomer(BaseCog):
 
     def is_member_unverified(self, member):
         try:
-            guild = self.bot.get_guild(Configuration.get_var("guild_id"))
+            guild = Utils.get_home_guild()
             if member.guild.id != guild.id:
                 return True  # non-members are "verified" so we don't try to interact with them
             nonmember_role = guild.get_role(Configuration.get_var("nonmember_role"))
@@ -229,7 +229,7 @@ class Welcomer(BaseCog):
             return True  # exceptions are "verified" so we don't try to interact with them *again*
 
     async def send_welcome(self, member):
-        guild = self.bot.get_guild(Configuration.get_var("guild_id"))
+        guild = Utils.get_home_guild()
         if member.guild.id != guild.id or self.is_member_verified(member):
             return False
 
@@ -685,7 +685,7 @@ class Welcomer(BaseCog):
 
         # Only send welcomes for configured guild i.e. sky official
         # TODO: retool to allow any guild to welcome members?
-        guild = self.bot.get_guild(Configuration.get_var("guild_id"))
+        guild = Utils.get_home_guild()
         if member.guild.id != guild.id:
             return
 
@@ -918,7 +918,7 @@ class Welcomer(BaseCog):
     async def handle_reaction_change(self, t, reaction, user_id):
         roles = Configuration.get_var("roles")
         if reaction in roles:
-            guild = self.bot.get_guild(Configuration.get_var("guild_id"))
+            guild = Utils.get_home_guild()
             role = guild.get_role(roles[reaction])
             member_role = guild.get_role(Configuration.get_var("member_role"))
             nonmember_role = guild.get_role(Configuration.get_var("nonmember_role"))

@@ -34,7 +34,7 @@ class Bugs(BaseCog):
         self.verify_empty_bug_queue.cancel()
 
     def can_mod(ctx):
-        guild = Utils.BOT.get_guild(Configuration.get_var("guild_id"))
+        guild = Utils.get_home_guild()
         member = guild.get_member(ctx.author.id)
         return member.guild_permissions.mute_members
 
@@ -399,7 +399,7 @@ class Bugs(BaseCog):
         await asyncio.sleep(1)
 
         # Get member from home guild. failing that, check other bot.guilds for member
-        guild = self.bot.get_guild(Configuration.get_var("guild_id"))
+        guild = Utils.get_home_guild()
         member = guild.get_member(user.id)
         if not member:
             for my_guild in self.bot.guilds:
