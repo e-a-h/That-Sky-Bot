@@ -64,7 +64,7 @@ class Mischief(BaseCog):
     @commands.max_concurrency(3, wait=True)
     @commands.command()
     async def mischief(self, ctx):
-        if not ctx.guild or (ctx.guild and not Utils.can_mod_official(ctx)):
+        if ctx.guild and not Utils.can_mod_official(ctx):
             return
 
         member_counts = Configuration.get_persistent_var(f"mischief_usage", dict())
@@ -79,7 +79,7 @@ class Mischief(BaseCog):
     @commands.max_concurrency(3, wait=True)
     @commands.command()
     async def team_mischief(self, ctx):
-        if not ctx.guild or (ctx.guild and not Utils.can_mod_official(ctx)):
+        if ctx.guild and not Utils.can_mod_official(ctx):
             return
 
         embed = discord.Embed(
