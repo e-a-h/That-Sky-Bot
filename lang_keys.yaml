@@ -135,6 +135,9 @@ dropbox:
   override_confirmation:
   msg_delivered:
   msg_not_delivered:
+  msg_receipt:
+  receipt_set_true:
+  receipt_set_false:
 autoresponder:
   mod_action_header:
   mod_action_warning:

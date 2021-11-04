@@ -244,6 +244,7 @@ class DropboxChannel(Model):
     sourcechannelid = BigIntegerField()
     targetchannelid = BigIntegerField(default=0)
     deletedelayms = SmallIntegerField(default=0)
+    sendreceipt = BooleanField(default=False)
 
     class Meta:
         database = connection
