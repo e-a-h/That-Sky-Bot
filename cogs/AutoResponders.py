@@ -5,10 +5,11 @@ import json
 import random
 import re
 from datetime import datetime
+from enum import Enum
 from json import JSONDecodeError
 
 import discord
-from discord import AllowedMentions
+from discord import AllowedMentions, enums
 from discord.ext import commands, tasks
 from discord.errors import NotFound, HTTPException, Forbidden
 from peewee import DoesNotExist
@@ -22,6 +23,19 @@ from utils.Database import AutoResponder
 class ArPager:
     active_page: int = 0
     message: discord.Message = None
+
+
+class ArFlags(Enum):
+    ACTIVE = 0
+    FULL_MATCH = 1
+    DELETE = 2
+    MATCH_CASE = 3
+    IGNORE_MOD = 4
+    MOD_ACTION = 5
+    # 'log_only': 6,
+    # 'dm_response': 7,
+    # 'delete_when_trigger_deleted': 8,
+    # 'delete_on_mod_respond': 9
 
 
 class AutoResponders(BaseCog):
@@ -1161,7 +1175,9 @@ class AutoResponders(BaseCog):
             # send auto-response in the triggering channel
             m.auto_responder_mod_auto.inc()
             if trigger_message is not None:
-                await trigger_message.channel.send(action['formatted_response'])
+                # todo: remove formatting from on_message, move it here
+                await trigger_message.channel.send(
+                    action['formatted_response'])
         if str(emoji) == str(Emoji.get_emoji("NO")):
             # delete the triggering message
             m.auto_responder_mod_delete_trigger.inc()

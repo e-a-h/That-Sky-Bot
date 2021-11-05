@@ -198,7 +198,6 @@ common:
   you_chose_codeblock: You chose ```{value}```
   you_chose_bold: You chose **{value}**
   expect_integer: I was hoping for one of these values ```{keys}```
-test: test this
 welcome:
   welcome_msg: Welcome, {user}! Please read through all the items posted in our {rules_channel} channel. When you're done, click the {accept_emoji} emote at the end of the rules to join the community and gain access to the other channels.
   welcome_mute_msg: |
