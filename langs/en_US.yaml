@@ -252,8 +252,8 @@ dropbox:
   msg_delivered: Your message was delivered, {author}
   msg_not_delivered: Your message was **not** delivered, {author}. Please try again, or contact a moderator
   msg_receipt: Here's a copy of the dropbox message you sent in {channel}
-  receipt_set_true: receipt set. authors will be DM'd a copy of their message in {channel}.
-  receipt_set_false: receipt set. authors won't be dmed for their messages in {channel}.
+  receipt_set_true: receipt set. authors will be DMed a copy of their message in {channel}.
+  receipt_set_false: receipt set. authors won't be DMed for their messages in {channel}.
 autoresponder:
   mod_action_header: Moderator actions
   mod_action_warning: Moderator action flag will be ignored if response channel is not set. Use `!autoresponder setchannel`
