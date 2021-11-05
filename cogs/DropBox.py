@@ -84,9 +84,22 @@ class DropBox(BaseCog):
                     pass
 
     async def drop_message_impl(self, source_message, drop_channel):
+        '''
+        function that does the copy to dropbox, send confirm message in channel, send dm receipt, and delete original message part of dropbox operations
+        '''
         guild_id = source_message.channel.guild.id
         source_channel_id = source_message.channel.id
         source_message_id = source_message.id
+
+        # get the ORM row for this dropbox.
+        drop = None
+        if source_channel_id in self.dropboxes[guild_id]:
+            drop = self.dropboxes[guild_id][source_channel_id]
+        else:
+            # should only return one entry because of how rows are added
+            drop = DropboxChannel.select().where(DropboxChannel.serverid == guild_id and DropboxChannel.sourcechannelid == source_channel_id)
+
+        # the embed to display who was the author in dropbox channel
         embed = Embed(
             timestamp=source_message.created_at,
             color=0x663399)
@@ -94,6 +107,13 @@ class DropBox(BaseCog):
                          icon_url=source_message.author.avatar_url_as(size=32))
         embed.add_field(name="Author link", value=source_message.author.mention)
         ctx = await self.bot.get_context(source_message)
+
+        pages = Utils.paginate(source_message.content)
+        page_count = len(pages)
+
+        if source_message.author.dm_channel is None:
+            await source_message.author.create_dm()
+        dm_channel = source_message.author.dm_channel
 
         try:
             # send embed and message to dropbox channel
@@ -105,36 +125,13 @@ class DropBox(BaseCog):
                 except Exception as attach_e:
                     await drop_channel.send(
                         f"Attachment from {source_message.author.mention} failed. Censored or deleted by member?")
-
-            #get the ORM row for this dropbox.
-            drop = None
-            if source_channel_id in self.dropboxes[guild_id]:
-                drop = self.dropboxes[guild_id][source_channel_id]
-            else:
-                #should only return one entry because of how rows are added
-                drop = DropboxChannel.select().where(DropboxChannel.serverid == guild_id and DropboxChannel.sourcechannelid == source_channel_id)
-            if drop.sendreceipt:
-                #if receipt message should be sent, set up and send DMs
-                if source_message.author.dm_channel is None:
-                    await source_message.author.create_dm()
-                    
-                receipt_msg = Lang.get_locale_string('dropbox/msg_receipt', ctx, channel=ctx.channel.mention)
-                await source_message.author.dm_channel.send(receipt_msg)
-
-            pages = Utils.paginate(source_message.content)
-            page_count = len(pages)
+            
             for i, page in enumerate(pages[:-1]):
                 if len(pages) > 1:
-                    final_page = f"**{i+1} of {page_count}**\n{page}"
-                await drop_channel.send(final_page)
-                if drop.sendreceipt:
-                    await source_message.author.dm_channel.send(final_page)
-                      
+                    page = f"**{i+1} of {page_count}**\n{page}"
+                await drop_channel.send(page)
             last_page = pages[-1] if page_count == 1 else f"**{page_count} of {page_count}**\n{pages[-1]}"
-            await drop_channel.send(embed=embed, content=last_page)
-            if drop.sendreceipt:
-                await source_message.author.dm_channel.send(last_page)
-
+            last_drop_message = await drop_channel.send(embed=embed, content=last_page)
             # TODO: try/ignore: add reaction for "claim" "flag" "followup" "delete"
             msg = Lang.get_locale_string('dropbox/msg_delivered', ctx, author=source_message.author.mention)
             await ctx.send(msg)
@@ -145,12 +142,41 @@ class DropBox(BaseCog):
             await Utils.handle_exception("dropbox delivery failure", self.bot, e)
 
         try:
+            # delete original message, the confirmation of sending is deleted in clean_channels loop
             await source_message.delete()
             del self.drop_messages[guild_id][source_channel_id][source_message_id]
             set(self.delivery_in_progress[guild_id][source_channel_id]).remove(source_message_id)
         except discord.errors.NotFound as e:
             # ignore missing message
             pass
+
+        #give senders a moment before spam pinging them the copy
+        await asyncio.sleep(1)
+
+        try:
+            # try sending dm receipts and report in dropbox channel if it was sent or not
+            if drop and drop.sendreceipt:
+                # if receipt message should be sent, send header for dm receipt
+                receipt_msg = Lang.get_locale_string('dropbox/msg_receipt', ctx, channel=ctx.channel.mention)
+                await dm_channel.send(receipt_msg)
+
+                # send the page(s) in code blocks to dm.
+                for i, page in enumerate(pages[:-1]):
+                    if len(pages) > 1:
+                        page = f"**{i+1} of {page_count}**\n```{page}```"
+                    await dm_channel.send(page)
+                        
+                last_page = f'```{pages[-1]}```' if page_count == 1 else f"**{page_count} of {page_count}**\n```{pages[-1]}```"
+                await dm_channel.send(last_page)
+
+                embed.add_field(name="receipt status", value="sent")
+                # this is used if drop first before dms
+                await last_drop_message.edit(embed=embed)
+        except Exception as e:
+            if drop.sendreceipt:
+                embed.add_field(name="receipt status", value="failed")
+                # this is used if drop first before dms
+                await last_drop_message.edit(embed=embed)
 
     @tasks.loop(seconds=3.0)
     async def clean_channels(self):
