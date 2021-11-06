@@ -128,17 +128,19 @@ class PermissionConfig(BaseCog):
                 desc = f"{member_desc} - `{'ALLOW' if row.allow else 'DENY'}`: `{row.command}`"
                 user_permissions.add(desc)
 
-        embed.add_field(name="Admin Roles", value='\n'.join(admin_roles), inline=False)
-        embed.add_field(name="Mod Roles", value='\n'.join(mod_roles), inline=False)
-        embed.add_field(name="Trusted Roles", value='\n'.join(trusted_roles), inline=False)
-        embed.add_field(name="User Permissions", value='\n'.join(user_permissions), inline=False)
+        no_roles_string = "None"
+
+        embed.add_field(name="Admin Roles", value='\n'.join(admin_roles) if len(admin_roles) > 0 else no_roles_string, inline=False)
+        embed.add_field(name="Mod Roles", value='\n'.join(mod_roles) if len(mod_roles) > 0 else no_roles_string, inline=False)
+        embed.add_field(name="Trusted Roles", value='\n'.join(trusted_roles) if len(trusted_roles) > 0 else no_roles_string, inline=False)
+        embed.add_field(name="User Permissions", value='\n'.join(user_permissions) if len(user_permissions) > 0 else no_roles_string, inline=False)
 
         if is_bot_admin:
             bot_admins = set()
             for row in BotAdmin.select():
                 user = self.bot.get_user(row.userid)
                 bot_admins.add(f"{user.mention} {str(user)} ({user.id})")
-            embed.add_field(name="Bot Admins", value='\n'.join(bot_admins), inline=False)
+            embed.add_field(name="Bot Admins", value='\n'.join(bot_admins) if len(bot_admins) > 0 else no_roles_string, inline=False)
 
         await ctx.send(embed=embed)
 
