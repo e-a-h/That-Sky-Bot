@@ -237,10 +237,6 @@ class DropBox(BaseCog):
             # ignore delete failure. we'll try again next time
             await Utils.handle_exception('dropbox clean_message failure', self.bot, e)
 
-    @commands.Cog.listener()
-    async def on_guild_join(self, guild):
-        self.init_guild(guild.id)
-
     @commands.group(name="dropbox", invoke_without_command=True)
     @commands.guild_only()
     async def dropbox(self, ctx):
@@ -371,16 +367,16 @@ class DropBox(BaseCog):
         Set the lifespan for response messages in the channel
 
         Also applies to any non-mod messages, so the delay time must be greater than the initial wait for message drops.
-        delay: Time until responses expire (milliseconds)
+        delay: Time until responses expire (seconds)
         """
         if channel.id in self.dropboxes[ctx.guild.id]:
             drop = self.dropboxes[ctx.guild.id][channel.id]
             drop.deletedelayms = int(delay * 1000)
             drop.save()
             t = Utils.to_pretty_time(delay)
-            await ctx.send(f'Confirmation messages in dropbox channel {channel.mention} will be deleted after {t}')
+            await ctx.send(Lang.get_locale_string('dropbox/set_delay_success', ctx, channel=channel.mention, time=t))
         else:
-            await ctx.send(f'Failed to set dropbox delete delay time in {channel.mention}')
+            await ctx.send(Lang.get_locale_string('dropbox/set_delay_fail', ctx, channel=channel.mention))
 
     @dropbox.command()
     @commands.guild_only()

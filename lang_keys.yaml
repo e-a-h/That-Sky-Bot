@@ -133,6 +133,8 @@ dropbox:
   not_removed:
   channel_not_found:
   override_confirmation:
+  set_delay_success:
+  set_delay_fail:
   msg_delivered:
   msg_not_delivered:
   msg_receipt:
