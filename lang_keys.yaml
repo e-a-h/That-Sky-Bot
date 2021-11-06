@@ -137,9 +137,12 @@ dropbox:
   set_delay_fail:
   msg_delivered:
   msg_not_delivered:
+  attachment_fail:
   msg_receipt:
   receipt_set_true:
   receipt_set_false:
+  receipt_attachment_singular:
+  receipt_attachment_plural:
 autoresponder:
   mod_action_header:
   mod_action_warning:

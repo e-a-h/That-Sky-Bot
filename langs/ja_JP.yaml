@@ -251,11 +251,13 @@ dropbox:
   override_confirmation: --jp-- The channel {source} already delivers messages to {old_target}; do you want to change the target to {new_target}?
   set_delay_success: Confirmation messages in dropbox channel {channel} will be deleted after {time}
   set_delay_fail: Failed to set dropbox delete delay time in {channel}
-  msg_delivered: --jp-- Your message was delivered, {author}
-  msg_not_delivered: --jp-- Your message was **not** delivered, {author}. Please try again, or contact a moderator
+  msg_delivered: --jp-- {author} Your message was delivered
+  msg_not_delivered: --jp-- {author} Your message was **not** delivered Please try again, or contact a moderator
   msg_receipt: --jp-- Here's a copy of the dropbox message you sent in {channel}
   receipt_set_true: --jp-- receipt set. authors will be DMed a copy of their message in {channel}.
   receipt_set_false: --jp-- receipt set. authors won't be DMed for their messages in {channel}.
+  receipt_attachment_singular: "--jp-- {number} attached file: {attachments}"
+  receipt_attachment_plural: "--jp-- {number} attached files: {attachments}"
 autoresponder:
   mod_action_header: --jp-- Moderator actions
   mod_action_warning: --jp-- Moderator action flag will be ignored if response channel is not set. Use `!autoresponder setchannel`

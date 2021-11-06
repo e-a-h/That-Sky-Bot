@@ -249,13 +249,16 @@ dropbox:
   not_removed: There's no dropbox for channel {source}
   channel_not_found: Sorry, I couldn't find a channel with id {channel_id}
   override_confirmation: The channel {source} already delivers messages to {old_target}; do you want to change the target to {new_target}?
-  msg_delivered: Your message was delivered, {author}
-  msg_not_delivered: Your message was **not** delivered, {author}. Please try again, or contact a moderator
-  msg_receipt: Here's a copy of the dropbox message you sent in {channel}
   set_delay_success: Confirmation messages in dropbox channel {channel} will be deleted after {time}
   set_delay_fail: Failed to set dropbox delete delay time in {channel}
+  msg_delivered: "{author} Your message was delivered"
+  msg_not_delivered: "{author} Your message was **not** delivered. Please try again, or contact a moderator"
+  attachment_fail: Attachment from {author} failed. Censored or deleted by member?
+  msg_receipt: "Here's a copy of the message you sent in {channel}:"
   receipt_set_true: receipt set. authors will be DMed a copy of their message in {channel}.
   receipt_set_false: receipt set. authors won't be DMed for their messages in {channel}.
+  receipt_attachment_singular: "{number} attached file: {attachments}"
+  receipt_attachment_plural: "{number} attached files: {attachments}"
 autoresponder:
   mod_action_header: Moderator actions
   mod_action_warning: Moderator action flag will be ignored if response channel is not set. Use `!autoresponder setchannel`
