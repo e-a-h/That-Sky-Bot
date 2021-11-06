@@ -253,6 +253,7 @@ dropbox:
   set_delay_fail: Failed to set dropbox delete delay time in {channel}
   msg_delivered: --jp-- {author} Your message was delivered
   msg_not_delivered: --jp-- {author} Your message was **not** delivered Please try again, or contact a moderator
+  msg_blank: --jp-- I didn't find any text content in the original message
   msg_receipt: --jp-- Here's a copy of the dropbox message you sent in {channel}
   receipt_set_true: --jp-- receipt set. authors will be DMed a copy of their message in {channel}.
   receipt_set_false: --jp-- receipt set. authors won't be DMed for their messages in {channel}.

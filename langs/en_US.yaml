@@ -253,6 +253,7 @@ dropbox:
   set_delay_fail: Failed to set dropbox delete delay time in {channel}
   msg_delivered: "{author} Your message was delivered"
   msg_not_delivered: "{author} Your message was **not** delivered. Please try again, or contact a moderator"
+  msg_blank: I didn't find any text content in the original message
   attachment_fail: Attachment from {author} failed. Censored or deleted by member?
   msg_receipt: "Here's a copy of the message you sent in {channel}:"
   receipt_set_true: receipt set. authors will be DMed a copy of their message in {channel}.

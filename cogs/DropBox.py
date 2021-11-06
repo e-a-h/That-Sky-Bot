@@ -129,12 +129,22 @@ class DropBox(BaseCog):
                 except Exception as attach_e:
                     await drop_channel.send(Lang.get_locale_string('dropbox/attachment_fail', ctx, author=source_message.author.mention))
             
-            for i, page in enumerate(pages[:-1]):
-                if len(pages) > 1:
-                    page = f"**{i+1} of {page_count}**\n{page}"
-                await drop_channel.send(page)
-            last_page = pages[-1] if page_count == 1 else f"**{page_count} of {page_count}**\n{pages[-1]}"
-            last_drop_message = await drop_channel.send(embed=embed, content=last_page)
+            if len(pages) == 0:
+                # means no text content included
+                if len(attachment_names) < 1:
+                    # if there isn't any attachments, the dropbox might end up having a floating embed so include a helpful message too
+                    last_drop_message = await drop_channel.send(embed=embed, content=Lang.get_locale_string('dropbox/msg_blank', ctx))
+                else:
+                    last_drop_message = await drop_channel.send(embed=embed)
+            else:
+                # deliver all the pages of text content
+                for i, page in enumerate(pages[:-1]):
+                    if len(pages) > 1:
+                        page = f"**{i+1} of {page_count}**\n{page}"
+                    await drop_channel.send(page)
+                last_page = pages[-1] if page_count == 1 else f"**{page_count} of {page_count}**\n{pages[-1]}"
+                last_drop_message = await drop_channel.send(embed=embed, content=last_page)
+            
             # TODO: try/ignore: add reaction for "claim" "flag" "followup" "delete"
             msg = Lang.get_locale_string('dropbox/msg_delivered', ctx, author=source_message.author.mention)
             await ctx.send(msg)
@@ -180,14 +190,20 @@ class DropBox(BaseCog):
                 for page in dm_header_pages:
                     await dm_channel.send(page)
 
+                if len(pages) == 0:
+                    # no text content
+                    if len(attachment_names) < 1:
+                        #if no text and no attachments, then send a response that there wasn't any text content
+                        await dm_channel.send(content=Lang.get_locale_string('dropbox/msg_blank', ctx))
+                else:
                 # send the page(s) in code blocks to dm.
-                for i, page in enumerate(pages[:-1]):
-                    if len(pages) > 1:
-                        page = f"**{i+1} of {page_count}**\n```{page}```"
-                    await dm_channel.send(page)
-                        
-                last_page = f'```{pages[-1]}```' if page_count == 1 else f"**{page_count} of {page_count}**\n```{pages[-1]}```"
-                await dm_channel.send(last_page)
+                    for i, page in enumerate(pages[:-1]):
+                        if len(pages) > 1:
+                            page = f"**{i+1} of {page_count}**\n```{page}```"
+                        await dm_channel.send(page)
+                            
+                    last_page = f'```{pages[-1]}```' if page_count == 1 else f"**{page_count} of {page_count}**\n```{pages[-1]}```"
+                    await dm_channel.send(last_page)
 
                 embed.add_field(name="receipt status", value="sent")
                 # this is used if drop first before dms to add status to embed
