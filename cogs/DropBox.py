@@ -380,17 +380,17 @@ class DropBox(BaseCog):
 
     @dropbox.command()
     @commands.guild_only()
-    async def set_receipt(self, ctx, channel: discord.TextChannel, receipt:bool):
+    async def set_receipt(self, ctx, source_channel: discord.TextChannel, receipt_setting:bool):
         """
         set whether or not this dropbox channel should include a dm that sends the message author a copy of their message
         """
-        if channel.id in self.dropboxes[ctx.guild.id]:
-            drop = self.dropboxes[ctx.guild.id][channel.id]
-            drop.sendreceipt = receipt
+        if source_channel.id in self.dropboxes[ctx.guild.id]:
+            drop = self.dropboxes[ctx.guild.id][source_channel.id]
+            drop.sendreceipt = receipt_setting
             drop.save()
-            msg = Lang.get_locale_string('dropbox/receipt_set_false', ctx, channel=channel.mention)
-            if receipt:
-                msg = Lang.get_locale_string('dropbox/receipt_set_true', ctx, channel=channel.mention)
+            msg = Lang.get_locale_string('dropbox/receipt_set_false', ctx, channel=source_channel.mention)
+            if receipt_setting:
+                msg = Lang.get_locale_string('dropbox/receipt_set_true', ctx, channel=source_channel.mention)
             await ctx.send(msg)
 
     @commands.Cog.listener()
