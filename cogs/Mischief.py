@@ -3,7 +3,7 @@ from datetime import datetime
 
 import discord
 from discord import AllowedMentions
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ext.commands import BucketType
 
 from cogs.BaseCog import BaseCog
@@ -11,10 +11,12 @@ from utils import Utils, Configuration, Logging
 
 
 class Mischief(BaseCog):
+    cooldown_time = 600
     role_map = {
         "a bean": 902462040596164619,
         "a bird": 901960866226913340,
         "a buff moth": 902297335743279174,
+        "a bunny": 903083512951869530,
         "a butterfly": 901960358267326494,
         "a candle": 902327931680989285,
         "a cosmic manta": 901964236396314645,
@@ -44,13 +46,48 @@ class Mischief(BaseCog):
         "me again": 0
     }
 
+    role_counts = {}
+
     def __init__(self, bot):
         super().__init__(bot)
         for guild in self.bot.guilds:
             self.init_guild(guild)
+        self.periodic_task.start()
+
+    def cog_unload(self):
+        self.periodic_task.cancel()
 
     def init_guild(self, guild):
+        # init guild-specific dicts and lists
         pass
+
+    @tasks.loop(seconds=300)
+    async def periodic_task(self):
+        # periodic task to run while cog is loaded
+
+        # remove expired cooldowns
+        now = datetime.now().timestamp()
+        cooldown = Configuration.get_persistent_var(f"mischief_cooldown", dict())
+
+        try:
+            # key for loaded dict is a string
+            updated_cooldown = {}
+            for str_uid, member_last_access_time in cooldown.items():
+                if (now - member_last_access_time) < self.cooldown_time:
+                    updated_cooldown[str_uid] = member_last_access_time
+            Configuration.set_persistent_var(f"mischief_cooldown", updated_cooldown)
+        except:
+            Logging.info("can't clear cooldown")
+
+        # update role count storage (because it's slow)
+        try:
+            guild = Utils.get_home_guild()
+            for role_id in self.role_map.values():
+                my_role = guild.get_role(role_id)
+                if my_role is not None:
+                    self.role_counts[str(role_id)] = len(my_role.members)
+        except:
+            Logging.info("can't update role counts")
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
@@ -60,7 +97,7 @@ class Mischief(BaseCog):
     async def on_guild_remove(self, guild):
         pass
 
-    @commands.cooldown(1, 300, BucketType.member)
+    @commands.cooldown(1, 60, BucketType.member)
     @commands.max_concurrency(3, wait=True)
     @commands.command()
     async def mischief(self, ctx):
@@ -75,7 +112,7 @@ class Mischief(BaseCog):
                        f"{max_user.mention} has spammed it the most, with {member_counts[max_member_id]} tries.",
                        allowed_mentions=AllowedMentions.none())
 
-    @commands.cooldown(1, 300, BucketType.member)
+    @commands.cooldown(1, 60, BucketType.member)
     @commands.max_concurrency(3, wait=True)
     @commands.command()
     async def team_mischief(self, ctx):
@@ -87,22 +124,25 @@ class Mischief(BaseCog):
             color=0xFFBD1C,
             title="Mischief!")
 
+        guild = Utils.get_home_guild()
+
         for role_name, role_id in self.role_map.items():
-            guild = Utils.get_home_guild()
             this_role: discord.role = guild.get_role(role_id)
+
             if this_role is None:
                 continue
-            embed.add_field(name=this_role.name, value=str(len(this_role.members)), inline=True)
+
+            member_count = self.role_counts[str(role_id)]
+            embed.add_field(name=this_role.name, value=str(member_count), inline=True)
+
             if len(embed.fields) == 25:
-                await ctx.send(embed=embed,
-                               allowed_mentions=AllowedMentions.none())
+                await ctx.send(embed=embed, allowed_mentions=AllowedMentions.none())
                 embed = discord.Embed(
                     timestamp=ctx.message.created_at,
                     color=0xFFBD1C,
                     title="mischief continued...")
 
-        await ctx.send(embed=embed,
-                       allowed_mentions=AllowedMentions.none())
+        await ctx.send(embed=embed, allowed_mentions=AllowedMentions.none())
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -161,13 +201,13 @@ class Mischief(BaseCog):
 
         # Selection is now validated
         # Check Cooldown
-        cooldown_time = 600
         cooldown = Configuration.get_persistent_var(f"mischief_cooldown", dict())
         member_last_access_time = 0 if str(uid) not in cooldown else cooldown[str(uid)]
         cooldown_elapsed = now - member_last_access_time
-        remaining = cooldown_time - cooldown_elapsed
+        remaining = self.cooldown_time - cooldown_elapsed
 
-        if cooldown_elapsed < cooldown_time:
+        ctx = await self.bot.get_context(message)
+        if not Utils.can_mod_official(ctx) and (cooldown_elapsed < self.cooldown_time):
             try:
                 remaining_time = Utils.to_pretty_time(remaining)
                 await channel.send(f"wait {remaining_time} longer before you make another wish...")
@@ -183,7 +223,11 @@ class Mischief(BaseCog):
         for key, role_id in self.role_map.items():
             try:
                 old_role = guild.get_role(role_id)
-                await my_member.remove_roles(old_role)
+                if old_role in my_member.roles:
+                    await my_member.remove_roles(old_role)
+                    # decrement saved role count
+                    self.role_counts[str(role_id)] = self.role_counts[str(role_id)] - 1
+                    Logging.info(f"{my_member.display_name:} --{old_role.name}")
             except:
                 pass
 
@@ -202,6 +246,9 @@ class Mischief(BaseCog):
             # add the selected role
             new_role = guild.get_role(self.role_map[selection])
             await my_member.add_roles(new_role)
+            # increment the saved role count
+            self.role_counts[str(new_role.id)] = self.role_counts[str(new_role.id)] + 1
+            Logging.info(f"{my_member.display_name:} ++{new_role.name}")
 
         if channel is not None:
             try:
