@@ -204,13 +204,13 @@ class DropBox(BaseCog):
                             
                     last_page = f'```{pages[-1]}```' if page_count == 1 else f"**{page_count} of {page_count}**\n```{pages[-1]}```"
                     await dm_channel.send(last_page)
-
-                embed.add_field(name="receipt status", value="sent")
-                # this is used if drop first before dms to add status to embed
-                await last_drop_message.edit(embed=embed)
+                if delivery_success:
+                    embed.add_field(name="receipt status", value="sent")
+                    # this is used if drop first before dms to add status to embed
+                    await last_drop_message.edit(embed=embed)
         except Exception as e:
             Logging.info("Dropbox DM receipt failed, not an issue so ignoring exception and giving up")
-            if drop.sendreceipt:
+            if drop.sendreceipt and delivery_success:
                 embed.add_field(name="receipt status", value="failed")
                 # this is used if drop first before dms to add status to embed
                 await last_drop_message.edit(embed=embed)
