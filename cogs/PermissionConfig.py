@@ -1,5 +1,6 @@
 import discord
 from discord import Role
+from discord import Role, User, Member
 from discord import guild
 from discord.ext import commands
 
@@ -14,6 +15,7 @@ class PermissionConfig(BaseCog):
     mod_roles = dict()
     trusted_roles = dict()
     command_permissions = dict()
+    bot_admin = set()
 
     def __init__(self, bot):
         super().__init__(bot)
@@ -21,6 +23,9 @@ class PermissionConfig(BaseCog):
 
     async def startup_cleanup(self):
         '''load info for permissions for all guilds bot is in'''
+        self.bot_admin = set()
+        for row in BotAdmin.select():
+            self.bot_admin.add(row.userid)
         for guild in self.bot.guilds:
             self.init_guild(guild)
             self.load_guild(guild)
@@ -254,6 +259,16 @@ class PermissionConfig(BaseCog):
         '''add a role to trusted_roles list for this guild'''
         await self.add_role(ctx, role, self.admin_roles, AdminRole)
 
+    @permission_config.command()
+    async def add_bot_admin(self, ctx, user:User):
+        '''add a user as a bot admin'''
+        if user.id in self.bot_admin:
+            await ctx.send(f"user already is in list")
+            return
+        self.bot_admin.add(user.id)
+        BotAdmin.create(userid = user.id)
+        await ctx.send("bot admin added")
+
     async def remove_role(self, ctx, role: Role, local_list, db_model):
         '''removes given role from given local list and database table
         role: discord role to remove
@@ -291,6 +306,19 @@ class PermissionConfig(BaseCog):
         '''remove a role from admin roles list for this guild'''
         await self.remove_role(ctx, role, self.admin_roles, AdminRole)
 
+    @permission_config.command()
+    async def remove_bot_admin(self, ctx, user:User):
+        '''remove a Discord user from bot admin'''
+        if user.id not in self.bot_admin:
+            await ctx.send(f"user not found")
+            return
+        try:
+            query = BotAdmin.delete().where(BotAdmin.userid==user.id)
+            query.execute()
+            self.bot_admin.discard(user.id)
+            await ctx.send("bot admin removed")
+        except Exception as e:
+            await ctx.send("removing failed")
     # TODO: set user permission
     # TODO: add user to bot_admins
 
