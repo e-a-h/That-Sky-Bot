@@ -1,5 +1,4 @@
 import discord
-from discord import Role
 from discord import Role, User, Member
 from discord import guild
 from discord.ext import commands
@@ -9,7 +8,9 @@ from utils import Lang
 from utils.Database import Guild, BotAdmin, TrustedRole, AdminRole, ModRole, UserPermission
 from utils import Utils
 
-
+#TODO: better perms around bot admin, shouldn't be able to change server settings and stuff?
+#TODO: change to fetch strings form Lang
+#TODO: command names long and not the easiest to type. is there any better?
 class PermissionConfig(BaseCog):
     admin_roles = dict()
     mod_roles = dict()
@@ -37,9 +38,11 @@ class PermissionConfig(BaseCog):
         self.command_permissions[guild.id] = dict()
 
     def load_guild(self, guild):
-        '''load from database all admin, mod, and trusted roles, and command overrides for given guild
+        '''load from database all admin, mod, and trusted roles, and command overrides for given guild. When loading, if bot can't find the role or member
+        in the guild, it deletes the row from DB.
         
-        guild: guild object we want to load'''
+        guild: guild object that we want to load role info for.
+        '''
         guild_row = Guild.get_or_create(serverid=guild.id)[0]
         for row in guild_row.admin_roles:
             role = guild.get_role(row.roleid)
@@ -62,7 +65,10 @@ class PermissionConfig(BaseCog):
         for row in guild_row.command_permissions:
             member = guild.get_member(row.userid)
             if member:
-                self.command_permissions[guild.id][member.id] = row
+                if member.id not in self.command_permissions[guild.id]:
+                    self.command_permissions[guild.id][member.id] = dict()
+                if row.command not in self.command_permissions[guild.id][member.id]:
+                    self.command_permissions[guild.id][member.id][row.command] = row.allow
             else:
                 row.delete_instance()
 
@@ -160,6 +166,7 @@ class PermissionConfig(BaseCog):
     async def permission_config(self, ctx):
         '''configure permissions for this server'''
         #this command displays server permissions if no subcommands called
+        #TODO: protecting this against discord embed text limits
         is_bot_admin = await self.bot.permission_manage_bot(ctx)
 
         embed = discord.Embed(
@@ -177,7 +184,6 @@ class PermissionConfig(BaseCog):
 
         guild_row = Guild.get(serverid=ctx.guild.id)
 
-        # guild_row.admin_roles is of peewee.ModelSelect type
         for row in guild_row.admin_roles:
             role = ctx.guild.get_role(row.roleid)
             if role:
@@ -226,7 +232,7 @@ class PermissionConfig(BaseCog):
         role: discord role to add
         local_list: the dictionary that is the permission level we want to add to
         db_model: ORM model for the table that stores list'''
-        #role has to be a vaild role in this server
+        # role has to be a vaild role in this server
         guildid = ctx.guild.id
         if role.id in local_list[guildid]:
             # if role already here, then it has to be in db because that's where we fetched from
@@ -236,10 +242,7 @@ class PermissionConfig(BaseCog):
         guild_row = Guild.get_or_create(serverid=guildid)[0]
         role_row = db_model.create(guild=guild_row, roleid=role.id)
         await ctx.send(f"role added!")
-        #duplicates shouldn't be added as long as local cache and db are in sync
-        # consider how can be sure memory and db are in sync?
-        #TODO: command names long and not the easiest to type. is there any better?
-        #TODO: bot response strings should use Lang files
+        # duplicates shouldn't be added as long as local cache and db are in sync
 
     @permission_config.command()
     @commands.guild_only()
@@ -319,8 +322,78 @@ class PermissionConfig(BaseCog):
             await ctx.send("bot admin removed")
         except Exception as e:
             await ctx.send("removing failed")
-    # TODO: set user permission
-    # TODO: add user to bot_admins
+
+    @permission_config.command(
+        brief="set an override to allow or deny a user a command in this server",
+        help="must specify a member of this server, a valid command name, and True/1 or False/0 to set override to.",
+        aliases=["add_command_override"])
+    @commands.guild_only()
+    async def set_command_override(self, ctx, member:Member, command_name, override:bool):
+        '''
+        set an override to allow or deny a user a command in this server
+        '''
+        
+        async def add_override():
+            try:
+                guild_row = Guild.get_or_create(serverid=ctx.guild.id)[0]
+                UserPermission.create(guild = guild_row, userid = member.id, command=command_name, allow=override)
+                print("added to DB")
+                if member.id not in self.command_permissions[ctx.guild.id]:
+                    self.command_permissions[ctx.guild.id][member.id] = dict()
+                self.command_permissions[ctx.guild.id][member.id].update({command_name:override})
+                print("added to cache")
+                await ctx.send(f"command override for {member.display_name} {command_name} set to {override}")
+            except Exception as e:
+                await ctx.send(f"failed to set override")
+                await Utils.handle_exception("failed to add new override", self.bot, e)
+
+        #TODO: add validation: command is valid command name
+        if ctx.guild.id not in self.command_permissions:
+            self.command_permissions[ctx.guild.id] = dict()
+        if member.id in self.command_permissions[ctx.guild.id]:
+            if command_name in self.command_permissions[ctx.guild.id][member.id]:
+                # have an existing setting for this override
+                try:
+                    guild_row = Guild.get_or_create(serverid=ctx.guild.id)[0]
+                    perm = UserPermission.get(UserPermission.guild == guild_row, UserPermission.userid == member.id, UserPermission.command==command_name)
+                    perm.allow = override
+                    perm.save()
+                    self.command_permissions[ctx.guild.id][member.id][command_name] = override
+                    await ctx.send(f"command override for {member.display_name} {command_name} set to {override}")
+                except Exception as e:
+                    await ctx.send(f"failed to set override")
+                    await Utils.handle_exception("failed to edit override", self.bot, e)
+            else:
+                # haven't recorded any overrides for this command
+                await add_override()
+        else:
+            # haven't recorded any overrides for this member
+            await add_override()
+        print("end of set command override", self.command_permissions[ctx.guild.id][member.id])
+
+    @permission_config.command()
+    @commands.guild_only()
+    async def remove_command_override(self, ctx, member:Member, command_name):
+        '''
+        removes override. member goes back to permissions based on roles
+        '''
+        if ctx.guild.id not in self.command_permissions or len(self.command_permissions[ctx.guild.id]) == 0:
+            await ctx.send(f"No overrides for the server!")
+        elif member.id not in self.command_permissions[ctx.guild.id]:
+            await ctx.send(f"no overrides for this member!")
+        elif command_name not in self.command_permissions[ctx.guild.id][member.id]:
+            await ctx.send(f"no overrides for this member and command!")
+        else:
+            # all info exists in maps, so must be a complete DB row of info that we need to remove. One row per override.
+            try:
+                guild_row = Guild.get_or_create(serverid=ctx.guild.id)[0]
+                query = UserPermission.delete().where(UserPermission.guild == guild_row, UserPermission.userid == member.id, UserPermission.command==command_name)
+                query.execute()
+                self.command_permissions[ctx.guild.id][member.id].pop(command_name)
+                await ctx.send(f"removed override for {member.display_name} {command_name}")
+            except Exception as e:
+                await Utils.handle_exception("failed to remove override", self.bot, e)
+                await ctx.send(f"failed to remove override")
 
     # TODO: method for checking if user has permission that accepts ctx with command info?
 
