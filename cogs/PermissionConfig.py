@@ -84,14 +84,68 @@ class PermissionConfig(BaseCog):
         for row in guild_row.command_permissions:
             row.delete_instance()
 
+    def check_member_in_list(self, guild, member, local_list):
+        '''
+        checks if given member has a role in the given list for the given guild.
+
+        guild: guild object member is in and want to know if member is admin, mod, or trusted in
+        member: Must be a guild member object, and member of the given guild parameter
+        local_list: one of the dictionaries of this cog: admin_roles, mod_roles, trusted_roles. 
+        '''
+        if guild.id not in local_list:
+            return False
+        for role in member.roles:
+                if role.id in local_list[guild.id]:
+                    return True
+        return False
+
+    def is_admin(self, guild, userID, minimum:bool = False):
+        '''checks if user with given userID is an admin in the given guild. Member either has manage guild permissions or
+        a role that is considered an admin in this server
+
+        guild: guild object that we want to check in
+        userID: id for the user
+        minimum: bool for if the user needs to be admin or higher.
+        '''
+        member = guild.get_member(userID)
+        if member:
+            if member.guild_permissions.manage_guild or self.check_member_in_list(guild, member, self.admin_roles):
+                return True
+        return False
+
+    def is_mod(self, guild, userID, minimum:bool = False):
+        '''checks if user with given userID is a mod in the given guild. Member either has ban members permission or
+        a role that is considered a mod in this server
+        
+        guild: guild object that we want to check in
+        userID: id for the user
+        minimum: bool for if the user needs to be mod or higher. ie want being considered admin to return true
+        '''
+        member = guild.get_member(userID)
+        if member:
+            if member.guild_permissions.ban_members or self.check_member_in_list(guild, member, self.mod_roles) or\
+                (minimum and self.is_admin(guild,userID,minimum)):
+                return True
+        return False
+            
+    def is_trusted(self, guild, userID, minimum:bool = False):
+        '''checks if given userID is trusted in the given guild. Member has to have a role that is considered trusted
+        
+        guild: guild object that we want to check in
+        userID: id for the user
+        minimum: bool for if the user needs to be trusted or higher. ie want being considered mod or admin to return true
+        '''
+        member = guild.get_member(userID)
+        if member:
+            if (self.check_member_in_list(guild,member, self.trusted_roles) or (minimum and self.is_mod(guild,userID,minimum))):
+                return True
+        return False
+
     async def cog_check(self, ctx):
         # Minimum permission for all permissions commands: manage_server
         if ctx.guild:
-            if ctx.author.guild_permissions.manage_guild:
+            if self.is_admin(ctx.guild,ctx.author.id):
                 return True
-            for role in ctx.author.roles:
-                if role.id in self.admin_roles[ctx.guild.id]:
-                    return True
         if await self.bot.permission_manage_bot(ctx):
             return True
         return False
