@@ -10,7 +10,7 @@ import sentry_sdk
 from discord.ext import commands
 from discord.ext.commands import Bot
 from aiohttp import ClientOSError, ServerDisconnectedError
-from discord import ConnectionClosed, Intents
+from discord import ConnectionClosed, Intents, AllowedMentions
 from prometheus_client import CollectorRegistry
 from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 
@@ -57,6 +57,7 @@ class Skybot(Bot):
         await Logging.bot_log("Skybot soaring through the skies!")
 
     def get_guild_log_channel(self, guild_id):
+        # TODO: cog override for logging channel
         return self.get_guild_config_channel(guild_id, 'log')
 
     def get_guild_rules_channel(self, guild_id):
@@ -117,7 +118,7 @@ class Skybot(Bot):
     async def guild_log(self, guild_id: int, message=None, embed=None):
         channel = self.get_guild_log_channel(guild_id)
         if channel and (message or embed):
-            return await channel.send(content=message, embed=embed)
+            return await channel.send(content=message, embed=embed, allowed_mentions=AllowedMentions.none())
 
     async def close(self):
         Logging.info("Shutting down?")

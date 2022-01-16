@@ -106,10 +106,12 @@ class Mischief(BaseCog):
 
         member_counts = Configuration.get_persistent_var(f"mischief_usage", dict())
         max_member_id = max(member_counts, key=member_counts.get)
+        wishes_granted = sum(member_counts.values())
         guild = Utils.get_home_guild()
         max_user: discord.Member = guild.get_member(int(max_member_id))
-        await ctx.send(f"{len(member_counts)} people have gotten mischief roles. "
-                       f"{max_user.mention} has spammed it the most, with {member_counts[max_member_id]} tries.",
+        await ctx.send(f"{len(member_counts)} people have gotten mischief roles.\n"
+                       f"I have granted {wishes_granted} wishes.\n"
+                       f"{max_user.mention} has wished the most, with {member_counts[max_member_id]} wishes granted.",
                        allowed_mentions=AllowedMentions.none())
 
     @commands.cooldown(1, 60, BucketType.member)
@@ -225,9 +227,6 @@ class Mischief(BaseCog):
                 old_role = guild.get_role(role_id)
                 if old_role in my_member.roles:
                     await my_member.remove_roles(old_role)
-                    # decrement saved role count
-                    self.role_counts[str(role_id)] = self.role_counts[str(role_id)] - 1
-                    Logging.info(f"{my_member.display_name:} --{old_role.name}")
             except:
                 pass
 
@@ -246,9 +245,6 @@ class Mischief(BaseCog):
             # add the selected role
             new_role = guild.get_role(self.role_map[selection])
             await my_member.add_roles(new_role)
-            # increment the saved role count
-            self.role_counts[str(new_role.id)] = self.role_counts[str(new_role.id)] + 1
-            Logging.info(f"{my_member.display_name:} ++{new_role.name}")
 
         if channel is not None:
             try:
@@ -259,6 +255,27 @@ class Mischief(BaseCog):
 You can also use the `!team_mischief` command right here to find out more""")
             except:
                 pass
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before, after):
+        # decrement role counts only for roles removed
+        for role in before.roles:
+            if role not in after.roles and str(role.id) in self.role_counts:
+                self.role_counts[str(role.id)] = self.role_counts[str(role.id)] - 1
+                # Logging.info(f"{after.display_name} --{role.name}")
+
+        # increment role counts only for roles added
+        for role in after.roles:
+            if role not in before.roles and str(role.id) in self.role_counts:
+                self.role_counts[str(role.id)] = self.role_counts[str(role.id)] + 1
+                # Logging.info(f"{after.display_name} ++{role.name}")
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member):
+        # decrement role counts for any tracked roles the departed member had
+        for role in member.roles:
+            if role.id in self.role_counts:
+                self.role_counts[str(role.id)] = self.role_counts[str(role.id)] - 1
 
 
 def setup(bot):

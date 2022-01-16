@@ -450,3 +450,29 @@ def paginate(input, max_lines=20, max_chars=1900, prefix="", suffix=""):
     if page:
         add_page(page)
     return pages
+
+
+def closest_power2_log(num):
+    lower = int(math.floor(math.log2(num)))
+    upper = int(math.ceil(math.log2(num)))
+    lower_pow = 1 << lower
+    upper_pow = 1 << upper
+    if num < (lower_pow + upper_pow)/2:
+        return lower_pow
+    return upper_pow
+
+
+def closest_power2_str(num):
+    # faster in small runs, slower overall
+    upper_exp = len(f"{num:b}")
+    lower_exp = upper_exp - 1
+    upper_pow = 1 << upper_exp
+    lower_pow = 1 << lower_exp
+    # use midpoint to decide which
+    if num < (lower_pow + upper_pow)/2:
+        return lower_pow
+    return upper_pow
+
+
+def is_power_of_two(num):
+    return num and (not(num & (num - 1)))
