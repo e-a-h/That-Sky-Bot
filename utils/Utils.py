@@ -374,44 +374,79 @@ def to_pretty_time(seconds):
 
 
 def chunk_list_or_string(input_list, chunk_size):
+    '''
+    cut input into chunks, maximum size is `chunk_size` and return a generator that goes through every chunk. 
+    chunks are contiguous and only last one may have length less than `chunk_size`
+    '''
     for i in range(0, len(input_list), chunk_size):
         yield input_list[i:i + chunk_size]
 
 
 def paginate(input, max_lines=20, max_chars=1900, prefix="", suffix=""):
+    '''
+    splits the given text input into a list of pages to fit in Discord messages.
+    
+    Each page has provided prefix and suffix in it and is at most `max_chars` length, disregarding any leading and trailing whitespace.
+    len(page) in code may be longer because of trailing whitespace, which Discord removes
+    
+    Parameters
+    -----
+    input : str
+            string of arbitrary length
+
+    max_chars : int
+        max number of characters per page. one page is meant to fit in one message, so should be a positive integer 
+        less than the Discord message length a bot can send (2k characters right now). 
+        recommend to set lower than max to leave some buffer for other additions
+
+    Returns
+    -------
+    a list of 0 or more non-empty strings
+    '''
     max_chars -= len(prefix) + len(suffix)
+    #max_chars is now max number of characters we can read from input that would fit in one page
     lines = str(input).splitlines(keepends=True)
     pages = []
     page = ""
     count = 0
 
     def add_page(content):
-        nonlocal pages
+        '''
+        adds on prefix and suffix to the given content and adds it as a page to the list.
+        length of `content` must be less that `max_chars`.
+        moves onto the next page by setting page to empty string
+        '''
+        nonlocal pages, page
         pages.append(f"{prefix}{content}{suffix}")
+        page = ""
 
+    # try to split pages on lines first
     for line in lines:
-        # if word is longer than available space > if word longer than max, split on char, else newpage = word
         if len(page) + len(line) > max_chars or count == max_lines:
-            # single 2k line, split smaller
+            # adding next line too long for this page, split by words
             words = line.split(" ")
             for word in words:
                 if len(page) + len(word) > max_chars:
+                    # adding next word is too long for this page. 
+                    # want to reduce number of mid-word splits so just save this page and start new one for next word
                     if page:
                         add_page(page)
                         count += 1
+                    # if page would be too long and if word longer than max, split on char, 
+                    # else we start next page: page = word
                     if len(word) > max_chars:
                         for chunk in chunk_list_or_string(word, max_chars):
                             page = f"{chunk} "
                             if len(chunk) == max_chars:
                                 add_page(page)
-                            # fall through here because this chunk doesn't fill the page yet
-                            continue
+                            # last chunk night not fill page, nothing to do in that case 
                     else:
                         page = f"{word} "
                 else:
                     page += f"{word} "
         else:
             page += line
-    # append the last page
-    add_page(page)
+    # potential last page. only if it has content
+    if page:
+        add_page(page)
     return pages
