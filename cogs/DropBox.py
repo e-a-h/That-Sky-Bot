@@ -199,10 +199,10 @@ class DropBox(BaseCog):
                 # send the page(s) in code blocks to dm.
                     for i, page in enumerate(pages[:-1]):
                         if len(pages) > 1:
-                            page = f"**{i+1} of {page_count}**\n```{page}```"
+                            page = f"**{i+1} of {page_count}**\n>>> {page}"
                         await dm_channel.send(page)
                             
-                    last_page = f'```{pages[-1]}```' if page_count == 1 else f"**{page_count} of {page_count}**\n```{pages[-1]}```"
+                    last_page = f'>>> {pages[-1]}' if page_count == 1 else f"**{page_count} of {page_count}**\n>>> {pages[-1]}"
                     await dm_channel.send(last_page)
                 if delivery_success:
                     embed.add_field(name="receipt status", value="sent")
