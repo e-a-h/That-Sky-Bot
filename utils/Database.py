@@ -321,6 +321,7 @@ class DropboxChannel(AbstractBaseModel, DeprecatedServerIdMixIn):
     sourcechannelid = BigIntField()
     targetchannelid = BigIntField(default=0)
     deletedelayms = SmallIntField(default=0)
+    sendreceipt = BooleanField(default=False)
 
     def __str__(self):
         return str(self.sourcechannelid)
