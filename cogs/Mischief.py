@@ -61,7 +61,7 @@ class Mischief(BaseCog):
         # init guild-specific dicts and lists
         pass
 
-    @tasks.loop(seconds=300)
+    @tasks.loop(seconds=600)
     async def periodic_task(self):
         # periodic task to run while cog is loaded
 
