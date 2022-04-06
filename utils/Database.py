@@ -266,6 +266,10 @@ class AdminRole(Model):
     roleid = BigIntegerField()
 
     class Meta:
+        indexes = (
+            # unique constraint for combination of keys
+            (('guild', 'roleid'), True),
+        )
         database = connection
 
 
@@ -275,12 +279,16 @@ class ModRole(Model):
     roleid = BigIntegerField()
 
     class Meta:
+        indexes = (
+            # unique constraint for combination of keys
+            (('guild', 'roleid'), True),
+        )
         database = connection
 
 
 class BotAdmin(Model):
     id = AutoField()
-    userid = BigIntegerField()
+    userid = BigIntegerField(unique=True)
 
     class Meta:
         database = connection
@@ -292,6 +300,10 @@ class TrustedRole(Model):
     roleid = BigIntegerField()
 
     class Meta:
+        indexes = (
+            # unique constraint for combination of keys
+            (('guild', 'roleid'), True),
+        )
         database = connection
 
 
@@ -303,6 +315,10 @@ class UserPermission(Model):
     allow = BooleanField(default=True)
 
     class Meta:
+        indexes = (
+            # unique constraint for combination of keys
+            (('guild', 'userid','command'), True),
+        )
         database = connection
 
 

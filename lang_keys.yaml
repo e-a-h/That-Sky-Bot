@@ -28,8 +28,23 @@ channel_config:
   info:
   channel_set:
 permission_config:
+  documentation_description:
   info:
-  permission_set:
+  no_roles_set:
+  reloaded:
+  add_duplicate:
+  added:
+  failed_add:
+  fail_reason_invalid:
+  remove_missing:
+  removed:
+  failed_remove:
+  unregisted_command:
+  registed_command:
+  override_set:
+  override_added:
+  override_missing:
+  override_removed:
 bugs:
   bug_info:
   shutdown_message:

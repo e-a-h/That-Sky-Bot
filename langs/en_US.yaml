@@ -21,8 +21,29 @@ channel_config:
   info: Channel Config for {server_name}
   channel_set: Config channel "{channel_name}" set to <#{channel_id}>
 permission_config:
+  documentation_description: |
+    "cog for managing permissions via roles and specific command overrides.
+    This cog provides server admins commands to add and remove roles or overrides to control permissions, as well as providing admins of the bot itself commands to easily add/remove bot admin user accounts. 
+    Roles are sorted into three levels of trust: trusted, mod and admins. 
+    A user is considered a, for example, mod in the server by the cog if they have a role that is listed as a mod role, regardless if they have server permissions that are considered moderator permissions. 
+    A seperate boolean allows you to control if you want higher trust roles to also be considered that level - i.e. mod and admin roles are considered trusted, admin roles considered mod - without needing to add multiple roles to multiple users or lists.
+    Overrides act per server per user per command combination, and are just a flag applied over any existing permissions."
   info: Permission Configuration for {server_name}
-  permission_set: Permission for {subject} is now {status}
+  no_roles_set: None set.
+  reloaded: reloaded permissions.
+  add_duplicate: Done before you even asked, {role} was already in {list}
+  added: Successfully added {role} to {list}.
+  failed_add: Failed to add {role} to {list}.
+  fail_reason_invalid: Role {role} is not valid role in server.
+  remove_missing: Done before you even asked, {role} wasn't in {list}
+  removed: Successfully removed {role} from {list}. Their access now depends on permissions
+  failed_remove: Failed to remove {role} from {list}.
+  unregisted_command: I couldn't find a command with that name, but it will be in overrides in case it's a custom command.
+  registed_command: I found a command with that name, and used the official name for it.
+  override_set: "existing command override for member: {user} command: `{command}` set to {override}."
+  override_added: "new command override for member: {user} command: `{command}` set to {override}."
+  override_missing: I didn't find any matching overrides, nothing changed.
+  override_removed: "command override for member: {user} command: `{command}` removed. Their access now depends on role settings"
 bugs:
   bug_info: "**Report a New Bug!**\nBrowse or search this channel to see bug reports. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."
   shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.

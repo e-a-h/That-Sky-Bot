@@ -29,6 +29,8 @@ class Skybot(Bot):
         self.shutting_down = False
         self.metrics = PrometheusMon(self)
         self.config_channels = dict()
+        self.bot_admins = dict()
+        '''dictionary holding userids of who is considered a bot admin. read from database in PermissionConfig cog'''
         self.db_keepalive = None
         self.loaded = False
         sys.path.append(
@@ -213,12 +215,102 @@ def before_send(event, hint):
                 return
     return event
 
+def check_command_permission(ctx, level, minimum:bool = False):
+    '''helper method for checking if member in context has permission to use a command based on permissions and all available 
+    records in `PermissionsConfig` cog
+    
+    see `check_cog_permission_level` for more info. Uses that info along with command overrides
+    
+    Return
+    -----
+    `bool` if user has permission to use a command'''
+    cog = ctx.bot.get_cog("PermissionConfig")
+    permission_override = cog.has_permission_override(ctx) if cog != None else None
+    if permission_override != None:
+        return permission_override
+    return check_cog_permission_level(ctx,level,minimum)
 
-def can_help(ctx):
-    return ctx.author.guild_permissions.mute_members
+def check_cog_permission_level(ctx, level, minimum:bool = False, use_cog_info = True):
+    '''helper method for checking if a member in context has a certain level of permissions using permission flags and, if it is avialable,
+    role permission records kept in `PermissionsConfig` cog.
+    Levels are `trusted_role`, `mod_role`, `admin_role`. A member is considered that level if they have the right permissions flags or
+    are listed as one of those roles in the cog.
 
+    Parameters
+    -----
+    ctx: `commands.Context`
+        context to check permisions in
+    level: `string`
+        one of: `trusted_role`, `mod_role`, `admin_role` to match levels of permission bot supports
+    minimum: `bool`
+        Whether or not having a higher trust role but not this level causes method to return true
 
-def can_admin():
+    Return
+    -----
+    `bool` if user has permission level or a higher trust one if asked for'''
+    cog = ctx.bot.get_cog("PermissionConfig")
+    has_trusted_perm = ctx.author.guild_permissions.mute_members
+    has_mod_perm = ctx.author.guild_permissions.ban_members
+    has_admin_perm = ctx.author.guild_permissions.manage_guild
+    # check permissions first before roles, and if have permissions don't bother with roles since it should be faster
+    if level == "trusted_role":
+        return has_trusted_perm or (minimum and (has_mod_perm or has_admin_perm)) or (cog.is_server_trusted(ctx.guild,ctx.author.id,minimum) if cog != None and use_cog_info else False)
+    if level == "mod_role":
+        return has_mod_perm or (minimum and has_admin_perm) or (cog.is_server_mod(ctx.guild,ctx.author.id,minimum) if cog != None and use_cog_info else False)
+    if level == "admin_role":
+        return has_admin_perm or (cog.is_server_admin(ctx.guild,ctx.author.id,minimum) if cog != None and use_cog_info else False)
+    return False
+
+def can_trusted_help_server(ctx):
+    '''function for checking if member in context has trusted permissions on the server using recored information in
+    permissions cog and permissions flags
+    
+    Return
+    -----
+    `bool` if member has trusted role in context'''
+    return check_cog_permission_level(ctx,"trusted_role",False)
+
+def can_admin_server(minimum:bool = False, use_cog_info = True):
+    """decorator function for checking command permissions. checks for if member executing command has admin permissions on server
+    using recorded information in permissions cog and permissions flags
+
+    Parameters
+    --------
+    minimum: `bool`
+        whether or not check shoud return true if member has roles or permissions that belong to higher roles than admin but not admin (none currently)
+    
+    Return
+    -----
+    `func` connands.check function that checks admin permissions when decorated command is called
+    """
+    async def predicate(ctx):
+        return check_cog_permission_level(ctx,"admin_role",minimum, use_cog_info)
+    return commands.check(predicate)
+
+def can_mod_server(minimum:bool = False, use_cog_info = True):
+    """decorator function for checking command permissions. checks for if member executing command has moderator permissions on server
+    using recorded information in permissions cog and permissions flags
+
+    Parameters
+    --------
+    minimum: `bool`
+        whether or not check shoud return true if member has roles or permissions that are considered admin but none for mods
+
+    Return
+    -----
+    `func` connands.check function that checks mod permissions when decorated command is called
+    """
+    async def predicate(ctx):
+        return check_cog_permission_level(ctx,"mod_role",minimum, use_cog_info)
+    return commands.check(predicate)
+
+def can_admin_bot():
+    """decorator function for checking command permissions. checks for if member executing command is admin of the bot
+
+    Return
+    -----
+    `func` connands.check function that checks if member can admin the bot when decorated command is called
+    """
     async def predicate(ctx):
         return await ctx.bot.permission_manage_bot(ctx)
     return commands.check(predicate)
@@ -249,7 +341,7 @@ if __name__ == '__main__':
         intents=intents,
         loop=loop)
     Logging.info('skybot instantiated')
-    skybot.help_command = commands.DefaultHelpCommand(command_attrs=dict(name='snelp', checks=[can_help]))
+    skybot.help_command = commands.DefaultHelpCommand(command_attrs=dict(name='snelp', checks=[can_trusted_help_server]))
 
     Utils.BOT = skybot
 
