@@ -257,7 +257,7 @@ class Bugs(BaseCog):
         await ctx.send("Done! ||I think?||")
 
     @bug.group(name='platforms', aliases=['platform'], invoke_without_command=True)
-    @sky.can_admin()
+    @sky.can_admin_bot()
     async def platforms(self, ctx):
         platforms = dict()
 
@@ -283,7 +283,7 @@ class Bugs(BaseCog):
             await ctx.send(embed=embed)
 
     @platforms.command(aliases=['add'])
-    @sky.can_admin()
+    @sky.can_admin_bot()
     async def add_platform(self, ctx, platform, branch):
         row, create = BugReportingPlatform.get_or_create(platform=platform, branch=branch)
         if create:
@@ -293,9 +293,8 @@ class Bugs(BaseCog):
 
     @bug.group(name='channels', aliases=['channel'], invoke_without_command=True)
     @commands.guild_only()
-    @sky.can_admin()
+    @sky.can_admin_server()
     async def channels(self, ctx):
-        # TODO: allow guild admins to use this, restricted to single guild
         embed = Embed(
             timestamp=ctx.message.created_at,
             color=0x50f3d7,
@@ -330,7 +329,7 @@ class Bugs(BaseCog):
 
     @channels.command(aliases=['remove'])
     @commands.guild_only()
-    @sky.can_admin()
+    @sky.can_admin_server()
     async def remove_channel(self, ctx, channel: TextChannel):
         try:
             row = BugReportingChannel.get(channelid=channel.id)
@@ -343,7 +342,7 @@ class Bugs(BaseCog):
 
     @channels.command(aliases=['add'])
     @commands.guild_only()
-    @sky.can_admin()
+    @sky.can_admin_server()
     async def add_channel(self, ctx, channel: TextChannel, platform, branch):
         try:
             guild_row = Guild.get(serverid=ctx.guild.id)
@@ -370,7 +369,7 @@ class Bugs(BaseCog):
 
     @bug.command(aliases=["resetactive", "reset_in_progress", "resetinprogress", "reset", "clean"])
     @commands.guild_only()
-    @sky.can_admin()
+    @sky.can_admin_bot()
     async def reset_active(self, ctx):
         """Reset active bug reports. Bot will attempt to DM users whose reports are cancelled."""
         to_kill = len(self.in_progress)

@@ -266,7 +266,7 @@ class Welcomer(BaseCog):
 
     @welcome.command(aliases=['verify'])
     @commands.guild_only()
-    @sky.can_admin()
+    @sky.can_admin_server()
     async def verify_invited(self, ctx, *, member_list=""):
         with ctx.channel.typing():
             await ctx.send("This might take a while. rate limiting stops me searching all members quickly...")
