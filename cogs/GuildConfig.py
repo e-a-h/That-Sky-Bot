@@ -6,7 +6,7 @@ from discord import Role, TextChannel, Message, AllowedMentions, Forbidden, HTTP
 from discord.ext import commands
 
 from cogs.BaseCog import BaseCog
-from utils import Utils, Lang, Questions
+from utils import Utils, Lang, Questions, Logging
 from utils.Database import Guild
 
 
@@ -19,10 +19,14 @@ class GuildConfig(BaseCog):
 
     async def startup_cleanup(self):
         for guild in self.bot.guilds:
-            self.init_guild(guild)
+            try:
+                await self.init_guild(guild)
+            except Exception as e:
+                Logging.info(e)
 
-    def init_guild(self, guild):
-        row = Guild.get_or_create(serverid=guild.id)[0]
+    @staticmethod
+    async def init_guild(guild):
+        row, created = await Guild.get_or_create(serverid=guild.id)
         Utils.GUILD_CONFIGS[guild.id] = row
         return row
 
@@ -34,32 +38,35 @@ class GuildConfig(BaseCog):
             return False
         return ctx.author.guild_permissions.ban_members
 
-    def get_guild_config(self, guild_id):
+    async def get_guild_config(self, guild_id):
         if guild_id in Utils.GUILD_CONFIGS:
             return Utils.GUILD_CONFIGS[guild_id]
-        return self.init_guild(guild_id)
+        return await self.init_guild(guild_id)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        self.init_guild(guild)
+        await self.init_guild(guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
         del Utils.GUILD_CONFIGS[guild.id]
         # keep guild record and clear channel configs and default lang
-        guild_row = Guild.get(serverid=guild.id)
-        guild_row.memberrole = 0
-        guild_row.nonmemberrole = 0
-        guild_row.mutedrole = 0
-        guild_row.betarole = 0
-        guild_row.welcomechannelid = 0
-        guild_row.ruleschannelid = 0
-        guild_row.logchannelid = 0
-        guild_row.entrychannelid = 0
-        guild_row.maintenancechannelid = 0
-        guild_row.rulesreactmessageid = 0
-        guild_row.defaultlocale = ''
-        guild_row.save()
+        try:
+            guild_row = await Guild.get(serverid=guild.id)
+            guild_row.memberrole = 0
+            guild_row.nonmemberrole = 0
+            guild_row.mutedrole = 0
+            guild_row.betarole = 0
+            guild_row.welcomechannelid = 0
+            guild_row.ruleschannelid = 0
+            guild_row.logchannelid = 0
+            guild_row.entrychannelid = 0
+            guild_row.maintenancechannelid = 0
+            guild_row.rulesreactmessageid = 0
+            guild_row.defaultlocale = ''
+            await guild_row.save()
+        except Exception as e:
+            await Utils.handle_exception(f"Failed to clear GuildConfig from server {guild.id}", self.bot, e)
 
     @commands.group(name="guildconfig",
                     aliases=['guild', 'guildconf'],
@@ -142,8 +149,8 @@ class GuildConfig(BaseCog):
         my_guild = Utils.GUILD_CONFIGS[ctx.guild.id]
         try:
             setattr(my_guild, field, val.id)
-            my_guild.save()
-            self.init_guild(ctx.guild)
+            await my_guild.save()
+            await self.init_guild(ctx.guild)
             await ctx.send(f"Ok! `{field}` is now `{val.name} ({val.id})`")
         except Exception as e:
             await ctx.send(f"I failed to set `{field}` value to `{val.name} ({val.id})`")
@@ -268,8 +275,8 @@ class GuildConfig(BaseCog):
         my_guild = Utils.GUILD_CONFIGS[ctx.guild.id]
         try:
             my_guild.rulesreactmessageid = msg.id
-            my_guild.save()
-            self.init_guild(ctx.guild)
+            await my_guild.save()
+            await self.init_guild(ctx.guild)
             await ctx.send(f"Ok! `rulesreactmessageid` is now `{msg.id}`")
         except Exception as e:
             await ctx.send(f"I failed to set `rulesreactmessageid` value to `{msg.id}`")

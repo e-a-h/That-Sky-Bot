@@ -142,6 +142,7 @@ async def ask_text(
         else:
             content = Utils.escape_markdown(message_cleaned) if escape else message_cleaned
             if confirm:
+                ask_again = True
                 backticks = "``" if len(message_cleaned.splitlines()) == 1 else "```"
                 message = Lang.get_locale_string('questions/confirm_prompt',
                                                  locale,
@@ -154,6 +155,8 @@ async def ask_text(
             else:
                 confirmed()
 
+            if ask_again:
+                continue
             await clean_dialog()
             return content
 

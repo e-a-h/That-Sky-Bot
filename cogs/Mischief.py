@@ -13,36 +13,37 @@ from utils import Utils, Configuration, Logging
 class Mischief(BaseCog):
     cooldown_time = 600
     role_map = {
-        "a bean": 902462040596164619,
-        "a bird": 901960866226913340,
-        "a buff moth": 902297335743279174,
-        "a bunny": 903083512951869530,
-        "a butterfly": 901960358267326494,
-        "a candle": 902327931680989285,
-        "a cosmic manta": 901964236396314645,
-        "a crab": 819720424992145458,
-        "a flight guide": 902369136468959242,
-        "a gratitude guide": 902455240404647948,
-        "a jellyfish": 901960274754555924,
-        "a koi fish": 902321584159723560,
-        "a krilled skykid": 902346221665005629,
-        "a manta": 901959573974425640,
-        "a moth": 902294230679048222,
-        "a pair of pants": 902446961414770728,
-        "a prophecy guide": 902418537832906752,
-        "a rhythm guide": 902330765352783912,
-        "a shadow": 901960767119704064,
-        "a spirit": 902293337028055111,
-        "a tuna king": 827341301833531422,
-        "a weasel": 902311536125673503,
-        "an elder bird": 902307770815119370,
+
+        "bean": 902462040596164619,
+        "bird": 901960866226913340,
+        "buff moth": 902297335743279174,
+        "bunny": 903083512951869530,
+        "butterfly": 901960358267326494,
+        "candle": 902327931680989285,
+        "cosmic manta": 901964236396314645,
+        "crab": 819720424992145458,
+        "dreams skater": 902648539014893680,
+        "elder bird": 902307770815119370,
+        "flight guide": 902369136468959242,
+        "gratitude guide": 902455240404647948,
+        "jellyfish": 901960274754555924,
+        "just a fish": 902616235005583400,
+        "koi fish": 902321584159723560,
+        "krilled skykid": 902346221665005629,
+        "manta": 901959573974425640,
+        "moth": 902294230679048222,
         "not a krill": 818924325633654824,
         "oreo": 902295610454069378,
-        "a thatskybot": 902434147916709928,
+        "pair of pants": 902446961414770728,
+        "performance guide": 965759873935609916,
+        "prophecy guide": 902418537832906752,
+        "rhythm guide": 902330765352783912,
+        "shadow": 901960767119704064,
+        "spirit": 902293337028055111,
+        "thatskybot": 902434147916709928,
         "totally a krill": 818978303243190302,
         "tuna king": 827341301833531422,
-        "just a fish": 902616235005583400,
-        "a dreams skater": 902648539014893680,
+        "weasel": 902311536125673503,
         "me again": 0
     }
 
@@ -156,7 +157,7 @@ class Mischief(BaseCog):
         try:
             guild = Utils.get_home_guild()
             my_member: discord.Member = guild.get_member(uid)
-            if my_member is None or len(message.content) > 60:
+            if my_member is None or len(message.content) > 60 or len(my_member.roles) < 2:
                 return
         except:
             return
@@ -186,7 +187,7 @@ class Mischief(BaseCog):
         ]
 
         remove = False
-        pattern = re.compile(f"(skybot,? *)?({'|'.join(triggers)}) (.*)", re.I)
+        pattern = re.compile(f"(?:skybot,? *)?({'|'.join(triggers)})(?: (a|an|the))? (.*)", re.I)
         result = pattern.match(message.content)
 
         if result is None:

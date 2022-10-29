@@ -7,10 +7,11 @@ import typing
 from discord import File
 from discord.ext import commands
 from discord.ext.commands import command
+from tortoise.expressions import Q
 
 from cogs.BaseCog import BaseCog
-from utils import Utils, Configuration
-from utils.Database import BugReport, Attachments, connection, BugReportingPlatform
+from utils import Utils
+from utils.Database import BugReport, BugReportingPlatform
 from utils.Utils import save_to_disk
 
 
@@ -25,52 +26,52 @@ class Reporting(BaseCog):
     async def csv(
             self,
             ctx: commands.Context,
-            start: typing.Optional[int] = 0,
+            start: typing.Optional[int] = -100,
             end: typing.Optional[int] = None,
             branch: typing.Optional[str] = "",
             platform: typing.Optional[str] = ""):
         """Export bug reports starting from {start} to CSV file
-        csv                        exports complete history of reports
+        csv                        exports 100 most recent reports
         csv 15 20                  exports reports with ids in the range 15-20
-        csv -100                   exports the last 100 reports matching other criteria
+        csv -200                   exports the last 200 reports matching other criteria (max 1000)
         csv [both|beta|stable]     exports reports for given branch
         csv {both|beta|stable} [all|android|ios|etc]
                                    exports reports for given branch and platform"""
         # TODO: start from date?
         # TODO: migrate to async ORM like tortoise
 
-        def get_branch(br):
+        async def get_branch(br_a):
             platforms = dict()
             branches = set()
 
-            for row in BugReportingPlatform.select():
-                branches.add(row.branch)
-                if row.branch not in platforms:
-                    platforms[row.branch] = set()
-                platforms[row.branch].add(row.platform)
+            for p in await BugReportingPlatform.all():
+                branches.add(p.branch)
+                if p.branch not in platforms:
+                    platforms[p.branch] = set()
+                platforms[p.branch].add(p.platform)
 
-            br = br.lower().capitalize()
-            if br in branches:
-                return [br]
+            br_b = br_a.lower().capitalize()
+            if br_b in branches:
+                return [br_b]
             return ["Beta", "Stable"]
 
-        def get_platform(pl):
+        async def get_platform(pl_a):
             platforms = dict()
 
-            for row in BugReportingPlatform.select():
-                platforms[row.platform.lower()] = row.platform
+            for p in await BugReportingPlatform.all():
+                platforms[p.platform.lower()] = p.platform
 
-            pl = pl.lower()
-            if pl in platforms:
-                return [platforms[pl]]
+            pl_b = pl_a.lower()
+            if pl_b in platforms:
+                return [platforms[pl_b]]
             return ["Android", "iOS", "Switch"]
 
         # dashes at the start of text are interpreted as formulas by excel. replace with *
         def filter_hyphens(text):
             return re.sub(r'^\s*[-=+]\s*', '* ', text, flags=re.MULTILINE)
 
-        pl = get_platform(platform)
-        br = get_branch(branch)
+        pl = await get_platform(platform)
+        br = await get_branch(branch)
 
         if start < -self.fetch_limit:
             await ctx.send(f"you requested more than {self.fetch_limit} records, "
@@ -90,29 +91,19 @@ class Reporting(BaseCog):
             await Utils.handle_exception("failed to send reporting CSV startup message", self.bot, e)
             return
 
-        conditions = (
-            BugReport.branch.in_(br) &
-            BugReport.platform.in_(pl) &
-            (BugReport.id >= start) &
-            (BugReport.id <= (sys.maxsize if end is None else end))
-        )
+        end_id = sys.maxsize if end is None else end
+        conditions = (Q(branch__in=br) &
+                      Q(platform__in=pl) &
+                      Q(id__range=[start, end_id]))
+
         if start < 0:
-            # count backward from end of data
-            query = BugReport.select().where(conditions).order_by(BugReport.id.desc()).limit(abs(start))
+            # count backward from end of data. no more than global limit
+            limit = min(abs(start), self.fetch_limit)
+            query = await BugReport.filter(conditions).order_by("-id").limit(limit)
         else:
-            query = BugReport.select().where(conditions).limit(self.fetch_limit)  # .prefetch(Attachments)
+            query = await BugReport.filter(conditions).limit(self.fetch_limit)
 
-        ids = []
-        for row in query:
-            ids.append(row.id)
-        attachquery = Attachments.select().where(Attachments.report.in_(ids))
-
-        for row in query:
-            row.attachments = []
-            for att in attachquery:
-                if att.report_id == row.id:
-                    row.attachments.append(att)
-
+        data_list = ()
         fields = ["id",
                   "reported_at",
                   "reporter",
@@ -128,14 +119,14 @@ class Reporting(BaseCog):
                   "actual",
                   "attachments",
                   "additional"]
-        data_list = ()
+
         for report in query:
             reporter_formatted = report.reporter
             reporter = self.bot.get_user(report.reporter)
             if reporter is not None:
                 reporter_formatted = f"@{reporter.name}#{reporter.discriminator}({report.reporter})"
             attachments = []
-            for attachment in report.attachments:
+            for attachment in await report.attachments:
                 attachments.append(attachment.url)
 
             attachments = "\n".join(attachments)
@@ -155,16 +146,12 @@ class Reporting(BaseCog):
                            "actual": filter_hyphens(report.actual),
                            "attachments": attachments,
                            "additional": filter_hyphens(report.additional)},)
+
+        await ctx.send(f"Fetched {len(data_list)} reports...")
         now = datetime.today().timestamp()
-
-        out = ""
-        for i in data_list:
-            out += str(i) + "\n"
-
-        sent = await ctx.send(f"Fetched {len(data_list)} reports...")
         save_to_disk(f"report_{now}", data_list, 'csv', fields)
         send_file = File(f"report_{now}.csv")
-        sent = await ctx.send(file=send_file)
+        await ctx.send(file=send_file)
         os.remove(f"report_{now}.csv")
 
 

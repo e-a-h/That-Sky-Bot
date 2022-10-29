@@ -1,3 +1,5 @@
+from collections import deque
+from dataclasses import dataclass
 import json
 
 from utils import Logging, Utils
@@ -6,6 +8,16 @@ MASTER_CONFIG = dict()
 MASTER_LOADED = False
 PERSISTENT = dict()
 PERSISTENT_LOADED = False
+PERSISTENT_DEQUE = deque()
+PERSISTENT_LOCK = False
+
+
+@dataclass()
+class PersistentAction:
+    delete: bool = False
+    key: str = None
+    value: str = None
+    tolerate_missing: bool = False
 
 
 def save():
@@ -53,19 +65,28 @@ def get_persistent_var(key, default=None):
 
 
 def set_persistent_var(key, value):
-    PERSISTENT[key] = value
-    Utils.save_to_disk("persistent", PERSISTENT)
+    PERSISTENT_DEQUE.append(PersistentAction(key=key, value=value))
 
 
 def del_persistent_var(key, tolerate_missing=False):
-    try:
-        del PERSISTENT[key]
+    PERSISTENT_DEQUE.append(PersistentAction(key=key, delete=True, tolerate_missing=tolerate_missing))
+
+
+def do_persistent_action(action: PersistentAction):
+    if action.delete and action.key:
+        # DELETE
+        try:
+            del PERSISTENT[action.key]
+            Utils.save_to_disk("persistent", PERSISTENT)
+        except KeyError as e:
+            if action.tolerate_missing:
+                Logging.info(f'skipping delete for `{action.key}`')
+                return
+            Logging.info(f'NOT skipping delete for `{action.key}`')
+            Utils.get_embed_and_log_exception(f"cannot delete nonexistent persistent var `{action.key}`", Utils.BOT, e)
+        except Exception as e:
+            Utils.get_embed_and_log_exception(f"---delete persistent var failed--- key `{action.key}`", Utils.BOT, e)
+    elif not action.delete and action.key:
+        # SAVE/CREATE
+        PERSISTENT[action.key] = action.value
         Utils.save_to_disk("persistent", PERSISTENT)
-    except KeyError as e:
-        if tolerate_missing:
-            Logging.info(f'skipping delete for `{key}`')
-            return
-        Logging.info(f'NOT skipping delete for `{key}`')
-        Utils.get_embed_and_log_exception(f"cannot delete nonexistent persistent var `{key}`", Utils.BOT, e)
-    except Exception as e:
-        Utils.get_embed_and_log_exception(f"---delete persistent var failed--- key `{key}`", Utils.BOT, e)

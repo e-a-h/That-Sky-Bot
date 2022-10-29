@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from tortoise.exceptions import OperationalError
+
 from utils.Database import ReactWatch, WatchedEmoji, Guild
 
 import discord
@@ -28,11 +30,11 @@ class ReactMonitor(BaseCog):
     async def startup_cleanup(self):
         self.mutes = dict()
         for guild in self.bot.guilds:
-            self.init_guild(guild.id)
+            await self.init_guild(guild.id)
         self.check_reacts.start()
 
-    def init_guild(self, guild_id):
-        watch = ReactWatch.get_or_create(serverid=guild_id)[0]
+    async def init_guild(self, guild_id):
+        watch, created = await ReactWatch.get_or_create(serverid=guild_id)
         self.mutes[guild_id] = Configuration.get_persistent_var(f"react_mutes_{guild_id}", dict())
         self.min_react_lifespan[guild_id] = Configuration.get_persistent_var(f"min_react_lifespan_{guild_id}", 0.5)
         self.mute_duration[guild_id] = watch.muteduration
@@ -44,21 +46,21 @@ class ReactMonitor(BaseCog):
 
         # list of emoji to watch
         self.emoji[guild_id] = dict()
-        for e in watch.emoji:
+        for e in await watch.emoji:
             self.emoji[guild_id][e.emoji] = e
 
         # enable listening if set in db
         if watch.watchremoves:
-            self.activate_react_watch(guild_id)
+            await self.activate_react_watch(guild_id)
 
-        self.guilds[guild_id] = Guild.get_or_create(serverid=guild_id)[0]
+        self.guilds[guild_id], created = await Guild.get_or_create(serverid=guild_id)
 
     def cog_unload(self):
         self.check_reacts.cancel()
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        self.init_guild(guild.id)
+        await self.init_guild(guild.id)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
@@ -73,11 +75,11 @@ class ReactMonitor(BaseCog):
         del self.emoji[guild.id]
         del self.guilds[guild.id]
         if guild.id in self.react_watch_servers:
-            self.deactivate_react_watch(guild.id)
-        watch = ReactWatch.get(ReactWatch.serverid == guild.id)
-        for e in watch.emoji:
-            e.delete_instance()
-        watch.delete_instance()
+            await self.deactivate_react_watch(guild.id)
+        watch = await ReactWatch.get(serverid=guild.id)
+        for e in await watch.emoji:
+            await e.delete()
+        await watch.delete()
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):
@@ -91,7 +93,7 @@ class ReactMonitor(BaseCog):
     async def on_member_join(self, member):
         if str(member.id) in self.mutes[member.guild.id]:
             guild = member.guild
-            guild_config = self.bot.get_guild_db_config(guild.id)
+            guild_config = await self.bot.get_guild_db_config(guild.id)
             if guild_config and guild_config.mutedrole:
                 try:
                     mute_role = guild.get_role(guild_config.mutedrole)
@@ -103,18 +105,18 @@ class ReactMonitor(BaseCog):
             else:
                 await self.bot.guild_log(guild.id, "**I can't re-mute for reacts because `!guildconfig` mute role is not set.")
 
-    def activate_react_watch(self, guild_id):
+    async def activate_react_watch(self, guild_id):
         # store setting in db, and add to list of listening servers
-        watch = ReactWatch.get(serverid=guild_id)
+        watch = await ReactWatch.get(serverid=guild_id)
         watch.watchremoves = True
-        watch.save()
+        await watch.save()
         self.react_watch_servers.add(guild_id)
 
-    def deactivate_react_watch(self, guild_id):
+    async def deactivate_react_watch(self, guild_id):
         # store setting in db, and remove from list of listening servers
-        watch = ReactWatch.get(serverid=guild_id)
+        watch = await ReactWatch.get(serverid=guild_id)
         watch.watchremoves = False
-        watch.save()
+        await watch.save()
         self.react_watch_servers.remove(guild_id)
 
     def is_user_event_ignored(self, event):
@@ -157,7 +159,7 @@ class ReactMonitor(BaseCog):
                     if float(mute_time) + float(self.mute_duration[guild_id]) < now:
                         try:
                             guild = self.bot.get_guild(guild_id)
-                            guild_config = self.bot.get_guild_db_config(guild_id)
+                            guild_config = await self.bot.get_guild_db_config(guild_id)
                             if guild_config and guild_config.mutedrole:
                                 mute_role = guild.get_role(guild_config.mutedrole)
                                 member = guild.get_member(int(user_id))
@@ -165,7 +167,7 @@ class ReactMonitor(BaseCog):
                                     await member.remove_roles(mute_role)
                                 del self.mutes[guild_id][user_id]
                         except Exception as e:
-                            log_channel = self.bot.get_guild_log_channel(guild_id)
+                            log_channel = await self.bot.get_guild_log_channel(guild_id)
                             del self.mutes[guild_id][user_id]
                             await log_channel.send(f'Failed to unmute user ({user_id}) <@{user_id}>... did they leave the server?')
                             # await Utils.handle_exception('react watch unmute failure', self.bot, e)
@@ -202,7 +204,7 @@ class ReactMonitor(BaseCog):
         List the watched emoji and their settings
         """
         max_fields = 24
-        watch = ReactWatch.get(serverid=ctx.guild.id)
+        watch = await ReactWatch.get(serverid=ctx.guild.id)
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=Utils.COLOR_LIME,
@@ -251,15 +253,16 @@ class ReactMonitor(BaseCog):
         mute: Boolean - Auto-mute members who use this emoji
         """
         try:
-            watch = ReactWatch.get(serverid=ctx.guild.id)
-            new_emoji = WatchedEmoji.get_or_create(watcher=watch.id, emoji=emoji)[0]
+            watch, created = await ReactWatch.get_or_create(serverid=ctx.guild.id)
+            new_emoji, created = await WatchedEmoji.get_or_create(watcher_id=watch.id, emoji=emoji)
             new_emoji.log = log
             new_emoji.remove = remove
             new_emoji.mute = mute
-            new_emoji.save()
+            await new_emoji.save()
             self.emoji[ctx.guild.id][emoji] = new_emoji
         except Exception as e:
-            raise e
+            await Utils.handle_exception("failed to add emoji to watch list", self.bot, e)
+
         await ctx.send(f"`{emoji}` is now on the watch list with settings:\n"
                        f"{self.describe_emoji_watch_settings(self.emoji[ctx.guild.id][emoji])}")
 
@@ -272,12 +275,14 @@ class ReactMonitor(BaseCog):
         emoji: The emoji to remove
         """
         try:
-            watch = ReactWatch.get(serverid=ctx.guild.id)
-            WatchedEmoji.get(watcher=watch.id, emoji=emoji).delete_instance()
+            watch_row = await WatchedEmoji.get(watcher__serverid=ctx.guild.id, emoji=emoji)
+            await watch_row.delete()
             del self.emoji[ctx.guild.id][emoji]
             await ctx.send(f"I removed `{emoji}` from the watch list")
-        except Exception as e:
+        except OperationalError:
             await ctx.send(f"I couldn't find `{emoji}` on the emoji watch list, so I didn't remove it.")
+        except Exception as e:
+            await Utils.handle_exception("react remove failed", self.bot, e)
 
     @react_monitor.command(aliases=['on'])
     @commands.guild_only()
@@ -288,7 +293,7 @@ class ReactMonitor(BaseCog):
         if ctx.guild.id in self.react_watch_servers:
             await ctx.send("React monitor is already on")
         else:
-            self.activate_react_watch(ctx.guild.id)
+            await self.activate_react_watch(ctx.guild.id)
             await ctx.send("I'm on the lookout for reaction spam!")
 
     @react_monitor.command(aliases=['off'])
@@ -298,7 +303,7 @@ class ReactMonitor(BaseCog):
         Turn OFF monitor for spammy fast-removal of reactions
         """
         if ctx.guild.id in self.react_watch_servers:
-            self.deactivate_react_watch(ctx.guild.id)
+            await self.deactivate_react_watch(ctx.guild.id)
             await ctx.send("OK, I'll stop watching for reaction spams")
         else:
             await ctx.send("React monitor is already off")
@@ -320,7 +325,7 @@ class ReactMonitor(BaseCog):
     async def list_mutes(self, ctx: commands.Context):
         if self.mutes[ctx.guild.id]:
             react_muted = list()
-            guild_config = self.bot.get_guild_db_config(ctx.guild.id)
+            guild_config = await self.bot.get_guild_db_config(ctx.guild.id)
             mute_role = ctx.guild.get_role(guild_config.mutedrole)
 
             for member_id, timestamp in self.mutes[ctx.guild.id].items():
@@ -342,7 +347,7 @@ class ReactMonitor(BaseCog):
     async def purge_mutes(self, ctx: commands.Context):
         if self.mutes[ctx.guild.id]:
             react_unmuted = list()
-            guild_config = self.bot.get_guild_db_config(ctx.guild.id)
+            guild_config = await self.bot.get_guild_db_config(ctx.guild.id)
             mute_role = ctx.guild.get_role(guild_config.mutedrole)
 
             for member_id, timestamp in dict(self.mutes[ctx.guild.id]).items():
@@ -367,9 +372,9 @@ class ReactMonitor(BaseCog):
         mute_time: time in seconds, floating point e.g. 0.25
         """
         self.mute_duration[ctx.guild.id] = mute_time
-        watch = ReactWatch.get_or_create(serverid=ctx.guild.id)[0]
+        watch, created = await ReactWatch.get_or_create(serverid=ctx.guild.id)
         watch.muteduration = mute_time
-        watch.save()
+        await watch.save()
         t = Utils.to_pretty_time(mute_time)
         await ctx.send(f"Members will now be muted for {t} when they use restricted reacts")
 
@@ -387,7 +392,7 @@ class ReactMonitor(BaseCog):
         member = event.member
         guild = self.bot.get_guild(event.guild_id)
         channel = self.bot.get_channel(event.channel_id)
-        log_channel = self.bot.get_guild_log_channel(event.guild_id)
+        log_channel = await self.bot.get_guild_log_channel(event.guild_id)
 
         # Act on log, remove, and mute:
         e_db = None
@@ -420,7 +425,7 @@ class ReactMonitor(BaseCog):
             log_msg = f"{log_msg}\n--- I **removed** the reaction"
 
         if e_db.mute:
-            guild_config = self.bot.get_guild_db_config(guild.id)
+            guild_config = await self.bot.get_guild_db_config(guild.id)
             if guild_config and guild_config.mutedrole:
                 try:
                     mute_role = guild.get_role(guild_config.mutedrole)
@@ -466,7 +471,7 @@ class ReactMonitor(BaseCog):
             member = guild.get_member(event.user_id)
             emoji_used = str(event.emoji)
             channel = self.bot.get_channel(event.channel_id)
-            log_channel = self.bot.get_guild_log_channel(guild.id)
+            log_channel = await self.bot.get_guild_log_channel(guild.id)
             # ping log channel with detail
             if log_channel:
                 content = f"{Utils.get_member_log_name(member)} " \

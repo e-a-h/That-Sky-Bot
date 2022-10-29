@@ -18,14 +18,14 @@ class ChannelConfig(BaseCog):
         # Load channels
         self.bot.config_channels = dict()
         for guild in self.bot.guilds:
-            self.load_guild(guild)
+            await self.load_guild(guild)
 
-    def init_guild(self, guild):
+    async def init_guild(self, guild):
         self.bot.config_channels[guild.id] = dict()
 
-    def load_guild(self, guild):
+    async def load_guild(self, guild):
         my_channels = dict()
-        for row in ConfigChannel.select().where(ConfigChannel.serverid == guild.id):
+        for row in await ConfigChannel.filter(serverid=guild.id):
             if validate_channel_name(row.configname):
                 my_channels[row.configname] = row.channelid
             else:
@@ -34,13 +34,12 @@ class ChannelConfig(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        self.init_guild(guild)
+        await self.init_guild(guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
         del self.bot.config_channels[guild.id]
-        for row in ConfigChannel.select().where(ConfigChannel.serverid == guild.id):
-            row.delete_instance()
+        await ConfigChannel.filter(serverid=guild.id).delete()
 
     def cog_check(self, ctx):
         if ctx.guild is not None and ctx.author.guild_permissions.ban_members:
@@ -62,7 +61,7 @@ class ChannelConfig(BaseCog):
                               f"{Utils.log_channel}|{Utils.ro_art_channel}|{Utils.entry_channel}]",
                         inline=False)
 
-        for row in ConfigChannel.select().where(ConfigChannel.serverid == ctx.guild.id):
+        for row in await ConfigChannel.filter(serverid=ctx.guild.id):
             embed.add_field(name=row.configname, value=f"<#{row.channelid}>", inline=False)
         await ctx.send(embed=embed)
 
@@ -98,9 +97,13 @@ class ChannelConfig(BaseCog):
         if channel_id != 0 and ctx.guild.get_channel(channel_id) is None:
             return False
 
-        row: ConfigChannel = ConfigChannel.get_or_create(serverid=ctx.guild.id, configname=channel_name)[0]
-        row.channelid = channel_id
-        row.save()
+        try:
+            row, created = await ConfigChannel.get_or_create(serverid=ctx.guild.id, configname=channel_name)
+            row.channelid = channel_id
+        except Exception as e:
+            await Utils.handle_exception("set config channel failed", self.bot, e)
+            return False
+        await row.save()
         self.bot.config_channels[ctx.guild.id][channel_name] = channel_id
         return True
 

@@ -12,23 +12,23 @@ from discord.ext import commands
 from discord.ext.commands import Context
 
 from cogs.BaseCog import BaseCog
-from utils import Lang, Questions, Utils
+from utils import Lang, Questions, Utils, Logging
 from utils.Utils import MENTION_MATCHER, ID_MATCHER, NUMBER_MATCHER
 
 try:
-    music_maker_path = os.path.normpath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), '../sky-python-music-sheet-maker'))
+    pwd = os.path.dirname(os.path.realpath(__file__))
+    music_maker_path = os.path.normpath(os.path.join(pwd, '../sky-python-music-sheet-maker'))
     if not os.path.isdir(music_maker_path):
-        music_maker_path = os.path.normpath(
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../sky-python-music-sheet-maker'))
+        music_maker_path = os.path.normpath(os.path.join(pwd, '../../sky-python-music-sheet-maker'))
     if music_maker_path not in sys.path:
         sys.path.append(music_maker_path)
+    Logging.info(sys.path)
     from src.skymusic.communicator import Communicator, QueriesExecutionAbort
     from src.skymusic.music_sheet_maker import MusicSheetMaker
     from src.skymusic.resources import Resources as skymusic_resources
 except ImportError as e:
-    print('*** IMPORT ERROR of one or several Music-Maker modules')
-    print(e)
+    Logging.info('*** IMPORT ERROR of one or several Music-Maker modules')
+    Logging.info(e)
 
 
 class MusicCogPlayer:
@@ -365,7 +365,9 @@ class Music(BaseCog):
                 answered = await player.async_execute_queries(channel, user, qs_meta)
                 # TODO: convert_mention only converts IDs here, maybe because mentions are escaped before here.
                 #  fix or maybe add an unescape or something
-                (title, artist, transcript) = [await self.convert_mention(ctx, q.get_reply().get_result()) for q in qs_meta]
+                (title, artist, transcript) = [
+                    await self.convert_mention(ctx, q.get_reply().get_result()) for q in qs_meta
+                ]
                 
                 # 9.b Sets song metadata
                 maker.set_song_metadata(recipient=player,
@@ -376,11 +378,11 @@ class Music(BaseCog):
                 active_question += 1
 
                 # 10 Asks for render modes
-                #q_render, _ = self.ask_render_modes(recipient=recipient)
-                #if q_render is not None:
-                #    answered = await player.async_execute_queries(channel, user, q_render)
-                #    render_modes = q_render.get_reply().get_result()
-                #active_question += 1
+                # q_render, _ = self.ask_render_modes(recipient=recipient)
+                # if q_render is not None:
+                #     answered = await player.async_execute_queries(channel, user, q_render)
+                #     render_modes = q_render.get_reply().get_result()
+                # active_question += 1
                 
                 # 11 Asks render mode
                 q_aspect, aspect_ratio = maker.ask_aspect_ratio(recipient=player, execute=False)
@@ -390,12 +392,13 @@ class Music(BaseCog):
                 active_question += 1
 
                 # 12. Ask beats per minutes
-                #q_song_bpm, _ = self.ask_song_bpm(recipient=player, execute=False)
-                #(q_song_bpm, song_bpm) = self.ask_song_bpm(recipient=recipient, prerequisites=[q_render])  # EXPERIMENTAL       
-                #if q_song_bpm is not None:
-                #    answered = await player.async_execute_queries(channel, user, q_song_bpm)
-                #    song_bpm = q_song_bpm.get_reply().get_result()
-                #active_question += 1
+                # q_song_bpm, _ = self.ask_song_bpm(recipient=player, execute=False)
+                # EXPERIMENTAL:
+                # (q_song_bpm, song_bpm) = self.ask_song_bpm(recipient=recipient, prerequisites=[q_render])
+                # if q_song_bpm is not None:
+                #     answered = await player.async_execute_queries(channel, user, q_song_bpm)
+                #     song_bpm = q_song_bpm.get_reply().get_result()
+                # active_question += 1
 
                 while self.bot.music_rendering:
                     # Wait for in-progress renders to finish.
@@ -406,7 +409,13 @@ class Music(BaseCog):
                 self.is_rendering = user.id
 
                 # 13. Renders Song
-                song_bundle = await asyncio.get_event_loop().run_in_executor(None, maker.render_song, player, None, aspect_ratio, 120)
+                song_bundle = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    maker.render_song,
+                    player,
+                    None,
+                    aspect_ratio,
+                    120)
 
                 # Unblock concurrent renders
                 self.bot.music_rendering = False

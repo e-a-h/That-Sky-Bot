@@ -34,11 +34,11 @@ class Welcomer(BaseCog):
     async def startup_cleanup(self):
         self.join_cooldown = Configuration.get_persistent_var("join_cooldown", dict())
         for guild in self.bot.guilds:
-            self.init_guild(guild)
+            await self.init_guild(guild)
         self.check_cooldown.start()
 
-    def init_guild(self, guild):
-        self.set_verification_mode(guild)
+    async def init_guild(self, guild):
+        await self.set_verification_mode(guild)
         self.mute_minutes_old_account[guild.id] = Configuration.get_persistent_var(f"{guild.id}_mute_minutes_old_account", 10)
         self.mute_minutes_new_account[guild.id] = Configuration.get_persistent_var(f"{guild.id}_mute_minutes_new_account", 20)
         self.mute_new_members[guild.id] = Configuration.get_persistent_var(f"{guild.id}_mute_new_members", False)
@@ -48,7 +48,7 @@ class Welcomer(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        self.init_guild(guild)
+        await self.init_guild(guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
@@ -66,10 +66,10 @@ class Welcomer(BaseCog):
         del self.discord_verification_flow[guild.id]
         del self.join_cooldown[str(guild.id)]
 
-    def set_verification_mode(self, guild):
+    async def set_verification_mode(self, guild):
         # TODO: enforce channel permissions for entry_channel?
         # verification flow is on if entry channel is set
-        ec = self.bot.get_guild_entry_channel(guild.id)
+        ec = await self.bot.get_guild_entry_channel(guild.id)
 
         self.discord_verification_flow[guild.id] = bool(ec)
         # Do not mute new members if verification flow is on.
@@ -95,7 +95,7 @@ class Welcomer(BaseCog):
             m.bot_welcome_mute.labels(guild_id=guild.id).set(len(self.join_cooldown[str(guild.id)]))
 
             # set verification periodically since channel setting can be changed in another cog
-            self.set_verification_mode(guild)
+            await self.set_verification_mode(guild)
 
             if self.discord_verification_flow[guild.id] and not self.join_cooldown[str(guild.id)]:
                 # verification flow in effect, and nobody left to unmute.
@@ -362,7 +362,7 @@ class Welcomer(BaseCog):
         mute_minutes_old: how long (minutes) to mute established accounts (default 10)
         mute_minutes_new: how long (minutes) to mute accounts < 1 day old (default 20)
         """
-        self.set_verification_mode(ctx.guild)
+        await self.set_verification_mode(ctx.guild)
         if self.discord_verification_flow[ctx.guild.id]:
             # discord verification flow precludes new-member muting
             await ctx.send("""
@@ -675,6 +675,7 @@ class Welcomer(BaseCog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
+        # TODO: change to detect adding first role? or move to where member role is granted?
         if self.mute_new_members[member.guild.id] and not self.discord_verification_flow[member.guild.id]:
             self.bot.loop.create_task(self.mute_new_member(member))
 
@@ -836,11 +837,12 @@ class Welcomer(BaseCog):
         if message.author.bot or not hasattr(message.author, "guild"):
             return
 
+        guild_row = await self.bot.get_guild_db_config(message.guild.id)
         welcome_channel = self.bot.get_config_channel(message.guild.id, Utils.welcome_channel)
         rules_channel = self.bot.get_config_channel(message.guild.id, Utils.rules_channel)
         log_channel = self.bot.get_config_channel(message.guild.id, Utils.log_channel)
-        member_role = message.guild.get_role(self.bot.get_guild_db_config(message.guild.id).memberrole)
-        nonmember_role = message.guild.get_role(self.bot.get_guild_db_config(message.guild.id).nonmemberrole)
+        member_role = message.guild.get_role(guild_row.memberrole)
+        nonmember_role = message.guild.get_role(guild_row.nonmemberrole)
 
         if message.author.id == 349977940198555660:  # is gearbot
             pattern = re.compile(r'\(``(\d+)``\) has re-joined the server before their mute expired')
