@@ -5,10 +5,10 @@ from functools import reduce
 from random import randint, random, choice
 
 import discord
+import tortoise.exceptions
 from discord import utils
 from discord.ext import commands
 from discord.ext.commands import command, UserConverter, BucketType
-from peewee import DoesNotExist
 
 from cogs.BaseCog import BaseCog
 from utils import Configuration, Utils, Lang, Emoji, Logging, Questions
@@ -31,8 +31,8 @@ class Krill(BaseCog):
         self.monsters = dict()
         self.ignored = set()
         self.loaded = False
-        self.oreo_map = OreoMap(OreoMap.get_or_create())
         self.oreo_filter = dict()
+        self.oreo_map = None
         self.oreo_defaults = Configuration.get_persistent_var('oreo_filter', dict(
             o=["o", "0", "Ø", "Ǒ", "ǒ", "Ǫ", "ǫ", "Ǭ", "ǭ", "Ǿ", "ǿ", "Ō", "ō", "Ŏ",
                "ŏ", "Ő", "ő", "ò", "ó", "ô", "õ", "ö", "Ò", "Ó", "Ô", "Õ", "Ö", "ỗ",
@@ -54,7 +54,11 @@ class Krill(BaseCog):
             n='{0,10}'
         ))
 
-        my_letters = OreoLetters.select()
+        bot.loop.create_task(self.startup_cleanup())
+
+    async def startup_cleanup(self):
+        my_letters = await OreoLetters.all()
+        self.oreo_map, created = await OreoMap.get_or_create()
         if len(my_letters) == 0:
             # Stuff existing persistent vars into db. This is a migration from persistent to db
             # or initialization, and should only run if OreoLetters table is empty
@@ -67,12 +71,12 @@ class Krill(BaseCog):
             token_class_map['sp'] = self.oreo_map.space_char
             for letter_class, class_num in token_class_map.items():
                 for letter in self.oreo_defaults[letter_class]:
-                    row = OreoLetters.get_or_create(token=letter, token_class=class_num)
+                    row, created = await OreoLetters.get_or_create(token=letter, token_class=class_num)
                     if letter == "":
                         # clean out bad letter?
-                        row.delete_instance()
+                        await row.delete()
 
-            my_letters = OreoLetters.select()
+            my_letters = await OreoLetters.all()
 
         # marshall tokens for use by filter
         for row in my_letters:
@@ -84,9 +88,6 @@ class Krill(BaseCog):
                 continue
             self.oreo_filter[row.token_class].add(re.escape(row.token))
 
-        bot.loop.create_task(self.startup_cleanup())
-
-    async def startup_cleanup(self):
         self.krilled = Configuration.get_persistent_var("krilled", dict())
         """
         for user_id, expiry in self.krilled.items():
@@ -98,28 +99,27 @@ class Krill(BaseCog):
 
         # Load channels
         for guild in self.bot.guilds:
-            self.init_guild(guild)
+            await self.init_guild(guild)
         self.loaded = True
 
-    def init_guild(self, guild):
+    async def init_guild(self, guild):
         my_channels = set()
         # Get or create db entries for guild and krill config
-        guild_row = self.bot.get_guild_db_config(guild.id)
-        self.configs[guild.id] = KrillConfig.get_or_create(guild=guild_row)[0]
-        for row in KrillChannel.select(KrillChannel.channelid).where(KrillChannel.serverid == guild.id):
+        guild_row = await self.bot.get_guild_db_config(guild.id)
+        self.configs[guild.id], created = await KrillConfig.get_or_create(guild=guild_row)
+        for row in await KrillChannel.filter(serverid=guild.id):
             my_channels.add(row.channelid)
         self.channels[guild.id] = my_channels
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        self.init_guild(guild)
+        await self.init_guild(guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
         # delete configs from db
-        for row in KrillChannel.select().where(KrillChannel.serverid == guild.id):
-            row.delete_instance()
-        self.configs[guild.id].delete_instance()
+        await KrillChannel.filter(serverid=guild.id).delete()
+        await self.configs[guild.id].delete()
 
         # delete configs from memory
         del self.channels[guild.id]
@@ -238,7 +238,7 @@ class Krill(BaseCog):
 
         try:
             self.oreo_filter[letter].add(value)
-            OreoLetters.create(token_class=letter, token=value)
+            await OreoLetters.create(token_class=letter, token=value)
             await ctx.send(Lang.get_locale_string("krill/letter_filter_added", ctx, letter=value, category=x))
         except Exception as e:
             await Utils.handle_exception('Failed to add oreo filter letter', self.bot, e)
@@ -268,9 +268,12 @@ class Krill(BaseCog):
             return
 
         try:
-            OreoLetters.get(token_class=letter, token=value).delete_instance()
+            letter_row = await OreoLetters.get(token_class=letter, token=value)
+            await letter_row.delete()
             self.oreo_filter[letter].remove(value)
             await ctx.send(Lang.get_locale_string("krill/letter_filter_removed", ctx, letter=value, category=x))
+        except tortoise.exceptions.DoesNotExist:
+            await ctx.send(f"Can't delete `{value}` from the letter `{letter}` register because it's not in that list")
         except Exception as e:
             await Utils.handle_exception('Failed to remove oreo filter letter', self.bot, e)
 
@@ -426,6 +429,7 @@ class Krill(BaseCog):
             title=Lang.get_locale_string("krill/config_bylines_title", ctx, server_name=ctx.guild.name))
 
         guild_krill_config = self.configs[ctx.guild.id]
+        await guild_krill_config.fetch_related('bylines')
         if len(guild_krill_config.bylines) > 0:
             bylines = list(guild_krill_config.bylines)
             bylines.sort(key=lambda x: x.type)
@@ -467,14 +471,14 @@ class Krill(BaseCog):
         await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} {msg}")
 
     async def choose_byline(self, ctx, line_id):
-        guild_bylines = self.configs[ctx.guild.id].bylines
+        guild_bylines = await self.configs[ctx.guild.id].bylines.order_by('id')
         if line_id != 0:
             try:
                 # check for trigger by db id
                 for row in guild_bylines:
                     if row.id == line_id:
                         return row
-            except DoesNotExist:
+            except tortoise.exceptions.DoesNotExist:
                 no_bylines = "There are no krill bylines. Try making some first!"
                 await ctx.send(f"{Emoji.get_chat_emoji('NO')} {no_bylines}")
                 return
@@ -607,8 +611,8 @@ class Krill(BaseCog):
 
         async def yes():
             try:
-                KrillByLines.get(krill_config=guild_krill_config, byline=arg)
-            except DoesNotExist:
+                await KrillByLines.get(krill_config=guild_krill_config, byline=arg)
+            except tortoise.exceptions.DoesNotExist:
                 # not found. may continue creating now
                 pass
             else:
@@ -617,7 +621,7 @@ class Krill(BaseCog):
                 return
 
             disabled = self.blyine_type_disable(1)
-            KrillByLines.create(krill_config=guild_krill_config, type=disabled, byline=arg)
+            await KrillByLines.create(krill_config=guild_krill_config, type=disabled, byline=arg)
             await ctx.send(Lang.get_locale_string('krill/add_byline', ctx, byline=arg))
 
         async def no():
@@ -633,7 +637,7 @@ class Krill(BaseCog):
                                     Questions.Option('YES', handler=yes),
                                     Questions.Option('NO', handler=no)
                                 ], delete_after=True, locale=ctx)
-        except TimeoutError as e:
+        except asyncio.TimeoutError as e:
             await ctx.send('try again later... but not too much later because you waited too long')
 
     # TODO:
@@ -665,7 +669,7 @@ class Krill(BaseCog):
             return
 
         my_byline.type = str(my_type)
-        my_byline.save()
+        await my_byline.save()
         await ctx.send(
             f"{Emoji.get_chat_emoji('YES')} byline [{my_byline.id}] type set to `{self.byline_types[my_type]}`"
         )
@@ -683,17 +687,18 @@ class Krill(BaseCog):
         """
         try:
             my_byline = await self.choose_byline(ctx, byline_id)
+            byline_id = my_byline.id
         except ValueError:
             return
 
-        my_byline.delete_instance()
+        await my_byline.delete()
         await ctx.send(Lang.get_locale_string('krill/remove_byline', ctx, number=byline_id))
 
     @krill_config.command()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
-    async def return_home(self, ctx, percent: int = 0):
+    async def return_home(self, ctx, percent: int = None):
         """
         Configure return-home frequency for krill command
 
@@ -701,15 +706,18 @@ class Krill(BaseCog):
           When return+crab < 100, the remainder is percentage for normal attack
         """
         guild_krill_config = self.configs[ctx.guild.id]
+        if percent is None:
+            await ctx.send(f"`Return home` chance is currently {guild_krill_config.return_home_freq}%")
+            return
         guild_krill_config.return_home_freq = max(0, min(100, percent))  # clamp to percent range
-        guild_krill_config.save()
+        await guild_krill_config.save()
         await ctx.send(f"`Return home` chance is now {guild_krill_config.return_home_freq}%")
 
     @krill_config.command()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
-    async def shadow_roll(self, ctx, percent: int = 0):
+    async def shadow_roll(self, ctx, percent: int = None):
         """
         Configure shadow-roll frequency for krill command
 
@@ -717,30 +725,36 @@ class Krill(BaseCog):
           end with shadow roll emoji
         """
         guild_krill_config = self.configs[ctx.guild.id]
+        if percent is None:
+            await ctx.send(f"`Shadow roll` chance is currently {guild_krill_config.shadow_roll_freq}%")
+            return
         guild_krill_config.shadow_roll_freq = max(0, min(100, percent))  # clamp to percent range
-        guild_krill_config.save()
+        await guild_krill_config.save()
         await ctx.send(f"`Shadow roll` chance is now {guild_krill_config.shadow_roll_freq}%")
 
     @krill_config.command()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
-    async def krill_rider(self, ctx, percent: int = 0):
+    async def krill_rider(self, ctx, percent: int = None):
         """
         Configure krill-rider frequency for krill command
 
         percent: integer percent chance that krill rider will appear. Crab/return-home is rolled before this.
         """
         guild_krill_config = self.configs[ctx.guild.id]
+        if percent is None:
+            await ctx.send(f"`Krill rider` chance is currently {guild_krill_config.krill_rider_freq}%")
+            return
         guild_krill_config.krill_rider_freq = max(0, min(100, percent))  # clamp to percent range
-        guild_krill_config.save()
+        await guild_krill_config.save()
         await ctx.send(f"`Krill rider` chance is now {guild_krill_config.krill_rider_freq}%")
 
     @krill_config.command()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
-    async def crab(self, ctx, percent: int = 0):
+    async def crab(self, ctx, percent: int = None):
         """
         Configure crab-attack frequency for krill command
 
@@ -748,39 +762,46 @@ class Krill(BaseCog):
         When return+crab < 100, the remainder is percentage for normal attack
         """
         guild_krill_config = self.configs[ctx.guild.id]
+        if percent is None:
+            await ctx.send(f"`Crab` chance is currently {guild_krill_config.crab_freq}%")
+            return
         guild_krill_config.crab_freq = max(0, min(100, percent))  # clamp to percent range
-        guild_krill_config.save()
+        await guild_krill_config.save()
         await ctx.send(f"`Crab` chance is now {guild_krill_config.crab_freq}%")
 
     @krill_config.command()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
-    async def allow_text(self, ctx, allow: bool = True):
+    async def allow_text(self, ctx, allow: bool = None):
         """
         Configure text permission for krill command
 
         allow: Boolean - allow or deny text in krill messages
         """
         guild_krill_config = self.configs[ctx.guild.id]
-        guild_krill_config.allow_text = allow
-        guild_krill_config.save()
+        if allow is not None:
+            guild_krill_config.allow_text = allow
+            await guild_krill_config.save()
         await ctx.send(f"Text is {'' if guild_krill_config.allow_text else 'not'} allowed with krill command")
 
     @krill_config.command()
     @commands.check(can_mod_krill)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
-    async def monster_duration(self, ctx, monster_time: int = 21600):
+    async def monster_duration(self, ctx, monster_time: int = None):
         """
         Configure text permission for krill command
 
         allow: Boolean - allow or deny text in krill messages
         """
-        monster_time = min(32767, monster_time)  # signed smallint max
         guild_krill_config = self.configs[ctx.guild.id]
+        if monster_time is None:
+            await ctx.send(f"Monster timeout is currently {Utils.to_pretty_time(guild_krill_config.monster_duration)}")
+            return
+        monster_time = min(32767, monster_time)  # signed smallint max
         guild_krill_config.monster_duration = monster_time
-        guild_krill_config.save()
+        await guild_krill_config.save()
         await ctx.send(f"Monster timeout is now {Utils.to_pretty_time(monster_time)}")
 
     @command()
@@ -1111,10 +1132,10 @@ class Krill(BaseCog):
             await ctx.send(Lang.get_locale_string("krill/no_such_channel", ctx, channel_id=channel_id))
             return
 
-        row = KrillChannel.get_or_none(serverid=ctx.guild.id, channelid=channel_id)
+        row = await KrillChannel.get_or_none(serverid=ctx.guild.id, channelid=channel_id)
         channel_name = await Utils.clean(channel, guild=ctx.guild)
         if row is None:
-            KrillChannel.create(serverid = ctx.guild.id, channelid=channel_id)
+            await KrillChannel.create(serverid = ctx.guild.id, channelid=channel_id)
             self.channels[ctx.guild.id].add(channel_id)
             added = Lang.get_locale_string('krill/channel_added', ctx, channel=channel_name)
             await ctx.send(f"{Emoji.get_chat_emoji('YES')} {added}")
@@ -1134,7 +1155,8 @@ class Krill(BaseCog):
         channel = f"<#{channel_id}>"
 
         if channel_id in self.channels[ctx.guild.id]:
-            KrillChannel.get(serverid=ctx.guild.id, channelid=channel_id).delete_instance()
+            krill_row = await KrillChannel.get(serverid=ctx.guild.id, channelid=channel_id)
+            await krill_row.delete()
             self.channels[ctx.guild.id].remove(channel_id)
             removed = Lang.get_locale_string('krill/channel_removed', ctx, channel=channel_id)
             await ctx.send(

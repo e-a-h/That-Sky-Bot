@@ -20,12 +20,12 @@ class CustCommands(BaseCog):
 
     async def startup_cleanup(self):
         for guild in self.bot.guilds:
-            self.init_guild(guild)
+            await self.init_guild(guild)
         self.loaded = True
 
-    def init_guild(self, guild):
+    async def init_guild(self, guild):
         self.commands[guild.id] = dict()
-        for command in CustomCommand.select().where(CustomCommand.serverid == guild.id):
+        for command in await CustomCommand.filter(serverid=guild.id):
             self.commands[guild.id][command.trigger] = command
 
     @staticmethod
@@ -44,8 +44,7 @@ class CustCommands(BaseCog):
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
         del self.commands[guild.id]
-        for command in CustomCommand.select().where(CustomCommand.serverid == guild.id):
-            command.delete_instance()
+        await CustomCommand.filter(serverid=guild.id).delete()
 
     @commands.group(name="commands", aliases=['command'])
     @commands.guild_only()
@@ -76,7 +75,9 @@ class CustCommands(BaseCog):
     @commands.guild_only()
     async def command_flag(self, ctx: commands.Context, trigger: str):
         """
-        Command must be invoked with one of the aliases.
+        Command must be invoked with one of the aliases:
+
+        set_delete, unset_delete, set_reply, unset_reply
 
         Sets and unsets the respective command flags based on alias used.
         """
@@ -108,7 +109,7 @@ class CustCommands(BaseCog):
         elif trigger in self.commands[ctx.guild.id]:
             try:
                 setattr(self.commands[ctx.guild.id][trigger], flag, flag_val)
-                self.commands[ctx.guild.id][trigger].save()
+                await self.commands[ctx.guild.id][trigger].save()
             except Exception as e:
                 await Utils.handle_exception("Custom Commands set flag exception", self.bot, e)
                 raise commands.CommandError
@@ -135,9 +136,9 @@ class CustCommands(BaseCog):
         else:
             trigger = trigger.lower()
             cleaned_trigger = await Utils.clean(trigger)
-            command = CustomCommand.get_or_none(serverid=ctx.guild.id, trigger=cleaned_trigger)
+            command = await CustomCommand.get_or_none(serverid=ctx.guild.id, trigger=cleaned_trigger)
             if command is None:
-                command = CustomCommand.create(serverid=ctx.guild.id, trigger=cleaned_trigger, response=response)
+                command = await CustomCommand.create(serverid=ctx.guild.id, trigger=cleaned_trigger, response=response)
                 self.commands[ctx.guild.id][cleaned_trigger] = command
                 await self.send_response(ctx, "YES", 'command_added', trigger=trigger)
             else:
@@ -169,7 +170,7 @@ class CustCommands(BaseCog):
             emoji = 'WHAT'
             lang_key = 'trigger_too_long'
         elif cleaned_trigger in self.commands[ctx.guild.id]:
-            self.commands[ctx.guild.id][cleaned_trigger].delete_instance()
+            await self.commands[ctx.guild.id][cleaned_trigger].delete()
             del self.commands[ctx.guild.id][cleaned_trigger]
             emoji = 'YES'
             lang_key = 'command_removed'
@@ -191,14 +192,14 @@ class CustCommands(BaseCog):
             emoji = 'NO'
             msg = 'empty_reply'
         else:
-            command = CustomCommand.get_or_none(serverid=ctx.guild.id, trigger=cleaned_trigger)
+            command = await CustomCommand.get_or_none(serverid=ctx.guild.id, trigger=cleaned_trigger)
             if command is None:
                 emoji = 'WARNING'
                 msg = 'creating_command'
                 await ctx.invoke(self.create, trigger, response=response)
             else:
                 command.response = response
-                command.save()
+                await command.save()
                 self.commands[ctx.guild.id][cleaned_trigger] = command
                 emoji = 'YES'
                 msg = 'command_updated'

@@ -28,14 +28,14 @@ class ArtCollector(BaseCog):
     async def startup_cleanup(self):
         # Load channels
         for guild in self.bot.guilds:
-            self.init_guild(guild)
+            await self.init_guild(guild)
 
-    def init_guild(self, guild):
+    async def init_guild(self, guild):
         if guild.id not in self.collection_channels:
             self.collection_channels[guild.id] = set()
         if guild.id not in self.channels:
             self.channels[guild.id] = dict()
-        for row in ArtChannel.select().where(ArtChannel.serverid == guild.id):
+        for row in await ArtChannel.filter(serverid=guild.id):
             self.add_channel(guild.id, row.listenchannelid, row.collectionchannelid, row.tag)
 
     def add_channel(self, guild_id, listen_channel_id, collection_channel_id, tag):
@@ -53,14 +53,13 @@ class ArtCollector(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        self.init_guild(guild)
+        await self.init_guild(guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
         del self.channels[guild.id]
         del self.collection_channels[guild.id]
-        for row in ArtChannel.select().where(ArtChannel.serverid == guild.id):
-            row.delete_instance()
+        await ArtChannel.filter(serverid=guild.id).delete()
 
     @commands.group(name="artchannel", aliases=['art_channel', 'artchan', 'ac'], invoke_without_command=True)
     @commands.guild_only()
@@ -112,7 +111,7 @@ class ArtCollector(BaseCog):
             return
 
         # Check if listen/collect/tag channel combo already exists
-        row = ArtChannel.get_or_none(
+        row = await ArtChannel.get_or_none(
             serverid=ctx.guild.id,
             listenchannelid=listen_channel_id,
             collectionchannelid=collect_channel_id,
@@ -122,7 +121,7 @@ class ArtCollector(BaseCog):
 
         if row is None:
             # no row found exactly matching channels and tag
-            ArtChannel.create(
+            await ArtChannel.create(
                 serverid=ctx.guild.id,
                 listenchannelid=listen_channel_id,
                 collectionchannelid=collect_channel_id,
@@ -161,10 +160,11 @@ class ArtCollector(BaseCog):
                 self.channels[ctx.guild.id][listen_channel_id][key] == collect_channel_id:
             # TODO: fetch first, delete if exists, else message error
             try:
-                ArtChannel.get(serverid=ctx.guild.id,
-                               listenchannelid=listen_channel_id,
-                               collectionchannelid=collect_channel_id,
-                               tag=tag).delete_instance()
+                art_row = await ArtChannel.get(serverid=ctx.guild.id,
+                                               listenchannelid=listen_channel_id,
+                                               collectionchannelid=collect_channel_id,
+                                               tag=tag)
+                await art_row.delete()
                 # don't listen for this tag anymore. if no more tags, don't listen in this channel anymore
                 del self.channels[ctx.guild.id][listen_channel_id][key]
                 if not self.channels[ctx.guild.id][listen_channel_id]:
@@ -178,9 +178,8 @@ class ArtCollector(BaseCog):
                     collectchannel=cc_mention,
                     tag=key)
                 await ctx.send(f"{Emoji.get_chat_emoji('YES')} {channel_removed_str}")
-            except Exception as ex:
+            except:
                 await ctx.send(Lang.get_locale_string('art/remove_channel_failed', ctx))
-                pass
         else:
             channel_not_found_str = Lang.get_locale_string(
                 'art/channel_not_found', ctx,

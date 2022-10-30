@@ -9,14 +9,17 @@ class CogName(BaseCog):
     def __init__(self, bot):
         super().__init__(bot)
         self.guild_specific_lists = dict()
-        for guild in self.bot.guilds:
-            self.init_guild(guild)
+        self.bot.loop.create_task(self.startup_cleanup())
         self.periodic_task.start()
 
     def cog_unload(self):
         self.periodic_task.cancel()
 
-    def init_guild(self, guild):
+    async def startup_cleanup(self):
+        for guild in self.bot.guilds:
+            await self.init_guild(guild)
+
+    async def init_guild(self, guild):
         # init guild-specific dicts and lists
         self.guild_specific_lists[guild.id] = []
         pass
@@ -28,7 +31,7 @@ class CogName(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        self.init_guild(guild)
+        await self.init_guild(guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):

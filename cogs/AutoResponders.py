@@ -9,10 +9,10 @@ from enum import Enum
 from json import JSONDecodeError
 
 import discord
-from discord import AllowedMentions, enums
+import tortoise.exceptions
+from discord import AllowedMentions
 from discord.ext import commands, tasks
 from discord.errors import NotFound, HTTPException, Forbidden
-from peewee import DoesNotExist
 
 from cogs.BaseCog import BaseCog
 from utils import Lang, Utils, Questions, Emoji, Configuration, Logging
@@ -63,15 +63,18 @@ class AutoResponders(BaseCog):
         self.mod_action_expiry = dict()
         self.ar_list = dict()
         self.ar_list_messages = dict()
-        for guild in self.bot.guilds:
-            self.init_guild(guild)
-        self.reload_mod_actions()
-        self.bot.loop.create_task(self.reload_triggers())
-        self.clean_old_autoresponders.start()
         self.loaded = False
+        self.bot.loop.create_task(self.startup_cleanup())
+        self.clean_old_autoresponders.start()
 
     def cog_unload(self):
         self.clean_old_autoresponders.cancel()
+
+    async def startup_cleanup(self):
+        for guild in self.bot.guilds:
+            await self.init_guild(guild)
+        self.reload_mod_actions()
+        await self.reload_triggers()
 
     @staticmethod
     def get_trigger_description(trigger) -> str:
@@ -91,7 +94,7 @@ class AutoResponders(BaseCog):
         if guild_id is None or trigger is None:
             return None
         # trigger = await Utils.clean(trigger, links=False)
-        return AutoResponder.get_or_none(serverid=guild_id, trigger=trigger)
+        return await AutoResponder.get_or_none(serverid=guild_id, trigger=trigger)
 
     async def cog_check(self, ctx):
         if ctx.guild is None:
@@ -103,7 +106,7 @@ class AutoResponders(BaseCog):
             if value is index:
                 return key
 
-    def init_guild(self, guild):
+    async def init_guild(self, guild):
         self.triggers[guild.id] = dict()
         self.mod_messages[guild.id] = dict()
         self.ar_list[guild.id] = []
@@ -115,7 +118,7 @@ class AutoResponders(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        self.init_guild(guild)
+        await self.init_guild(guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
@@ -130,8 +133,7 @@ class AutoResponders(BaseCog):
             Configuration.save()
         except Exception as e:
             Logging.error(f"Could not save config when removing auto_action_expiry_seconds_{guild.id}")
-        for autoresponder_row in AutoResponder.select().where(AutoResponder.serverid == guild.id):
-            autoresponder_row.delete_instance()
+        await AutoResponder.filter(serverid=guild.id).delete()
 
     def reload_mod_actions(self, ctx=None):
         guilds = self.bot.guilds if ctx is None else [ctx.guild]
@@ -181,8 +183,7 @@ class AutoResponders(BaseCog):
         guilds = self.bot.guilds if ctx is None else [ctx.guild]
         for guild in guilds:
             self.triggers[guild.id] = dict()
-            for responder in AutoResponder.select().where(
-                    AutoResponder.serverid == guild.id).order_by(AutoResponder.id.asc()):
+            for responder in await AutoResponder.filter(serverid=guild.id).order_by("id"):
                 # interpret flags bitmask and store for reference
                 flags = dict()
                 for index in self.flags.values():
@@ -325,7 +326,7 @@ class AutoResponders(BaseCog):
                 try:
                     await msg.delete()
                     await asyncio.sleep(0.1)
-                except Exception as e:
+                except:
                     pass
 
         for trigger_string, data in self.triggers[ctx.guild.id].items():
@@ -537,10 +538,10 @@ class AutoResponders(BaseCog):
         if trigger is not False and await self.validate_reply(ctx, reply):
             db_trigger = await self.get_db_trigger(ctx.guild.id, trigger)
             if db_trigger is None:
-                row = AutoResponder.create(serverid=ctx.guild.id, trigger=trigger, response=reply)
+                row = await AutoResponder.create(serverid=ctx.guild.id, trigger=trigger, response=reply)
                 await self.reload_triggers(ctx)
                 added_message = Lang.get_locale_string('autoresponder/added', ctx,
-                                                        trigger=trigger, trigid=row.id)
+                                                       trigger=trigger, trigid=row.id)
                 await ctx.send(
                     f"{Emoji.get_chat_emoji('YES')} {added_message}"
                 )
@@ -585,13 +586,18 @@ class AutoResponders(BaseCog):
 
         try:
             # trigger = await Utils.clean(trigger, links=False)
-            AutoResponder.get(serverid=ctx.guild.id, trigger=trigger).delete_instance()
+            ar_row = await AutoResponder.get(serverid=ctx.guild.id, trigger=trigger)
+            await ar_row.delete()
             del self.triggers[ctx.guild.id][trigger]
             msg = Lang.get_locale_string('autoresponder/removed', ctx, trigger=self.get_trigger_description(trigger))
             await ctx.send(f"{Emoji.get_chat_emoji('YES')} {msg}")
             await self.reload_triggers(ctx)
-        except DoesNotExist:
+        except tortoise.exceptions.MultipleObjectsReturned:
+            await ctx.send(f"Something wrong in the database... too many matches to trigger ```{trigger}```")
+        except tortoise.exceptions.DoesNotExist:
             await ctx.send(f"I didn't find a matching AutoResponder with trigger ```{trigger}```")
+        except Exception as e:
+            await Utils.handle_exception("unknown AR Remove exception", self.bot, e)
 
     @autor.command(aliases=["raw"])
     @commands.guild_only()
@@ -606,7 +612,7 @@ class AutoResponders(BaseCog):
         except ValueError:
             return
 
-        row = AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
+        row = await AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
         if trigger is None or row is None:
             await self.nope(ctx)
             return
@@ -665,7 +671,7 @@ class AutoResponders(BaseCog):
                 except asyncio.TimeoutError as e:
                     return
 
-            trigger = AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
+            trigger = await AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
             if trigger is None:
                 await ctx.send(
                     f"{Emoji.get_chat_emoji('WARNING')} {Lang.get_locale_string('autoresponder/creating', ctx)}"
@@ -673,7 +679,7 @@ class AutoResponders(BaseCog):
                 await ctx.invoke(self.create, trigger, reply=reply)
             else:
                 trigger.response = reply
-                trigger.save()
+                await trigger.save()
                 await self.reload_triggers(ctx)
 
                 msg = Lang.get_locale_string('autoresponder/updated',
@@ -712,12 +718,12 @@ class AutoResponders(BaseCog):
 
         new_trigger = await self.validate_trigger(ctx, new_trigger)
         if new_trigger is not False:
-            trigger = AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
+            trigger = await AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
             if trigger is None:
                 await self.nope(ctx)
             else:
                 trigger.trigger = new_trigger
-                trigger.save()
+                await trigger.save()
                 await self.reload_triggers(ctx)
 
                 await ctx.send(
@@ -773,7 +779,7 @@ class AutoResponders(BaseCog):
 
             chance = int(chance * 100)
             db_trigger.chance = chance
-            db_trigger.save()
+            await db_trigger.save()
         except Exception as e:
             await Utils.handle_exception("autoresponder setchance exception", self.bot, e)
         await ctx.send(
@@ -862,7 +868,7 @@ class AutoResponders(BaseCog):
             db_trigger.responsechannelid = channel_id
         elif mode == listen:
             db_trigger.listenchannelid = channel_id
-        db_trigger.save()
+        await db_trigger.save()
         await self.reload_triggers(ctx)
 
     @autor.command(aliases=["sf"])
@@ -940,7 +946,7 @@ class AutoResponders(BaseCog):
             else:
                 db_trigger.flags = db_trigger.flags & ~(1 << flag)
                 await ctx.send(f"`{self.get_flag_name(flag)}` flag deactivated")
-            db_trigger.save()
+            await db_trigger.save()
             await self.reload_triggers(ctx)
         except asyncio.TimeoutError:
             pass

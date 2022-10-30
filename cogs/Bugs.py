@@ -7,11 +7,10 @@ from datetime import datetime
 from discord import Forbidden, Embed, NotFound, HTTPException, TextChannel
 from discord.ext import commands, tasks
 from discord.ext.commands import Context, clean_content
-from peewee import DoesNotExist, IntegrityError
+from tortoise.exceptions import DoesNotExist, OperationalError, IntegrityError
 
 import sky
 from cogs.BaseCog import BaseCog
-from sky import Skybot
 from utils import Questions, Emoji, Utils, Configuration, Lang, Logging
 from utils.Database import BugReport, Attachments, BugReportingPlatform, BugReportingChannel, Guild
 
@@ -57,10 +56,14 @@ class Bugs(BaseCog):
             self.sweeps[uid].cancel()
 
     async def shutdown(self):
-        for row in BugReportingChannel.select():
+        for row in await BugReportingChannel.all().prefetch_related('guild', 'platform'):
+            cid = 0
+            guild_id = 0
+            name = "none"
             try:
                 cid = row.channelid
-                name = f"{row.platform.platform}_{row.platform.branch}"
+                platform = row.platform
+                name = f"{platform.platform}_{platform.branch}"
                 guild_id = row.guild.serverid
                 channel = self.bot.get_channel(cid)
 
@@ -78,7 +81,7 @@ class Bugs(BaseCog):
 
         # for name, cid in Configuration.get_var("channels").items():
         reporting_channel_ids = []
-        for row in BugReportingChannel.select():
+        for row in await BugReportingChannel.all().prefetch_related('guild', 'platform'):
             cid = row.channelid
             name = f"{row.platform.platform}_{row.platform.branch}"
             guild_id = row.guild.serverid
@@ -91,7 +94,7 @@ class Bugs(BaseCog):
                 try:
                     message = await channel.fetch_message(shutdown_id)
                     await message.delete()
-                except (NotFound, HTTPException) as e:
+                except (NotFound, HTTPException):
                     pass
             reporting_channel_ids.append(cid)
         try:
@@ -168,8 +171,8 @@ class Bugs(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
-        for row in self.bot.get_guild_db_config(guild.id).bug_channels:
-            row.delete_instance()
+        guild_row = await self.bot.get_guild_db_config(guild.id)
+        await guild_row.bug_channels.filter().delete()
 
     @commands.command(aliases=["bugmaint", "maintenance", "maintenance_mode", "maint"])
     @commands.guild_only()
@@ -185,7 +188,7 @@ class Bugs(BaseCog):
             try:
                 default_role = guild.default_role
                 # show/hide maintenance channel
-                maint_message_channel = self.bot.get_guild_maintenance_channel(guild.id)
+                maint_message_channel = await self.bot.get_guild_maintenance_channel(guild.id)
                 if maint_message_channel is None:
                     message = f'maintenance channel is not configured for `{guild.name}`'
                     await self.bot.guild_log(guild.id, message)
@@ -196,7 +199,7 @@ class Bugs(BaseCog):
                 channel_overwrite.view_channel = active
                 await maint_message_channel.set_permissions(default_role, overwrite=channel_overwrite)
 
-                guild_config = self.bot.get_guild_db_config(guild.id)
+                guild_config = await self.bot.get_guild_db_config(guild.id)
                 beta_role = None
                 if guild_config and guild_config.betarole:
                     beta_role = guild.get_role(guild_config.betarole)
@@ -261,7 +264,7 @@ class Bugs(BaseCog):
     async def platforms(self, ctx):
         platforms = dict()
 
-        for row in BugReportingPlatform.select():
+        for row in await BugReportingPlatform.all():
             if row.branch in platforms:
                 if row.platform in platforms[row.branch]:
                     await self.bot.guild_log(ctx.guild.id, f"duplicate platform in db: {row.platform}/{row.branch}")
@@ -285,7 +288,7 @@ class Bugs(BaseCog):
     @platforms.command(aliases=['add'])
     @sky.can_admin()
     async def add_platform(self, ctx, platform, branch):
-        row, create = BugReportingPlatform.get_or_create(platform=platform, branch=branch)
+        row, create = await BugReportingPlatform.get_or_create(platform=platform, branch=branch)
         if create:
             await ctx.send(f"Ok, I added `{platform}/{branch}` to my database")
         else:
@@ -300,27 +303,28 @@ class Bugs(BaseCog):
             timestamp=ctx.message.created_at,
             color=0x50f3d7,
             title='Bug Reporting Channels')
-        guild_row = Guild.get_or_none(serverid=ctx.guild.id)
+        guild_row = await Guild.get_or_none(serverid=ctx.guild.id)
         guild_channels = []
         non_guild_channels = dict()
-        for row in BugReportingPlatform.select():
+        for row in await BugReportingPlatform.all().prefetch_related("bug_channels"):
             for channel_row in row.bug_channels:
                 channel = self.bot.get_channel(channel_row.channelid)
                 if not channel:
-                    channel_row.delete_instance()
+                    await channel_row.delete()
                     continue
                 description = f"{row.platform}/{row.branch}: {channel.mention}"
+                await channel_row.fetch_related('guild')
+                channel_serverid = channel_row.guild.serverid
                 if channel_row.guild == guild_row:
                     guild_channels.append(description)
                 else:
                     # TODO: get guild names and add to description
-                    if channel_row.guild.serverid not in non_guild_channels:
-                        non_guild_channels[channel_row.guild.serverid] = []
-                    non_guild_channels[channel_row.guild.serverid].append(description)
+                    if channel_serverid not in non_guild_channels:
+                        non_guild_channels[channel_serverid] = []
+                    non_guild_channels[channel_serverid].append(description)
         if guild_channels:
             embed.add_field(name=f'`{ctx.guild.name}` server', value="\n".join(guild_channels))
         for guild_id, channel_list in non_guild_channels.items():
-            guild = self.bot.get_guild(guild_id)
             server_name = self.bot.get_guild(guild_id).name or f"[{guild_id}][MISSING GUILD]"
             embed.add_field(name=f'`{server_name}` server', value="\n".join(channel_list))
         if not guild_channels and not non_guild_channels:
@@ -333,12 +337,13 @@ class Bugs(BaseCog):
     @sky.can_admin()
     async def remove_channel(self, ctx, channel: TextChannel):
         try:
-            row = BugReportingChannel.get(channelid=channel.id)
+            row = await BugReportingChannel.get(channelid=channel.id)
+            await row.fetch_related('platform')
             platform = row.platform.platform
             branch = row.platform.branch
-            row.delete_instance()
+            await row.delete()
             await ctx.send(f"Removed `{platform}`/`{branch}`/{channel.mention} from my database")
-        except DoesNotExist:
+        except OperationalError:
             await ctx.send(f"Could not find {channel.mention} in my database")
 
     @channels.command(aliases=['add'])
@@ -346,21 +351,22 @@ class Bugs(BaseCog):
     @sky.can_admin()
     async def add_channel(self, ctx, channel: TextChannel, platform, branch):
         try:
-            guild_row = Guild.get(serverid=ctx.guild.id)
+            guild_row = await Guild.get(serverid=ctx.guild.id)
         except DoesNotExist:
             await ctx.send(f"I couldn't find a record for guild id {ctx.guild.id}... call a plumber!")
             return
 
         try:
-            platform_row = BugReportingPlatform.get(platform=platform, branch=branch)
+            platform_row = await BugReportingPlatform.get(platform=platform, branch=branch)
         except DoesNotExist:
             await ctx.send(f"I couldn't find a record for platform/branch `{platform}`/`{branch}`")
             return
 
         try:
-            record, created = BugReportingChannel.get_or_create(guild=guild_row, platform=platform_row, channelid=channel.id)
+            record, created = await BugReportingChannel.get_or_create(
+                guild=guild_row, platform=platform_row, channelid=channel.id)
         except IntegrityError:
-            await ctx.send(f"channel{channel.mention} is already in used for bug reporting")
+            await ctx.send(f"channel{channel.mention} is already in use for bug reporting")
             return
 
         if created:
@@ -401,23 +407,15 @@ class Bugs(BaseCog):
         # Get member from home guild. failing that, check other bot.guilds for member
         guild = Utils.get_home_guild()
         member = guild.get_member(user.id)
-        if not member:
-            for my_guild in self.bot.guilds:
-                member = my_guild.get_member(user.id)
-                if member:
-                    guild = my_guild
-                    break
 
-        for bot_guild in self.bot.guilds:
-            guild_member = bot_guild.get_member(user.id)
-            guild_config = self.bot.get_guild_db_config(bot_guild.id)
-            guild_mute_role = bot_guild.get_role(guild_config.mutedrole)
-            if guild_member and guild_mute_role and (guild_mute_role in guild_member.roles):
-                # member is muted in at least one server. hard pass on letting them report
-                return
+        # only members of official guild allowed, and must be verified
+        if not member or len(member.roles) < 2:
+            return
 
-        if member is None:
-            # user isn't even on the server, how did we get here?
+        guild_config = await self.bot.get_guild_db_config(guild.id)
+        guild_mute_role = guild.get_role(guild_config.mutedrole)
+        if member and guild_mute_role and (guild_mute_role in member.roles):
+            # member is muted in at least one server. hard pass on letting them report
             return
 
         if user.id in self.in_progress:
@@ -533,12 +531,13 @@ class Bugs(BaseCog):
 
             async def send_report():
                 # save report in the database
-                br = BugReport.create(reporter=user.id, platform=platform, deviceinfo=deviceinfo,
-                                      platform_version=platform_version, branch=branch, app_version=app_version,
-                                      app_build=app_build, title=title, steps=steps, expected=expected, actual=actual,
-                                      additional=additional_text)
+                br = await BugReport.create(reporter=user.id, platform=platform, deviceinfo=deviceinfo,
+                                            platform_version=platform_version, branch=branch, app_version=app_version,
+                                            app_build=app_build, title=title, steps=steps, expected=expected,
+                                            actual=actual, additional=additional_text,
+                                            reported_at=int(datetime.utcnow().timestamp()))
                 for url in attachment_links:
-                    Attachments.create(report=br, url=url)
+                    await Attachments.create(report=br, url=url)
 
                 # send report
                 channel_name = f"{platform}_{branch}".lower()
@@ -547,9 +546,9 @@ class Bugs(BaseCog):
                 attachment_id_saved = False
                 user_reported_channels = list()
                 all_reported_channels = list()
-                selected_platform = BugReportingPlatform.get(platform=platform, branch=branch)
+                selected_platform = await BugReportingPlatform.get(platform=platform, branch=branch)
 
-                for row in BugReportingChannel.select().where(BugReportingChannel.platform == selected_platform):
+                for row in await BugReportingChannel.filter(platform=selected_platform):
                     report_channel = self.bot.get_channel(row.channelid)
                     message = await report_channel.send(
                         content=Lang.get_locale_string("bugs/report_header", ctx, id=br.id, user=user.mention),
@@ -568,7 +567,7 @@ class Bugs(BaseCog):
                                 attachment_id_saved = True
                             br.message_id = message.id
                             report_id_saved = True
-                            br.save()
+                            await br.save()
                             user_reported_channels.append(report_channel.mention)
                     else:
                         # guild is not the official server. if author is member, include user_reported_channels
@@ -627,7 +626,7 @@ class Bugs(BaseCog):
                 # question 1: android or ios?
                 platforms = set()
                 options = []
-                for platform_row in BugReportingPlatform.select():
+                for platform_row in await BugReportingPlatform.all():
                     platforms.add(platform_row.platform)
                 for platform_name in platforms:
                     options.append(
@@ -661,7 +660,7 @@ class Bugs(BaseCog):
 
                 # question 4: stable or beta?
                 branches = set()
-                for platform_row in BugReportingPlatform.select():
+                for platform_row in await BugReportingPlatform.all():
                     if platform_row.platform == platform:
                         branches.add(platform_row.branch)
                 if len(branches) == 0:
@@ -738,6 +737,7 @@ class Bugs(BaseCog):
                 if attachments:
                     # question 12: attachments
                     attachment_links = await Questions.ask_attachements(self.bot, channel, user, locale=ctx)
+                    attachment_links = set(attachment_links)
                 # update metrics outside condition to keep count up-to-date and reflect skipped question as zero time
                 update_metrics()
 

@@ -4,8 +4,10 @@ from asyncio import CancelledError
 from datetime import datetime
 
 import discord
+import tortoise.exceptions
 from discord import Forbidden, Embed, NotFound, HTTPException
 from discord.ext import commands, tasks
+from tortoise.exceptions import DoesNotExist
 
 from cogs.BaseCog import BaseCog
 from utils import Lang, Questions, Utils, Logging
@@ -30,15 +32,15 @@ class DropBox(BaseCog):
 
         for guild in self.bot.guilds:
             # fetch dropbox channels per server
-            self.init_guild(guild.id)
-            for row in DropboxChannel.select().where(DropboxChannel.serverid == guild.id):
+            await self.init_guild(guild.id)
+            for row in await DropboxChannel.filter(serverid=guild.id):
                 self.dropboxes[guild.id][row.sourcechannelid] = row
         self.loaded = True
 
         self.deliver_to_channel.start()
         self.clean_channels.start()
 
-    def init_guild(self, guild_id):
+    async def init_guild(self, guild_id):
         self.dropboxes[guild_id] = dict()
         self.drop_messages[guild_id] = dict()
         self.delivery_in_progress[guild_id] = dict()
@@ -55,7 +57,7 @@ class DropBox(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        self.init_guild(guild.id)
+        await self.init_guild(guild.id)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
@@ -63,8 +65,7 @@ class DropBox(BaseCog):
         del self.drop_messages[guild.id]
         del self.delivery_in_progress[guild.id]
         del self.delete_in_progress[guild.id]
-        for row in DropboxChannel.select().where(DropboxChannel.serverid == guild.id):
-            row.delete_instance()
+        await DropboxChannel.filter(serverid=guild.id).delete()
 
     @tasks.loop(seconds=1.0)
     async def deliver_to_channel(self):
@@ -97,7 +98,7 @@ class DropBox(BaseCog):
             drop = self.dropboxes[guild_id][source_channel_id]
         else:
             # should only return one entry because of how rows are added
-            drop = DropboxChannel.select().where(DropboxChannel.serverid == guild_id and DropboxChannel.sourcechannelid == source_channel_id)
+            drop = await DropboxChannel.filter(serveri=guild_id, sourcechannelid=source_channel_id)
 
         # the embed to display who was the author in dropbox channel
         embed = Embed(
@@ -256,7 +257,7 @@ class DropBox(BaseCog):
                             self.bot.loop.create_task(self.clean_message(message))
                         else:
                             pass
-                except (CancelledError, TimeoutError, discord.DiscordServerError) as e:
+                except (CancelledError, asyncio.TimeoutError, discord.DiscordServerError) as e:
                     # I think these are safe to ignore...
                     pass
                 except RuntimeError as e:
@@ -371,11 +372,16 @@ class DropBox(BaseCog):
                                          source=source_description,
                                          target=new_target_description)
 
-        # update local mapping and save to db
-        db_row = DropboxChannel.get_or_create(serverid=ctx.guild.id, sourcechannelid=sourceid)[0]
-        db_row.targetchannelid = targetid
-        db_row.save()
-        self.dropboxes[ctx.guild.id][sourceid] = db_row
+        try:
+            # update local mapping and save to db
+            db_row, created = await DropboxChannel.get_or_create(serverid=ctx.guild.id, sourcechannelid=sourceid)
+            db_row.targetchannelid = targetid
+            await db_row.save()
+            self.dropboxes[ctx.guild.id][sourceid] = db_row
+        except Exception as e:
+            await Utils.handle_exception("Failed to update dropbox channel", self.bot, e)
+            await ctx.send("Can't save dropox channel.")
+            return
 
         # message success to user
         await ctx.send(msg)
@@ -389,9 +395,14 @@ class DropBox(BaseCog):
             return
 
         try:
-            DropboxChannel.get(serverid=ctx.guild.id,
-                               sourcechannelid=sourceid).delete_instance()
+            drop_row = await DropboxChannel.get(serverid=ctx.guild.id,
+                                                sourcechannelid=sourceid)
+            await drop_row.delete()
             del self.dropboxes[ctx.guild.id][sourceid]
+        except DoesNotExist:
+            await ctx.send("no such channel to remove from dropboxes")
+        except tortoise.exceptions.MultipleObjectsReturned:
+            await ctx.send("too many dropbox channels match that id???")
         except Exception as e:
             await Utils.handle_exception('dropbox delete failure', self.bot, e)
             raise e
@@ -407,9 +418,9 @@ class DropBox(BaseCog):
         delay: Time until responses expire (seconds)
         """
         if channel.id in self.dropboxes[ctx.guild.id]:
-            drop = self.dropboxes[ctx.guild.id][channel.id]
-            drop.deletedelayms = int(delay * 1000)
-            drop.save()
+            drop_row = self.dropboxes[ctx.guild.id][channel.id]
+            drop_row.deletedelayms = int(delay * 1000)
+            await drop_row.save()
             t = Utils.to_pretty_time(delay)
             await ctx.send(Lang.get_locale_string('dropbox/set_delay_success', ctx, channel=channel.mention, time=t))
         else:
@@ -422,9 +433,9 @@ class DropBox(BaseCog):
         set whether or not this dropbox channel should include a dm that sends the message author a copy of their message
         """
         if source_channel.id in self.dropboxes[ctx.guild.id]:
-            drop = self.dropboxes[ctx.guild.id][source_channel.id]
-            drop.sendreceipt = receipt_setting
-            drop.save()
+            drop_row = self.dropboxes[ctx.guild.id][source_channel.id]
+            drop_row.sendreceipt = receipt_setting
+            await drop_row.save()
             msg = Lang.get_locale_string('dropbox/receipt_set_false', ctx, channel=source_channel.mention)
             if receipt_setting:
                 msg = Lang.get_locale_string('dropbox/receipt_set_true', ctx, channel=source_channel.mention)

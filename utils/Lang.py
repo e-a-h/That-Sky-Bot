@@ -1,11 +1,8 @@
 import yaml
-from discord.ext.commands import Context
-
-from utils import Logging, Configuration
-
-from functools import reduce  # forward compatibility for Python 3
 import operator
-
+from discord.ext.commands import Context
+from functools import reduce  # forward compatibility for Python 3
+from utils import Logging, Configuration, Utils
 from utils.Database import Localization, Guild
 
 LANG = dict()
@@ -14,6 +11,17 @@ locales_loaded = False
 locales = ('en_US', 'ja_JP')
 ALL_LOCALES = 'ALL_LOCALES'
 L_ERR = "~~LOCALIZATION ERROR~~"
+GUILD_LOCALES = dict()
+CHANNEL_LOCALES = dict()
+
+
+async def load_local_overrides():
+    global GUILD_LOCALES, CHANNEL_LOCALES
+    guild_ids = [guild.id for guild in Utils.BOT.guilds]
+    guild_rows = await Guild.filter(serverid__in=guild_ids)
+    channel_locales = await Localization.all()
+    GUILD_LOCALES = {row.serverid: row.defaultlocale for row in guild_rows}
+    CHANNEL_LOCALES = {row.channelid: row.locale for row in channel_locales}
 
 
 def get_by_path(root, items):
@@ -72,17 +80,14 @@ def get_defaulted_locale(ctx):
 
         # TODO: create lookup table so we don't hit database every time
         #  github issue #91
-        gid = ctx.guild.id
-        guild_row = Guild.get_or_none(serverid=gid)
-        chan_locale = Localization.get_or_none(channelid=cid)
-
         # Bot default is English
-        if guild_row is not None and guild_row.defaultlocale in locales:
+        gid = ctx.guild.id
+        if gid in GUILD_LOCALES:
             # server locale overrides bot default
-            locale = guild_row.defaultlocale
-        if chan_locale is not None and chan_locale.locale in locales:
+            locale = GUILD_LOCALES[gid]
+        if cid in CHANNEL_LOCALES:
             # channel locale overrides server
-            locale = chan_locale.locale
+            locale = CHANNEL_LOCALES[cid]
     elif isinstance(ctx, str):
         # String assumes caller knows better and is overriding all else
         if ctx == ALL_LOCALES:

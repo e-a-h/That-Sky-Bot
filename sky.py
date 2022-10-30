@@ -7,14 +7,15 @@ import signal
 import sys
 
 import sentry_sdk
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ext.commands import Bot
 from aiohttp import ClientOSError, ServerDisconnectedError
 from discord import ConnectionClosed, Intents, AllowedMentions
 from prometheus_client import CollectorRegistry
 from sentry_sdk.integrations.aiohttp import AioHttpIntegration
+from tortoise import Tortoise
 
-from utils import Logging, Configuration, Utils, Emoji, Database
+from utils import Logging, Configuration, Utils, Emoji, Database, Lang
 from utils.Database import BotAdmin, Guild
 from utils.PrometheusMon import PrometheusMon
 
@@ -30,21 +31,27 @@ class Skybot(Bot):
         self.metrics = PrometheusMon(self)
         self.config_channels = dict()
         self.db_keepalive = None
-        self.loaded = False
+        Skybot.loaded = False
         sys.path.append(
             os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          "sky-python-music-sheet-maker",
                          "python"))
 
     async def on_ready(self):
-        Logging.info(f"Skybot... {'RECONNECT!' if self.loaded else 'STARTUP!'}")
-        if self.loaded:
+        Logging.info(f"Skybot... {'RECONNECT!' if Skybot.loaded else 'STARTUP!'}")
+        if Skybot.loaded:
             Logging.info("Skybot reconnect")
             return
+        else:
+            await Database.init()
+            Logging.info('db init go')
+            await Lang.load_local_overrides()
+            Logging.info(f"Locales loaded\nguild: {Lang.GUILD_LOCALES}\nchannel: {Lang.CHANNEL_LOCALES}")
 
         Logging.BOT_LOG_CHANNEL = self.get_channel(Configuration.get_var("log_channel"))
         Emoji.initialize(self)
 
+        self.persistent_data_manager.start()
         for cog in Configuration.get_var("cogs"):
             try:
                 self.load_extension("cogs." + cog)
@@ -52,37 +59,47 @@ class Skybot(Bot):
                 await Utils.handle_exception(f"Failed to load cog {cog}", self, e)
         Logging.info("Cogs loaded")
         self.db_keepalive = self.loop.create_task(self.keepDBalive())
-        self.loaded = True
+        Skybot.loaded = True
 
         await Logging.bot_log("Skybot soaring through the skies!")
 
-    def get_guild_log_channel(self, guild_id):
+    @tasks.loop(seconds=0.2)
+    async def persistent_data_manager(self):
+        if Configuration.PERSISTENT_LOCK or not Configuration.PERSISTENT_DEQUE:
+            return
+
+        Configuration.PERSISTENT_LOCK = True
+        action: Configuration.PersistentAction = Configuration.PERSISTENT_DEQUE.popleft()
+        Configuration.do_persistent_action(action)
+        Configuration.PERSISTENT_LOCK = False
+
+    async def get_guild_log_channel(self, guild_id):
         # TODO: cog override for logging channel
-        return self.get_guild_config_channel(guild_id, 'log')
+        return await self.get_guild_config_channel(guild_id, 'log')
 
-    def get_guild_rules_channel(self, guild_id):
-        return self.get_guild_config_channel(guild_id, 'rules')
+    async def get_guild_rules_channel(self, guild_id):
+        return await self.get_guild_config_channel(guild_id, 'rules')
 
-    def get_guild_welcome_channel(self, guild_id):
-        return self.get_guild_config_channel(guild_id, 'welcome')
+    async def get_guild_welcome_channel(self, guild_id):
+        return await self.get_guild_config_channel(guild_id, 'welcome')
 
-    def get_guild_entry_channel(self, guild_id):
-        return self.get_guild_config_channel(guild_id, 'entry')
+    async def get_guild_entry_channel(self, guild_id):
+        return await self.get_guild_config_channel(guild_id, 'entry')
 
-    def get_guild_maintenance_channel(self, guild_id):
-        return self.get_guild_config_channel(guild_id, 'maintenance')
+    async def get_guild_maintenance_channel(self, guild_id):
+        return await self.get_guild_config_channel(guild_id, 'maintenance')
 
-    def get_guild_config_channel(self, guild_id, name):
-        config = self.get_guild_db_config(guild_id)
+    async def get_guild_config_channel(self, guild_id, name):
+        config = await self.get_guild_db_config(guild_id)
         if config:
             return self.get_channel(getattr(config, f'{name}channelid'))
         return None
 
-    def get_guild_db_config(self, guild_id):
+    async def get_guild_db_config(self, guild_id):
         try:
             if guild_id in Utils.GUILD_CONFIGS:
                 return Utils.GUILD_CONFIGS[guild_id]
-            row = Guild.get_or_create(serverid=guild_id)[0]
+            row, created = await Guild.get_or_create(serverid=guild_id)
             Utils.GUILD_CONFIGS[guild_id] = row
             return row
         except Exception as e:
@@ -101,7 +118,7 @@ class Skybot(Bot):
         return None
 
     async def permission_manage_bot(self, ctx):
-        db_admin = BotAdmin.get_or_none(userid=ctx.author.id) is not None
+        db_admin = await BotAdmin.get_or_none(userid=ctx.author.id) is not None
         # Logging.info(f"db_admin: {'yes' if db_admin else 'no'}")
         owner = await ctx.bot.is_owner(ctx.author)
         # Logging.info(f"owner: {'yes' if owner else 'no'}")
@@ -116,7 +133,7 @@ class Skybot(Bot):
         return db_admin or owner or in_admins or has_admin_role
 
     async def guild_log(self, guild_id: int, message=None, embed=None):
-        channel = self.get_guild_log_channel(guild_id)
+        channel = await self.get_guild_log_channel(guild_id)
         if channel and (message or embed):
             return await channel.send(content=message, embed=embed, allowed_mentions=AllowedMentions.none())
 
@@ -125,7 +142,9 @@ class Skybot(Bot):
         if not self.shutting_down:
             Logging.info("Shutting down...")
             self.shutting_down = True
-            self.db_keepalive.cancel()
+            if self.db_keepalive:
+                self.db_keepalive.cancel()
+            await Tortoise.close_connections()
             temp = []
             for cog in self.cogs:
                 temp.append(cog)
@@ -135,6 +154,7 @@ class Skybot(Bot):
                 if hasattr(c, "shutdown"):
                     await c.shutdown()
                 self.unload_extension(f"cogs.{cog}")
+            self.persistent_data_manager.stop()
         return await super().close()
 
     async def on_command_error(bot, ctx: commands.Context, error):
@@ -175,7 +195,10 @@ class Skybot(Bot):
 
     async def keepDBalive(self):
         while not self.is_closed():
-            Database.connection.connection().ping(True)
+            # simple query to ping the db
+            query = "select 1"
+            conn = Tortoise.get_connection("default")
+            await conn.execute_query(query)
             await asyncio.sleep(3600)
 
 
@@ -237,8 +260,6 @@ if __name__ == '__main__':
     # TODO: exception handling for db migration error
     run_db_migrations()
     Logging.info('dg migrations go')
-    Database.init()
-    Logging.info('db init go')
 
     intents = Intents(members=True, messages=True, guilds=True, bans=True, emojis=True, presences=True, reactions=True)
     loop = asyncio.get_event_loop()

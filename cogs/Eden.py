@@ -31,7 +31,7 @@ class Eden(BaseCog):
         return 0
 
     @commands.command(aliases=["edenreset", "er"])
-    async def reset(self, ctx, *, tz=None):
+    async def reset(self, ctx):
         """Show information about reset time (and countdown) for Eye of Eden"""
         cid = ctx.channel.id
 
@@ -39,6 +39,8 @@ class Eden(BaseCog):
         channel_cooldown = False
         response_cooldown = False
         is_dm = not ctx.guild
+        server_zone = pytz.timezone("America/Los_Angeles")
+        cool_down = self.check_cool_down(ctx.author, is_dm)
 
         # channel cooldown stuff when not in DMs
         if not is_dm:
@@ -64,20 +66,6 @@ class Eden(BaseCog):
                     self.cooldown_responses[cid] = cooldown_msg.id
                 return
 
-        server_zone = pytz.timezone("America/Los_Angeles")
-        try:
-            if tz is None:
-                tz = server_zone
-            elif re.search(r'@', tz):
-                await ctx.send(Lang.get_locale_string('eden/tz_mention', ctx))
-                return
-            else:
-                tz = pytz.timezone(tz)
-        except UnknownTimeZoneError as e:
-            await ctx.send(Lang.get_locale_string('eden/tz_help', ctx, tz=tz))
-            return
-
-        cool_down = self.check_cool_down(ctx.author, is_dm)
         if cool_down:
             v = Utils.to_pretty_time(cool_down)
             msg = Lang.get_locale_string('eden/cool_it', ctx, author=ctx.author.mention, remain=v)
@@ -92,15 +80,8 @@ class Eden(BaseCog):
         # sunday is weekday 7
         days_to_go = (6 - dt.weekday()) or 7
         reset_time = dt + timedelta(days=days_to_go)
-
         time_left = reset_time - datetime.now().astimezone(server_zone)
-
-        # convert to requested timezone
-        reset_time_local = reset_time.astimezone(tz)
-
         pretty_countdown = Utils.to_pretty_time(time_left.total_seconds())
-        pretty_date = reset_time_local.strftime("%A %B %d")
-        pretty_time = reset_time_local.strftime("%H:%M %Z")
 
         dm_prompt = '' if is_dm else Lang.get_locale_string("eden/dm_prompt", ctx)
         reset_timestamp_formatted = f"<t:{int(reset_time.timestamp())}:F>"

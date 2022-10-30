@@ -30,16 +30,16 @@ class LangConfig(BaseCog):
             color=0x663399,
             title=Lang.get_locale_string('lang/lang_settings_title', ctx, server_name=ctx.guild.name))
 
-        guild_row = Guild.get_or_none(serverid=ctx.guild.id)
-        if guild_row:
-            embed.add_field(name="Server default", value=guild_row.defaultlocale or "none")
+        guild_config_row = await self.bot.get_guild_db_config(ctx.guild.id)
+        if guild_config_row:
+            embed.add_field(name="Server default", value=guild_config_row.defaultlocale or "none")
 
-        localization_rows = Localization.select().join(Guild).where(Guild.serverid == ctx.guild.id)
-        for row in localization_rows:
+        for row in await guild_config_row.locales:
             channels.append(self.bot.get_channel(row.channelid).mention)
             embed.add_field(name=f"#{self.bot.get_channel(row.channelid).name}",
                             value=row.locale,
                             inline=True)
+
         await ctx.send(embed=embed)
 
     # reload lang
@@ -61,22 +61,23 @@ class LangConfig(BaseCog):
 
         if locale in self.unset_str:
             locale = ""
-        guild_row = Guild.get_or_create(serverid=ctx.guild.id)[0]
+
+        guild_config_row = await self.bot.get_guild_db_config(ctx.guild.id)
 
         # Don't set/save if input arg is already default
-        if locale == guild_row.defaultlocale:
+        if locale == guild_config_row.defaultlocale:
             await ctx.send(
                 Lang.get_locale_string('lang/default_not_changed', ctx, locale=locale, server_name=ctx.guild.name))
             return
 
-        guild_row.defaultlocale = locale
-        guild_row.save()
+        guild_config_row.defaultlocale = locale
+        await guild_config_row.save()
         await ctx.send(Lang.get_locale_string('lang/default_set', ctx, locale=locale, server_name=ctx.guild.name))
 
     # Set channel-specific locale
     @commands.guild_only()
     @lang.command(aliases=["channel", "channel_locale"])
-    async def set_channel_locale(self, ctx, locale: str, channel_id: int = 0):
+    async def set_channel_locale(self, ctx, channel_id: int = 0, locale: str = '' ):
         """
         Set Locale for a specific channel
 
@@ -84,19 +85,17 @@ class LangConfig(BaseCog):
         channel_id: ID for channel to set, or do not provide ID and invocation channel will be used.
         """
         # TODO: add ALL_LOCALES as channel option
-        if locale not in Lang.locales and locale not in self.unset_str:
-            await ctx.send(Lang.get_locale_string('lang/unknown_locale', ctx, locale=locale, locale_lsit=Lang.locales))
-            return
-
         # use input channel, or if input is 0, use channel from command context
         channel_id = ctx.channel.id if channel_id == 0 else channel_id
 
-        guild_row = Guild.get_or_create(serverid=ctx.guild.id)[0]
-        old_value = None
+        if channel_id != 0:
+            this_channel = ctx.guild.get_channel(channel_id)
+            if not this_channel:
+                await ctx.send(f"There is no channel with id {channel_id} in this server")
+                return
 
-        localization_row = Localization.select().join(Guild).where(
-            (Guild.serverid == ctx.guild.id) &
-            (Localization.channelid == channel_id))
+        old_value = None
+        localization_row = await Localization.filter(guild__serverid=ctx.guild.id, channelid=channel_id)
 
         if len(localization_row) == 1:
             localization_row = localization_row[0]
@@ -104,23 +103,35 @@ class LangConfig(BaseCog):
         else:
             localization_row = None
 
+        if locale == '':
+            if localization_row:
+                await ctx.send(f"Locale for channel <#{channel_id}> is `{localization_row.locale}`")
+            else:
+                await ctx.send(f"No locale set for channel <#{channel_id}>")
+            return
+
+        if locale not in Lang.locales and locale not in self.unset_str:
+            await ctx.send(Lang.get_locale_string('lang/unknown_locale', ctx, locale=locale, locale_lsit=Lang.locales))
+            return
+
         if locale in self.unset_str:
             if not localization_row:
                 await ctx.send(Lang.get_locale_string('lang/channel_not_unset', ctx, channelid=channel_id))
             else:
-                localization_row.delete_instance()
+                await localization_row.delete()
                 await ctx.send(Lang.get_locale_string('lang/channel_unset', ctx, old_value=old_value))
             return
 
         if not localization_row:
-            localization_row = Localization.create(guild=guild_row, channelid=channel_id)
+            guild_config_row = await self.bot.get_guild_db_config(ctx.guild.id)
+            localization_row = await Localization.create(guild=guild_config_row, channelid=channel_id)
 
         if localization_row.locale == locale:
             await ctx.send(Lang.get_locale_string('lang/channel_already_set', ctx, channelid=channel_id, locale=locale))
             return
 
         localization_row.locale = locale
-        localization_row.save()
+        await localization_row.save()
         await ctx.send(Lang.get_locale_string('lang/channel_set', ctx, channelid=channel_id, locale=locale))
 
     # get translation string get_translation(locale, key, **kwargs)
