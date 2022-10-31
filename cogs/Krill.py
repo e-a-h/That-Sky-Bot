@@ -1037,7 +1037,8 @@ class Krill(BaseCog):
         message = await ctx.send(f"{space_step}{victim_name} {red}{spaces}{head}{body}{tail}")
 
         # TODO: channel and locale detection
-        byline = [byline.byline for byline in guild_krill_config.bylines if byline.type in (byline_type['id'], 0)]
+        bylines = await guild_krill_config.bylines
+        byline = [byline.byline for byline in bylines if byline.type in (byline_type['id'], 0)]
         if not byline:
             byline = [Lang.get_locale_string("krill/summoned_by", ctx, name=ctx.author.mention)]
         summoned_by = await ctx.send(choice(byline).format(mention=ctx.author.mention, victim=victim_name))
@@ -1058,7 +1059,7 @@ class Krill(BaseCog):
             await message.edit(content=f"{space_step}{victim_name} {sky_kid}")
             await asyncio.sleep(time_step*2)
             return_type = self.get_byline_type_id('return_home')
-            evaded_by = [byline for byline in guild_krill_config.bylines if byline.type == return_type['id']]
+            evaded_by = [byline for byline in bylines if byline.type == return_type['id']]
             # TODO: detect channel/locale
             await summoned_by.edit(content=choice(evaded_by).byline.format(mention=ctx.author.mention))
             await message.edit(content=f"{space_step}{victim_name} {party_kid}")
