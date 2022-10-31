@@ -211,9 +211,9 @@ class Bugs(BaseCog):
                     await self.bot.guild_log(guild.id, message)
                     await ctx.send(message)
 
-                for row in guild_config.bug_channels:
+                for row in await guild_config.bug_channels.filter():
                     cid = row.channelid
-                    branch = row.platform.branch
+                    branch = (await row.platform.filter()).branch
 
                     # show/hide reporting channels
                     channel = guild.get_channel(cid)
