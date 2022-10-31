@@ -117,8 +117,8 @@ class BugReport(AbstractBaseModel):
     title = CharField(330)
     deviceinfo = CharField(100)
     steps = CharField(1024)
-    expected = CharField(200)
-    actual = CharField(400)
+    expected = CharField(880)
+    actual = CharField(880)
     additional = CharField(500)
     reported_at = BigIntField()
 
