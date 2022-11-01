@@ -72,6 +72,8 @@ class Mischief(BaseCog):
           "Dark {name}",
           "Corrupted {name}",
           "Shattered {name}",
+          "LOCALIZE {name}",
+          "QUEST_NIGHT_{name}",
           "{name}'s broken reflection",
           "{name} spoke too soon",
           "{name} splashed with dark water",
@@ -150,7 +152,7 @@ class Mischief(BaseCog):
                     # server must have a haunted role or this is ignored
                     continue
 
-                for str_uid, mischief_name_obj in self.name_cooldown[str(guild.id)].items():
+                for str_uid, mischief_name_obj in dict(self.name_cooldown[str(guild.id)]).items():
                     if (now - mischief_name_obj['timestamp']) < self.name_cooldown_time:
                         updated_name_cooldown[str_uid] = mischief_name_obj
                     else:
