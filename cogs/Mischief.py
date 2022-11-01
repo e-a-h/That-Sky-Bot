@@ -158,6 +158,8 @@ class Mischief(BaseCog):
                     else:
                         # reset name to normal
                         my_member = guild.get_member(int(str_uid))
+                        if not my_member:
+                            continue
                         if mischief_name_obj['mischief_name'] == my_member.display_name:
                             # mischief name is still in use when mischief expires
                             # restore display name if member hasn't changed name
@@ -203,6 +205,7 @@ class Mischief(BaseCog):
 
     @commands.group(name="name_mischief", invoke_without_command=True)
     @commands.guild_only()
+    @commands.has_permissions(ban_members=True)
     async def name_mischief(self, ctx):
         await ctx.send(f"""
 name mischief is at {self.name_mischief_chance*100}%
@@ -210,12 +213,16 @@ name cooldown is {self.name_cooldown_time} seconds
             """)
 
     @name_mischief.command()
+    @commands.guild_only()
+    @commands.has_permissions(ban_members=True)
     async def set_chance(self, ctx, chance: float):
         self.name_mischief_chance = chance/100
         Configuration.set_persistent_var("name_mischief_chance", chance/100)
         await ctx.invoke(self.name_mischief)
 
     @name_mischief.command()
+    @commands.guild_only()
+    @commands.has_permissions(ban_members=True)
     async def set_cooldown(self, ctx, seconds: int):
         self.name_cooldown_time = seconds
         Configuration.set_persistent_var("name_mischief_cooldown", seconds)
