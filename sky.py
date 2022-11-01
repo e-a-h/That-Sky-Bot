@@ -258,7 +258,7 @@ if __name__ == '__main__':
         sentry_sdk.init(dsn, before_send=before_send, environment=dsn_env, integrations=[AioHttpIntegration()])
 
     # TODO: exception handling for db migration error
-    run_db_migrations()
+    # run_db_migrations()
     Logging.info('dg migrations go')
 
     intents = Intents(members=True, messages=True, guilds=True, bans=True, emojis=True, presences=True, reactions=True)

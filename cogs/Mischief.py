@@ -1,17 +1,22 @@
 import re
+from dataclasses import dataclass
 from datetime import datetime
+from random import random, choice
 
 import discord
 from discord import AllowedMentions
 from discord.ext import commands, tasks
 from discord.ext.commands import BucketType
 
+import utils.Utils
 from cogs.BaseCog import BaseCog
 from utils import Utils, Configuration, Logging
 
 
 class Mischief(BaseCog):
-    cooldown_time = 600
+    cooldown_time = 600.0
+    name_mischief_chance = 0.0
+    name_cooldown = dict()
     role_map = {
 
         "bean": 902462040596164619,
@@ -54,13 +59,117 @@ class Mischief(BaseCog):
         for guild in self.bot.guilds:
             self.init_guild(guild)
         self.periodic_task.start()
+        self.name_task.start()
+        self.name_cooldown_time = float(Configuration.get_persistent_var("name_mischief_cooldown", 10.0))
+        self.name_mischief_chance = float(Configuration.get_persistent_var("name_mischief_chance", 0.01))
+        self.mischief_names = [
+          "Cackling {name}",
+          "Crabby {name}!",
+          "Krilled {name}",
+          "Spirit {name}",
+          "Eye of {name}",
+          "Spooky McSpooky {name}",
+          "Dark {name}",
+          "Corrupted {name}",
+          "Shattered {name}",
+          "{name}'s broken reflection",
+          "{name} spoke too soon",
+          "{name} splashed with dark water",
+          "{name} look behind you",
+          "{name} destroyer of candles",
+          "{name} [0 cosmetics]",
+          "{name} hoarder of candles",
+          "{name} is stormlocked",
+          "shard landed on {name}",
+          "{name} oobed too deep",
+          "{name} fell into GW",
+          "Extinguished {name}",
+          "crab{name}",
+          "trick or {name}",
+          "the spirit of {name}",
+          "{name} got mantalulled",
+          "{name} is behind you",
+          "a curse upon {name}",
+          "{name} the terrible",
+          "{name} the horrible",
+          "fear the {name}",
+          "{name} [0 candles]",
+          "Regrettable {name}",
+          "{name} scissorhands",
+          "{name} saladfingers",
+          "{name} of the night",
+          "{name} is one candle short",
+          "{name} is krill certified",
+          "{name} got server split",
+          "{name} crashed in Eden",
+          "Honking {name}",
+          "Beaned {name}",
+          "{name} missed 1 Eden Statue",
+          "{name} the arsonist",
+          "{name} is a toilet krill",
+          "{name} has treats!",
+          "{name} should be feared",
+          "spooky scary {name}",
+          "{name} steals candy from skykids",
+          "{name} is looking for spells",
+          "oh no, a ghost! {name}!",
+          "{name} is a treat for the krills",
+          "{name} cast a spell on Skybot",
+          "{name} has released the crabs",
+          "{name} the crab roaster",
+          "{name} became krillbait"
+        ]
 
     def cog_unload(self):
         self.periodic_task.cancel()
+        self.name_task.cancel()
 
     def init_guild(self, guild):
         # init guild-specific dicts and lists
-        pass
+        for guild in self.bot.guilds:
+            self.name_cooldown[str(guild.id)] = Configuration.get_persistent_var(f"name_cooldown_{guild.id}", dict())
+            # Configuration.set_persistent_var(f"name_cooldown_{guild.id}", self.name_cooldown[str(guild.id)])
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild):
+        self.init_guild(guild)
+
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild):
+        Configuration.del_persistent_var(f"name_cooldown_{guild.id}")
+
+    @tasks.loop(seconds=1)
+    async def name_task(self):
+        # periodic task to run while cog is loaded
+        now = datetime.now().timestamp()
+        try:
+            for guild in self.bot.guilds:
+                updated_name_cooldown = {}
+                haunted_role = discord.utils.get(guild.roles, name="haunted")
+                if haunted_role is None:
+                    # server must have a haunted role or this is ignored
+                    continue
+
+                for str_uid, mischief_name_obj in self.name_cooldown[str(guild.id)].items():
+                    if (now - mischief_name_obj['timestamp']) < self.name_cooldown_time:
+                        updated_name_cooldown[str_uid] = mischief_name_obj
+                    else:
+                        # reset name to normal
+                        my_member = guild.get_member(int(str_uid))
+                        if mischief_name_obj['mischief_name'] == my_member.display_name:
+                            # mischief name is still in use when mischief expires
+                            # restore display name if member hasn't changed name
+                            if mischief_name_obj['name_is_nick']:
+                                await my_member.edit(nick=mischief_name_obj['name_normal'])
+                            else:
+                                await my_member.edit(nick=None)
+                        if haunted_role in my_member.roles:
+                            await my_member.remove_roles(haunted_role)
+
+                self.name_cooldown[str(guild.id)] = updated_name_cooldown
+                Configuration.set_persistent_var(f"name_cooldown_{guild.id}", updated_name_cooldown)
+        except Exception as e:
+            await utils.Utils.handle_exception("mischief name task error", self.bot, e)
 
     @tasks.loop(seconds=600)
     async def periodic_task(self):
@@ -68,11 +177,11 @@ class Mischief(BaseCog):
 
         # remove expired cooldowns
         now = datetime.now().timestamp()
-        cooldown = Configuration.get_persistent_var(f"mischief_cooldown", dict())
 
         try:
-            # key for loaded dict is a string
+            cooldown = Configuration.get_persistent_var(f"mischief_cooldown", dict())
             updated_cooldown = {}
+            # key for loaded dict is a string
             for str_uid, member_last_access_time in cooldown.items():
                 if (now - member_last_access_time) < self.cooldown_time:
                     updated_cooldown[str_uid] = member_last_access_time
@@ -90,13 +199,25 @@ class Mischief(BaseCog):
         except:
             Logging.info("can't update role counts")
 
-    @commands.Cog.listener()
-    async def on_guild_join(self, guild):
-        self.init_guild(guild)
+    @commands.group(name="name_mischief", invoke_without_command=True)
+    @commands.guild_only()
+    async def name_mischief(self, ctx):
+        await ctx.send(f"""
+name mischief is at {self.name_mischief_chance*100}%
+name cooldown is {self.name_cooldown_time} seconds
+            """)
 
-    @commands.Cog.listener()
-    async def on_guild_remove(self, guild):
-        pass
+    @name_mischief.command()
+    async def set_chance(self, ctx, chance: float):
+        self.name_mischief_chance = chance/100
+        Configuration.set_persistent_var("name_mischief_chance", chance/100)
+        await ctx.invoke(self.name_mischief)
+
+    @name_mischief.command()
+    async def set_cooldown(self, ctx, seconds: int):
+        self.name_cooldown_time = seconds
+        Configuration.set_persistent_var("name_mischief_cooldown", seconds)
+        await ctx.invoke(self.name_mischief)
 
     @commands.cooldown(1, 60, BucketType.member)
     @commands.max_concurrency(3, wait=True)
@@ -150,9 +271,47 @@ class Mischief(BaseCog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot:
+            # don't rename bots
             return
 
-        uid = message.author.id
+        if hasattr(message.author, "guild"):
+            # guild required for nickname shenanigans
+            try:
+                my_member = message.guild.get_member(message.author.id)
+                if str(message.guild.id) in self.name_cooldown and \
+                        str(my_member.id) not in self.name_cooldown[str(message.guild.id)]:
+                    roll = random()
+                    if roll < self.name_mischief_chance:
+                        # await message.channel.send("spooky")
+                        now = datetime.now().timestamp()
+                        haunted_role = discord.utils.get(message.guild.roles, name="haunted")
+                        await my_member.add_roles(haunted_role)
+                        nick_limit = 32
+                        random_name = choice(self.mischief_names)
+                        old_name = my_member.display_name
+                        is_nick = my_member.nick is not None
+                        diff = nick_limit - len(random_name) + 6
+                        chomped_name = old_name[0:diff]
+                        mischief_name = random_name.format(name=chomped_name)
+
+                        name_obj = {
+                            "mischief_name": mischief_name,
+                            "timestamp": int(now),
+                            "name_normal": old_name,
+                            "name_is_nick": 1 if is_nick else 0
+                        }
+
+                        self.name_cooldown[str(message.guild.id)][str(my_member.id)] = name_obj
+                        await my_member.edit(nick=mischief_name)
+                        Configuration.set_persistent_var(
+                            f"name_cooldown_{message.guild.id}",
+                            self.name_cooldown[str(message.guild.id)]
+                        )
+            except Exception as e:
+                Logging.info("mischief onmessage namer error")
+                Logging.info(e)
+
+        uid = my_member.id
 
         try:
             guild = Utils.get_home_guild()
