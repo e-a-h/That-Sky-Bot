@@ -320,7 +320,7 @@ name cooldown is {self.name_cooldown_time} seconds
                 Logging.info("mischief onmessage namer error")
                 Logging.info(e)
 
-        uid = my_member.id
+        uid = message.author.id
 
         try:
             guild = Utils.get_home_guild()
