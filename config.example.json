@@ -27,8 +27,6 @@
     "bug_trash_sweep_minutes": 40,
     "max_attachments": 3,
     "log_channel": 0,
-    "rules_react_message_id": 0,
-    "welcome_channel": 0,
     "cogs": [
         /* list of cogs to load */
         "Basic",
@@ -47,6 +45,5 @@
     "admin_roles": [],
     "member_role": 0,
     "muted_role": 0,
-    "nonmember_role": 0,
     "guild_id": 0,
 }

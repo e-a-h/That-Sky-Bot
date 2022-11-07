@@ -259,7 +259,7 @@ if __name__ == '__main__':
 
     # TODO: exception handling for db migration error
     # run_db_migrations()
-    Logging.info('dg migrations go')
+    # Logging.info('dg migrations go')
 
     intents = Intents(members=True, messages=True, guilds=True, bans=True, emojis=True, presences=True, reactions=True)
     loop = asyncio.get_event_loop()

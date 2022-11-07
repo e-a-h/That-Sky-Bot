@@ -298,6 +298,19 @@ class Localization(AbstractBaseModel):
         table = 'localization'
 
 
+class MischiefRoles(AbstractBaseModel):
+    guild = ForeignKeyField('skybot.Guild', related_name='mischief_roles', index=True)
+    roleid = BigIntField()
+    alias = BigIntField()
+
+    def __str__(self):
+        return f"role {self.roleid} a.k.a \"{self.alias}\""
+
+    class Meta:
+        unique_together = ('roleid', 'guild')
+        table = 'mischiefrole'
+
+
 class ModRole(AbstractBaseModel):
     guild = ForeignKeyField('skybot.Guild', related_name='mod_roles', index=True)
     roleid = BigIntField()

@@ -462,20 +462,6 @@ class Music(BaseCog):
             # Tutorial code here
 """
 
-"""
-    @commands.Cog.listener()
-    async def on_raw_reaction_add(self, event):
-        #react_user_id = event.user_id
-        channel = self.bot.get_channel(event.channel_id)
-       # message = await channel.fetch_message(event.message_id)
-        user_is_bot = event.user_id == self.bot.user.id
-        #rules_message_id = Configuration.get_var('rules_react_message_id')
-        if not user_is_bot:
-            #await self.handle_reaction_change("add", str(event.emoji), react_user_id)
-            await channel.send("Sorry to see you go. Goodbye!")  #TODO music/goodbye
-            #TODO: stop the transcribe song process. how? change self.property?
-"""
-
 
 def setup(bot):
     bot.add_cog(Music(bot))
