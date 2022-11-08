@@ -167,7 +167,7 @@ class Mischief(BaseCog):
 
         # update role count storage (because it's slow)
         for guild in self.bot.guilds:
-            for my_role in self.mischief_map[guild.id]:
+            for my_role in self.mischief_map[guild.id].values():
                 try:
                     self.role_counts[str(my_role.id)] = len(my_role.members)
                 except:
