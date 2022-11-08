@@ -14,7 +14,9 @@ from discord import ConnectionClosed, Intents, AllowedMentions
 from prometheus_client import CollectorRegistry
 from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 from tortoise import Tortoise
+from aerich import Command
 
+import utils.tortoise_settings
 from utils import Logging, Configuration, Utils, Emoji, Database, Lang
 from utils.Database import BotAdmin, Guild
 from utils.PrometheusMon import PrometheusMon
@@ -202,7 +204,7 @@ class Skybot(Bot):
             await asyncio.sleep(3600)
 
 
-def run_db_migrations():
+def run_old_db_migrations():
     dbv = int(Configuration.get_persistent_var('db_version', 0))
     Logging.info(f"db version is {dbv}")
     dbv_list = [f for f in glob.glob("db_migrations/db_migrate_*.py")]
@@ -223,6 +225,19 @@ def run_db_migrations():
                 # throw a fit if it doesn't work
                 raise e
     Logging.info(f"--- {migration_count if migration_count else 'no'} db migration{'' if migration_count == 1 else 's'} run")
+
+
+async def run_db_migrations():
+    try:
+        Logging.info(f"aerich migrations...")
+        command = Command(tortoise_config=utils.tortoise_settings.TORTOISE_ORM, app='skybot')
+        await command.init()
+        result = await command.upgrade()
+        Logging.info(f"aerich migrations done:")
+        Logging.info(result)
+    except Exception as e:
+        Utils.get_embed_and_log_exception(f"DB migration failure", Utils.BOT, e)
+        exit()
 
 
 def before_send(event, hint):
@@ -257,12 +272,12 @@ if __name__ == '__main__':
     if dsn != '':
         sentry_sdk.init(dsn, before_send=before_send, environment=dsn_env, integrations=[AioHttpIntegration()])
 
-    # TODO: exception handling for db migration error
-    # run_db_migrations()
-    # Logging.info('dg migrations go')
-
     intents = Intents(members=True, messages=True, guilds=True, bans=True, emojis=True, presences=True, reactions=True)
     loop = asyncio.get_event_loop()
+
+    Logging.info('dg migrations go')
+    loop.run_until_complete(run_db_migrations())
+
     prefix = Configuration.get_var("bot_prefix")
     skybot = Skybot(
         command_prefix=commands.when_mentioned_or(prefix),
