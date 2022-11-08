@@ -21,39 +21,6 @@ class Mischief(BaseCog):
     name_cooldown = dict()
     mischief_map = dict()
     role_counts = {}
-    role_map = {
-        "bean": 902462040596164619,
-        "bird": 901960866226913340,
-        "buff moth": 902297335743279174,
-        "bunny": 903083512951869530,
-        "butterfly": 901960358267326494,
-        "candle": 902327931680989285,
-        "cosmic manta": 901964236396314645,
-        "crab": 819720424992145458,
-        "dreams skater": 902648539014893680,
-        "elder bird": 902307770815119370,
-        "flight guide": 902369136468959242,
-        "gratitude guide": 902455240404647948,
-        "jellyfish": 901960274754555924,
-        "just a fish": 902616235005583400,
-        "koi fish": 902321584159723560,
-        "krilled skykid": 902346221665005629,
-        "manta": 901959573974425640,
-        "moth": 902294230679048222,
-        "not a krill": 818924325633654824,
-        "oreo": 902295610454069378,
-        "pair of pants": 902446961414770728,
-        "performance guide": 965759873935609916,
-        "prophecy guide": 902418537832906752,
-        "rhythm guide": 902330765352783912,
-        "shadow": 901960767119704064,
-        "spirit": 902293337028055111,
-        "thatskybot": 902434147916709928,
-        "totally a krill": 818978303243190302,
-        "tuna king": 827341301833531422,
-        "weasel": 902311536125673503,
-        "me again": 0
-    }
     mischief_names = [
       "Cackling {name}",
       "Crabby {name}!",
@@ -136,12 +103,6 @@ class Mischief(BaseCog):
         self.mischief_map[guild.id] = dict()
         async for row in guild_row.mischief_roles.all():
             self.mischief_map[guild.id][row.alias] = guild.get_role(row.roleid)
-
-        # populate table after migration:
-        if not self.mischief_map[guild.id]:
-            for key, value in self.role_map.items():
-                if guild.get_role(value):
-                    await MischiefRole.create(guild=guild_row, alias=key, roleid=value)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
@@ -270,7 +231,7 @@ name cooldown is {self.name_cooldown_time} seconds
             color=0xFFBD1C,
             title="Mischief!")
 
-        for this_role in self.mischief_map[guild.id]:
+        for this_role in self.mischief_map[guild.id].values():
             member_count = self.role_counts[str(this_role.id)]
             embed.add_field(name=this_role.name, value=str(member_count), inline=True)
 
@@ -359,7 +320,7 @@ name cooldown is {self.name_cooldown_time} seconds
             remove = True
 
         # remove all mischief roles
-        for old_role in self.mischief_map[guild.id]:
+        for old_role in self.mischief_map[guild.id].values():
             try:
                 if old_role in member.roles:
                     await member.remove_roles(old_role)
