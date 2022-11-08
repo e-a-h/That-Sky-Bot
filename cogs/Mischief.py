@@ -270,7 +270,7 @@ name cooldown is {self.name_cooldown_time} seconds
             color=0xFFBD1C,
             title="Mischief!")
 
-        for this_role in self.mischief_map[guild]:
+        for this_role in self.mischief_map[guild.id]:
             member_count = self.role_counts[str(this_role.id)]
             embed.add_field(name=this_role.name, value=str(member_count), inline=True)
 
