@@ -94,5 +94,5 @@ class Eden(BaseCog):
         self.responses[cid] = response.id
 
 
-def setup(bot):
-    bot.add_cog(Eden(bot))
+async def setup(bot):
+    await bot.add_cog(Eden(bot))

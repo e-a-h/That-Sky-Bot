@@ -57,8 +57,8 @@ def get_chanconf_description(bot, guild_id):
 
 async def fetch_last_message_by_channel(channel):
     try:
-        last_message = await channel.history(limit=1).flatten()
-        return last_message[0]
+        messages = [message async for message in channel.history(limit=1)]
+        return messages[0]
     except NotFound:
         return None
 
@@ -231,7 +231,7 @@ user_cache = OrderedDict()
 
 
 async def get_user(uid, fetch=True):
-    UserClass = namedtuple("UserClass", "name id discriminator bot avatar_url created_at is_avatar_animated mention")
+    UserClass = namedtuple("UserClass", "name id discriminator bot avatar created_at is_avatar_animated mention")
     user = BOT.get_user(uid)
     if user is None:
         if uid in known_invalid_users:

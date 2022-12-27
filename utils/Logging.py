@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 import os
 import sys
@@ -7,6 +8,19 @@ BOT_LOG_CHANNEL = None
 
 LOGGER = logging.getLogger('thatskybot')
 DISCORD_LOGGER = logging.getLogger('discord')
+
+
+@dataclass
+class TCol:
+    cHeader = '\033[95m'
+    cOkBlue = '\033[94m'
+    cOkCyan = '\033[96m'
+    cOkGreen = '\033[92m'
+    cWarning = '\033[93m'
+    cFail = '\033[91m'
+    cEnd = '\033[0m'
+    cBold = '\033[1m'
+    cUnderline = '\033[4m'
 
 
 def init():

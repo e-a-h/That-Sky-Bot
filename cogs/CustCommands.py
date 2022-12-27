@@ -10,18 +10,14 @@ class CustCommands(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-
         self.commands = dict()
-        self.bot.loop.create_task(self.startup_cleanup())
-        self.loaded = False
 
     async def cog_check(self, ctx):
         return hasattr(ctx.author, 'guild_permissions') and ctx.author.guild_permissions.ban_members
 
-    async def startup_cleanup(self):
+    async def on_ready(self):
         for guild in self.bot.guilds:
             await self.init_guild(guild)
-        self.loaded = True
 
     async def init_guild(self, guild):
         self.commands[guild.id] = dict()
@@ -226,5 +222,5 @@ class CustCommands(BaseCog):
                     await message.channel.send(command_content, reference=reference)
 
 
-def setup(bot):
-    bot.add_cog(CustCommands(bot))
+async def setup(bot):
+    await bot.add_cog(CustCommands(bot))

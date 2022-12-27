@@ -16,16 +16,15 @@ class ArtCollector(BaseCog):
     no_tag = "no_tag"
     listen_tag = "listen"
 
-    async def cog_check(self, ctx):
-        return ctx.author.guild_permissions.ban_members
-
     def __init__(self, bot):
         super().__init__(bot)
         self.channels = dict()
         self.collection_channels = dict()
-        bot.loop.create_task(self.startup_cleanup())
 
-    async def startup_cleanup(self):
+    async def cog_check(self, ctx):
+        return ctx.author.guild_permissions.ban_members
+
+    async def on_ready(self):
         # Load channels
         for guild in self.bot.guilds:
             await self.init_guild(guild)
@@ -281,5 +280,5 @@ class ArtCollector(BaseCog):
             return
 
 
-def setup(bot):
-    bot.add_cog(ArtCollector(bot))
+async def setup(bot):
+    await bot.add_cog(ArtCollector(bot))

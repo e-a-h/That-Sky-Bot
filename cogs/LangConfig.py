@@ -13,6 +13,8 @@ class LangConfig(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
+
+    async def cog_load(self):
         Lang.load_locales()
 
     async def cog_check(self, ctx):
@@ -185,5 +187,5 @@ class LangConfig(BaseCog):
     # Command alias suffix if possible?
 
 
-def setup(bot):
-    bot.add_cog(LangConfig(bot))
+async def setup(bot):
+    await bot.add_cog(LangConfig(bot))

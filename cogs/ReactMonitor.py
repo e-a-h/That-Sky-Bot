@@ -15,20 +15,18 @@ from utils import Utils, Configuration, Lang
 class ReactMonitor(BaseCog):
 
     def __init__(self, bot):
+        super().__init__(bot)
         self.react_watch_servers = set()
+        self.min_react_lifespan = dict()
         self.recent_reactions = dict()
         self.react_removers = dict()
-        self.react_adds = dict()
-        self.emoji = dict()
-        self.min_react_lifespan = dict()
-        self.mutes = dict()
         self.mute_duration = dict()
+        self.react_adds = dict()
         self.guilds = dict()
-        super().__init__(bot)
-        bot.loop.create_task(self.startup_cleanup())
-
-    async def startup_cleanup(self):
+        self.emoji = dict()
         self.mutes = dict()
+
+    async def on_ready(self):
         for guild in self.bot.guilds:
             await self.init_guild(guild.id)
         self.check_reacts.start()
@@ -484,5 +482,5 @@ class ReactMonitor(BaseCog):
                 await log_channel.send(content)
 
 
-def setup(bot):
-    bot.add_cog(ReactMonitor(bot))
+async def setup(bot):
+    await bot.add_cog(ReactMonitor(bot))

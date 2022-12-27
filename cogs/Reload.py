@@ -11,12 +11,11 @@ class Reload(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        bot.loop.create_task(self.startup_cleanup())
 
     async def cog_check(self, ctx):
         return await self.bot.permission_manage_bot(ctx)
 
-    async def startup_cleanup(self):
+    async def on_ready(self):
         restart_mid = Configuration.get_persistent_var("bot_restart_message_id")
         restart_cid = Configuration.get_persistent_var("bot_restart_channel_id")
         author_id = Configuration.get_persistent_var("bot_restart_author_id")
@@ -46,8 +45,8 @@ class Reload(BaseCog):
             cogs.append(c.replace('Cog', ''))
 
         if cog in cogs:
-            self.bot.unload_extension(f"cogs.{cog}")
-            self.bot.load_extension(f"cogs.{cog}")
+            await self.bot.unload_extension(f"cogs.{cog}")
+            await self.bot.load_extension(f"cogs.{cog}")
             await ctx.send(f'**{cog}** has been reloaded.')
             await Logging.bot_log(f'**{cog}** has been reloaded by {ctx.author.name}.')
         else:
@@ -77,7 +76,7 @@ class Reload(BaseCog):
         cog: Name of the cog to load
         """
         if os.path.isfile(f"cogs/{cog}.py"):
-            self.bot.load_extension(f"cogs.{cog}")
+            await self.bot.load_extension(f"cogs.{cog}")
             if cog not in Configuration.MASTER_CONFIG["cogs"]:
                 Configuration.MASTER_CONFIG["cogs"].append(cog)
                 Configuration.save()
@@ -95,7 +94,7 @@ class Reload(BaseCog):
         cog: Name of the cog to unload
         """
         if cog in ctx.bot.cogs:
-            self.bot.unload_extension(f"cogs.{cog}")
+            await self.bot.unload_extension(f"cogs.{cog}")
             if cog in Configuration.MASTER_CONFIG["cogs"]:
                 Configuration.get_var("cogs").remove(cog)
                 Configuration.save()
@@ -120,9 +119,9 @@ class Reload(BaseCog):
         for cog in self.bot.cogs:
             temp.append(cog)
         for cog in temp:
-            self.bot.unload_extension(f"cogs.{cog}")
+            await self.bot.unload_extension(f"cogs.{cog}")
             Logging.info(f'{cog} has been unloaded.')
-            self.bot.load_extension(f"cogs.{cog}")
+            await self.bot.load_extension(f"cogs.{cog}")
             Logging.info(f'{cog} has been loaded.')
         await message.edit(content="Hot reload complete")
 
@@ -140,5 +139,5 @@ class Reload(BaseCog):
         await self.bot.close()
 
 
-def setup(bot):
-    bot.add_cog(Reload(bot))
+async def setup(bot):
+    await bot.add_cog(Reload(bot))

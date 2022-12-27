@@ -17,12 +17,11 @@ class Welcomer(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        bot.loop.create_task(self.startup_cleanup())
 
     def cog_unload(self):
         pass
 
-    async def startup_cleanup(self):
+    async def on_ready(self):
         for guild in self.bot.guilds:
             await self.init_guild(guild)
 
@@ -53,7 +52,7 @@ class Welcomer(BaseCog):
     @commands.guild_only()
     @sky.can_admin()
     async def verify_invited(self, ctx, *, member_list=""):
-        with ctx.channel.typing():
+        async with ctx.channel.typing():
             await ctx.send("This might take a while. rate limiting stops me searching all members quickly...")
             attachment_links = [str(a.url) for a in ctx.message.attachments]
             if attachment_links:
@@ -238,6 +237,9 @@ class Welcomer(BaseCog):
             if before.roles != after.roles:
                 # TODO: should this be configurable on|off?
                 member_role = before.guild.get_role(Configuration.get_var("member_role"))
+                if member_role is None:
+                    return
+
                 member_after = member_role in after.roles
 
                 # @everyone counts as 1 role
@@ -310,5 +312,5 @@ class Welcomer(BaseCog):
                 await Utils.handle_exception("member join exception", self.bot, e)
 
 
-def setup(bot):
-    bot.add_cog(Welcomer(bot))
+async def setup(bot):
+    await bot.add_cog(Welcomer(bot))

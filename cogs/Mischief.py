@@ -15,12 +15,6 @@ from utils.Database import MischiefRole
 
 
 class Mischief(BaseCog):
-    cooldown_time = 600.0
-    name_mischief_chance = 0.0
-    name_cooldown_time = 60.0
-    name_cooldown = dict()
-    mischief_map = dict()
-    role_counts = {}
     mischief_names = [
       "Cackling {name}",
       "Crabby {name}!",
@@ -83,11 +77,19 @@ class Mischief(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        self.name_cooldown_time = float(Configuration.get_persistent_var("name_mischief_cooldown", 10.0))
-        self.name_mischief_chance = float(Configuration.get_persistent_var("name_mischief_chance", 0.01))
-        asyncio.create_task(self.cog_load())  # TODO: remove when 2.0
+        self.cooldown_time = 600.0
+        self.name_mischief_chance = 0.0
+        self.name_cooldown_time = 60.0
+        self.name_cooldown = dict()
+        self.mischief_map = dict()
+        self.role_counts = {}
 
     async def cog_load(self):
+        self.name_cooldown_time = float(Configuration.get_persistent_var("name_mischief_cooldown", 10.0))
+        self.name_mischief_chance = float(Configuration.get_persistent_var("name_mischief_chance", 0.01))
+
+    async def on_ready(self):
+        Logging.info(f"Mischief on_ready")
         for guild in self.bot.guilds:
             await self.init_guild(guild)
         self.role_count_task.start()
@@ -130,20 +132,24 @@ class Mischief(BaseCog):
                     else:
                         # reset name to normal
                         my_member = guild.get_member(int(str_uid))
+
                         if not my_member:
                             continue
+
+                        if haunted_role in my_member.roles:
+                            await my_member.remove_roles(haunted_role)
+
                         if mischief_name_obj['mischief_name'] == my_member.display_name:
                             # mischief name is still in use when mischief expires
                             # restore display name if member hasn't changed name
                             if mischief_name_obj['name_is_nick']:
-                                await my_member.edit(nick=mischief_name_obj['name_normal'])
+                                edited_member = await my_member.edit(nick=mischief_name_obj['name_normal'])
                             else:
-                                await my_member.edit(nick=None)
-                        if haunted_role in my_member.roles:
-                            await my_member.remove_roles(haunted_role)
+                                edited_member = await my_member.edit(nick=None)
 
-                self.name_cooldown[str(guild.id)] = updated_name_cooldown
-                Configuration.set_persistent_var(f"name_cooldown_{guild.id}", updated_name_cooldown)
+                if updated_name_cooldown != self.name_cooldown[str(guild.id)]:
+                    self.name_cooldown[str(guild.id)] = updated_name_cooldown
+                    Configuration.set_persistent_var(f"name_cooldown_{guild.id}", updated_name_cooldown)
         except Exception as e:
             await utils.Utils.handle_exception("mischief name task error", self.bot, e)
 
@@ -250,7 +256,7 @@ name cooldown is {self.name_cooldown_time} seconds
             # no mischief for bots
             return
 
-        asyncio.create_task(self.mischief_namer(message))
+        on_message_tasks = [asyncio.create_task(self.mischief_namer(message))]
 
         for guild in self.bot.guilds:
             if guild.id in self.mischief_map and self.mischief_map[guild.id]:
@@ -260,9 +266,10 @@ name cooldown is {self.name_cooldown_time} seconds
                     try:
                         dm_channel = await my_member.create_dm() # try to create DM channel
                     except:
-                        dm_channel = None # Don't message member because creating DM channel failed
+                        dm_channel = None  # Don't message member because creating DM channel failed
 
-                    asyncio.create_task(self.role_mischief(message, my_member, dm_channel))
+                    on_message_tasks.append(asyncio.create_task(self.role_mischief(message, my_member, dm_channel)))
+        await asyncio.gather(*on_message_tasks)
 
     async def role_mischief(self, message, member, channel):
         now = datetime.now().timestamp()
@@ -404,7 +411,7 @@ You can also use the `!team_mischief` command right here to find out more""")
                     }
 
                     self.name_cooldown[str(message.guild.id)][str(my_member.id)] = name_obj
-                    await my_member.edit(nick=mischief_name)
+                    edited_member = await my_member.edit(nick=mischief_name)
                     Configuration.set_persistent_var(
                         f"name_cooldown_{message.guild.id}",
                         self.name_cooldown[str(message.guild.id)]
@@ -414,5 +421,5 @@ You can also use the `!team_mischief` command right here to find out more""")
             Logging.info(e)
 
 
-def setup(bot):
-    bot.add_cog(Mischief(bot))
+async def setup(bot):
+    await bot.add_cog(Mischief(bot))

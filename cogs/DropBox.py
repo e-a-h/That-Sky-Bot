@@ -1,20 +1,23 @@
 import asyncio
 import io
 from asyncio import CancelledError
-from datetime import datetime
 
 import discord
 import tortoise.exceptions
 from discord import Forbidden, Embed, NotFound, HTTPException
 from discord.ext import commands, tasks
+from discord.utils import utcnow
 from tortoise.exceptions import DoesNotExist
 
+import utils.Logging
+from utils.Logging import TCol
 from cogs.BaseCog import BaseCog
 from utils import Lang, Questions, Utils, Logging
 from utils.Database import DropboxChannel
 
 
 class DropBox(BaseCog):
+
     def __init__(self, bot):
         super().__init__(bot)
         self.dropboxes = dict()
@@ -22,21 +25,19 @@ class DropBox(BaseCog):
         self.drop_messages = dict()
         self.delivery_in_progress = dict()
         self.delete_in_progress = dict()
-        self.loaded = False
         self.clean_in_progress = False
-        bot.loop.create_task(self.startup_cleanup())
 
-    async def startup_cleanup(self):
+    async def on_ready(self):
         await self.bot.wait_until_ready()
-        Logging.info("starting DropBox")
+        Logging.info(f"\t{TCol.cOkBlue}starting DropBox{TCol.cEnd}")
 
         for guild in self.bot.guilds:
             # fetch dropbox channels per server
             await self.init_guild(guild.id)
             for row in await DropboxChannel.filter(serverid=guild.id):
                 self.dropboxes[guild.id][row.sourcechannelid] = row
-        self.loaded = True
 
+        # TODO: replace with asyncio queue?
         self.deliver_to_channel.start()
         self.clean_channels.start()
 
@@ -67,8 +68,10 @@ class DropBox(BaseCog):
         del self.delete_in_progress[guild.id]
         await DropboxChannel.filter(serverid=guild.id).delete()
 
-    @tasks.loop(seconds=1.0)
+    # TODO: replace with asyncio queue?
+    @tasks.loop(seconds=10.0)
     async def deliver_to_channel(self):
+        send_tasks = []
         for guild_id, guild_queue in self.drop_messages.items():
             for channel_id, message_queue in guild_queue.items():
                 try:
@@ -80,14 +83,22 @@ class DropBox(BaseCog):
                             self.delivery_in_progress[guild_id][channel_id] = set()
                         if message_id not in self.delivery_in_progress[guild_id][channel_id]:
                             self.delivery_in_progress[guild_id][channel_id].add(message_id)
-                            self.bot.loop.create_task(self.drop_message_impl(message, drop_channel))
+                            send_tasks.append(self.bot.loop.create_task(self.drop_message_impl(message, drop_channel)))
                 except Exception as e:
                     pass
+        try:
+            if send_tasks:
+                await asyncio.gather(*send_tasks)
+        except CancelledError as e:
+            raise e
+        except Exception as e:
+            await Utils.handle_exception("Dropbox gather send tasks failed", self.bot, e)
 
     async def drop_message_impl(self, source_message, drop_channel):
-        '''
-        handles copying to dropbox, sending confirm message in channel, sending dm receipt, and deleting original for each message in any dropbox
-        '''
+        """
+        handles copying to dropbox, sending confirm message in channel, sending dm receipt, and deleting original
+        for each message in any dropbox
+        """
         guild_id = source_message.channel.guild.id
         source_channel_id = source_message.channel.id
         source_message_id = source_message.id
@@ -104,8 +115,9 @@ class DropBox(BaseCog):
         embed = Embed(
             timestamp=source_message.created_at,
             color=0x663399)
+        avatar = source_message.author.avatar.replace(size=32) if source_message.author.avatar else None
         embed.set_author(name=f"{source_message.author} ({source_message.author.id})",
-                         icon_url=source_message.author.avatar_url_as(size=32))
+                         icon_url=avatar)
         embed.add_field(name="Author link", value=source_message.author.mention)
         ctx = await self.bot.get_context(source_message)
 
@@ -118,6 +130,7 @@ class DropBox(BaseCog):
 
         attachment_names = []
         delivery_success = None
+        last_drop_message = None
 
         try:
             # send embed and message to dropbox channel
@@ -128,13 +141,15 @@ class DropBox(BaseCog):
                     await drop_channel.send(file=discord.File(buffer, attachment.filename))
                     attachment_names.append(attachment.filename)
                 except Exception as attach_e:
-                    await drop_channel.send(Lang.get_locale_string('dropbox/attachment_fail', ctx, author=source_message.author.mention))
+                    await drop_channel.send(
+                        Lang.get_locale_string('dropbox/attachment_fail', ctx, author=source_message.author.mention))
             
             if len(pages) == 0:
                 # means no text content included
                 if len(attachment_names) < 1:
-                    # if there isn't any attachments, the dropbox might end up having a floating embed so include a helpful message too
-                    last_drop_message = await drop_channel.send(embed=embed, content=Lang.get_locale_string('dropbox/msg_blank', ctx))
+                    # if there aren't any attachments, include a message indicating that
+                    last_drop_message = await drop_channel.send(
+                        embed=embed, content=Lang.get_locale_string('dropbox/msg_blank', ctx))
                 else:
                     last_drop_message = await drop_channel.send(embed=embed)
             else:
@@ -151,11 +166,11 @@ class DropBox(BaseCog):
             await ctx.send(msg)
             delivery_success = True
         except Exception as e:
+            delivery_success = False
             msg = Lang.get_locale_string('dropbox/msg_not_delivered', ctx, author=source_message.author.mention)
             await ctx.send(msg)
             await self.bot.guild_log(guild_id, "broken dropbox...? Call alex, I guess")
             await Utils.handle_exception("dropbox delivery failure", self.bot, e)
-            delivery_success = False
 
         try:
             # delete original message, the confirmation of sending is deleted in clean_channels loop
@@ -166,14 +181,15 @@ class DropBox(BaseCog):
             # ignore missing message
             pass
 
-        #give senders a moment before spam pinging them the copy
+        # give senders a moment before spam pinging them the copy
         await asyncio.sleep(1)
 
         try:
             # try sending dm receipts and report in dropbox channel if it was sent or not
             if drop and drop.sendreceipt:
                 # get the locale versions of the messages for status, receipt header, and attachments ready to be sent
-                status_msg = Lang.get_locale_string('dropbox/msg_delivered' if delivery_success else 'dropbox/msg_not_delivered', ctx, author="")
+                status_msg = Lang.get_locale_string(
+                    'dropbox/msg_delivered' if delivery_success else 'dropbox/msg_not_delivered', ctx, author="")
                 receipt_msg_header = Lang.get_locale_string('dropbox/msg_receipt', ctx, channel=ctx.channel.mention)
                 if len(attachment_names) == 0:
                     attachment_msg = ""
@@ -194,10 +210,10 @@ class DropBox(BaseCog):
                 if len(pages) == 0:
                     # no text content
                     if len(attachment_names) < 1:
-                        #if no text and no attachments, then send a response that there wasn't any text content
+                        # if no text and no attachments, then send a response that there wasn't any text content
                         await dm_channel.send(content=Lang.get_locale_string('dropbox/msg_blank', ctx))
                 else:
-                # send the page(s) in code blocks to dm.
+                    # send the page(s) in code blocks to dm.
                     for i, page in enumerate(pages[:-1]):
                         if len(pages) > 1:
                             page = f"**{i+1} of {page_count}**\n```{page}```"
@@ -205,16 +221,17 @@ class DropBox(BaseCog):
                             
                     last_page = f'```{pages[-1]}```' if page_count == 1 else f"**{page_count} of {page_count}**\n```{pages[-1]}```"
                     await dm_channel.send(last_page)
-                if delivery_success:
+                if delivery_success and last_drop_message is not None:
                     embed.add_field(name="receipt status", value="sent")
                     # this is used if drop first before dms to add status to embed
-                    await last_drop_message.edit(embed=embed)
+                    edited_message = await last_drop_message.edit(embed=embed)
         except Exception as e:
             Logging.info("Dropbox DM receipt failed, not an issue so ignoring exception and giving up")
             if drop.sendreceipt and delivery_success:
                 embed.add_field(name="receipt status", value="failed")
                 # this is used if drop first before dms to add status to embed
-                await last_drop_message.edit(embed=embed)
+                if last_drop_message is not None:
+                    edited_message = await last_drop_message.edit(embed=embed)
 
     @tasks.loop(seconds=3.0)
     async def clean_channels(self):
@@ -232,12 +249,13 @@ class DropBox(BaseCog):
                 channel = None
                 # Look for channel history. Try 10 times to fetch channel history
                 # this API call fails on startup because connection is not made yet.
-                now = datetime.utcnow()
+                now = utcnow()
                 channel = self.bot.get_channel(channel_id)
                 if channel_id not in self.delete_in_progress[guild.id]:
                     self.delete_in_progress[guild.id][channel_id] = set()
 
                 try:
+                    clean_tasks = []
                     async for message in channel.history(limit=20):
                         # check if message is queued for delivery
                         if (channel_id in self.drop_messages[guild.id]) and\
@@ -257,7 +275,9 @@ class DropBox(BaseCog):
                             self.bot.loop.create_task(self.clean_message(message))
                         else:
                             pass
-                except (CancelledError, asyncio.TimeoutError, discord.DiscordServerError) as e:
+                    if clean_tasks:
+                        await asyncio.gather(*clean_tasks)
+                except (CancelledError, asyncio.TimeoutError, discord.DiscordServerError, NotFound, RuntimeError) as e:
                     # I think these are safe to ignore...
                     pass
                 except RuntimeError as e:
@@ -464,5 +484,5 @@ class DropBox(BaseCog):
         self.drop_messages[guild_id][message.channel.id][message.id] = message
 
 
-def setup(bot):
-    bot.add_cog(DropBox(bot))
+async def setup(bot):
+    await bot.add_cog(DropBox(bot))

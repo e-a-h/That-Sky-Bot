@@ -44,11 +44,14 @@ class Sweepstakes(BaseCog):
     async def get_unique_react_users(self, message: Message):
         fields = ["id", "nick", "username", "discriminator", "mention", "left_guild"]
         data_list = ()
-        user_list = {}
-        for reaction in message.reactions:
-            async for user in reaction.users():
-                if user.id is not message.author.id and user.id is not self.bot.user.id:
-                    user_list[user.id] = user
+
+        def unique_user_predicate(this_user):
+            return this_user.id is not message.author.id and this_user.id is not self.bot.user.id
+
+        user_list = {user.id: user
+                     for reaction in message.reactions
+                     async for user in reaction.users() if unique_user_predicate(user)}
+
         for user_id, user in user_list.items():
             if hasattr(user, "nick"):
                 nick = user.nick
@@ -68,30 +71,40 @@ class Sweepstakes(BaseCog):
         fields = ["reaction", "id", "nick", "username", "discriminator", "mention", "left_guild"]
         data_list = ()
         reaction_list = {}
-        for reaction in message.reactions:
-            users = []
-            async for user in reaction.users():
-                if user.id is not message.author.id and user.id is not self.bot.user.id:
-                    users.append(user)
-            # store users, indexed by reaction emoji
-            key = reaction.emoji.name if hasattr(reaction.emoji, "name") else reaction.emoji
-            reaction_list[key] = users
 
-        for emoji_name, users in reaction_list.items():
-            for user in users:
-                if hasattr(user, "nick"):
-                    nick = user.nick
-                    left_guild = ""
-                else:
-                    nick = ""
-                    left_guild = "USER LEFT GUILD"
-                data_list += ({"reaction": emoji_name,
-                               "id": user.id,
-                               "nick": nick,
-                               "username": user.name,
-                               "discriminator": user.discriminator,
-                               "mention": user.mention,
-                               "left_guild": left_guild},)
+        def react_user_predicate(this_user):
+            return this_user.id is not message.author.id and this_user.id is not self.bot.user.id
+
+        try:
+            for reaction in message.reactions:
+                react_users = [react_user async for react_user in reaction.users()]
+                users = filter(react_user_predicate, react_users)
+                # store users, indexed by reaction emoji
+                key = reaction.emoji.name if hasattr(reaction.emoji, "name") else reaction.emoji
+                reaction_list[key] = users
+        except Exception as e:
+            await Utils.handle_exception("sweeps failed fetching all react users", self.bot, e)
+            raise
+
+        try:
+            for emoji_name, users in reaction_list.items():
+                for user in users:
+                    if hasattr(user, "nick"):
+                        nick = user.nick
+                        left_guild = ""
+                    else:
+                        nick = ""
+                        left_guild = "USER LEFT GUILD"
+                    data_list += ({"reaction": emoji_name,
+                                   "id": user.id,
+                                   "nick": nick,
+                                   "username": user.name,
+                                   "discriminator": user.discriminator,
+                                   "mention": user.mention,
+                                   "left_guild": left_guild},)
+        except Exception as e:
+            await Utils.handle_exception("sweeps failed logging all react users", self.bot, e)
+            raise
         return {'fields': fields, 'data': data_list}
 
     async def fetch_unique(self, ctx: Context, message: Message):
@@ -104,6 +117,7 @@ class Sweepstakes(BaseCog):
         except Exception as e:
             await Utils.handle_exception(f"Failed to get entries {channel_id}/{message_id}", self.bot, e)
             await ctx.send(f"Failed to get entries {channel_id}/{message_id}")
+            raise
 
     async def fetch_all(self, ctx: Context, message: Message):
         channel_id = message.channel.id
@@ -115,6 +129,7 @@ class Sweepstakes(BaseCog):
         except Exception as e:
             await Utils.handle_exception(f"Failed to get entries {channel_id}/{message_id}", self.bot, e)
             await ctx.send(Lang.get_locale_string('sweeps/fetch_entries_failed', ctx, channel_id=channel_id, message_id=message_id))
+            raise
 
     async def send_csv(self, ctx, fields: list, data: tuple):
         now = datetime.today().timestamp()
@@ -155,13 +170,17 @@ class Sweepstakes(BaseCog):
     async def end_clean(self, ctx: commands.Context, jump_url: str):
         message: Message = await self.get_reaction_message(ctx, jump_url)
         try:
-            await self.fetch_unique(ctx, message)
-            await self.fetch_all(ctx, message)
             pending = await ctx.send(Lang.get_locale_string('sweeps/removing_reactions', ctx))
-            await message.clear_reactions()
-            await pending.delete()
+            # TODO: refactor fetch methods to return dict and file so only 2 messages are sent; "working" and "done"
+            async with ctx.channel.typing():
+                await self.fetch_unique(ctx, message)
+            async with ctx.channel.typing():
+                await self.fetch_all(ctx, message)
+            async with ctx.channel.typing():
+                await message.clear_reactions()
+                await pending.delete()
         except Exception as e:
-            msg = f"Failed to clear reactions {message.channel.id}/{message.id}"
+            msg = f"Failed to complete sweeps for {message.channel.id}/{message.id}"
             await ctx.send(msg)
             await Utils.handle_exception(msg, self.bot, e)
             raise e
@@ -264,5 +283,5 @@ class Sweepstakes(BaseCog):
         await self.fetch_all(ctx, message)
 
 
-def setup(bot):
-    bot.add_cog(Sweepstakes(bot))
+async def setup(bot):
+    await bot.add_cog(Sweepstakes(bot))

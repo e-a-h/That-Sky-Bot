@@ -12,6 +12,7 @@ BACKUPS = {
     "NO": "🚫",
     "STABLE": "🌞",
     "SWITCH": "🍄",
+    "PLAYSTATION": "🎮",
     "WRENCH": "🔧",
     "YES": "✅",
     "CANDLE": "🕯",

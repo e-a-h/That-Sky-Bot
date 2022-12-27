@@ -7,6 +7,7 @@ from prometheus_client.exposition import generate_latest
 
 from cogs.BaseCog import BaseCog
 from utils import Configuration, Logging
+from utils.Logging import TCol
 
 
 class PromMonitoring(BaseCog):
@@ -17,12 +18,13 @@ class PromMonitoring(BaseCog):
         self.metric_server = None
         self.start_metrics = self.bot.loop.create_task(self.create_site())
 
-    def cog_unload(self):
+    async def cog_unload(self):
         self.running = False
         if self.metric_server:
-            self.bot.loop.create_task(self.metric_server.stop())
+            await self.metric_server.stop()
         else:
             self.start_metrics.cancel()
+        await self.start_metrics
 
     @commands.Cog.listener()
     async def on_command_completion(self, ctx):
@@ -44,14 +46,12 @@ class PromMonitoring(BaseCog):
 
     async def create_site(self):
         port = Configuration.get_var('METRICS_PORT', 8080)
-
-        await asyncio.sleep(10)
-        print("starting metrics server")
+        Logging.info(f"{TCol.cWarning}starting metrics server on port {port}{TCol.cEnd}")
         metrics_app = web.Application()
         metrics_app.add_routes([web.get("/metrics", self.serve_metrics)])
 
         runner = web.AppRunner(metrics_app)
-        await self.bot.loop.create_task(runner.setup())
+        await runner.setup()
         site = web.TCPSite(runner, port=port, host='localhost')
         await site.start()
 
@@ -62,5 +62,5 @@ class PromMonitoring(BaseCog):
         return web.Response(text=metrics_to_server, content_type="text/plain")
 
 
-def setup(bot):
-    bot.add_cog(PromMonitoring(bot))
+async def setup(bot):
+    await bot.add_cog(PromMonitoring(bot))

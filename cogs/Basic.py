@@ -24,7 +24,7 @@ class Basic(BaseCog):
         t2 = time.perf_counter()
         rest = round((t2 - t1) * 1000)
         latency = round(self.bot.latency * 1000, 2)
-        await message.edit(
+        edited_message = await message.edit(
             content=f":hourglass: REST API ping is {rest} ms | Websocket ping is {latency} ms :hourglass:")
 
     @command()
@@ -63,5 +63,5 @@ class Basic(BaseCog):
         await ctx.send(output)
 
 
-def setup(bot):
-    bot.add_cog(Basic(bot))
+async def setup(bot):
+    await bot.add_cog(Basic(bot))

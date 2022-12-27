@@ -99,7 +99,7 @@ class MusicCogPlayer:
 
                 reply_valid = True  # to be sure to break the loop
                 if q.get_expect_reply():
-                    await channel.trigger_typing()
+                    await channel.typing()
 
                     if reaction_choices:
 
@@ -135,7 +135,7 @@ class MusicCogPlayer:
         song_bundle:
         song_title:
         """
-        await channel.trigger_typing()
+        await channel.typing()
         message = "Here are your song files(s)"
         song_renders = song_bundle.get_all_renders()
 
@@ -463,5 +463,5 @@ class Music(BaseCog):
 """
 
 
-def setup(bot):
-    bot.add_cog(Music(bot))
+async def setup(bot):
+    await bot.add_cog(Music(bot))

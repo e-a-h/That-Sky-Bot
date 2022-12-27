@@ -12,14 +12,12 @@ class WordCounter(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        self.words = dict()
-        self.loaded = False
-        bot.loop.create_task(self.startup_cleanup())
+        self.words = None
 
-    async def startup_cleanup(self):
+    async def on_ready(self):
+        self.words = dict()
         for guild in self.bot.guilds:
             await self.init_guild(guild)
-        self.loaded = True
 
     async def init_guild(self, guild):
         my_words = set()
@@ -28,7 +26,7 @@ class WordCounter(BaseCog):
             my_words.add(re.escape(row.word))
         self.words[guild.id] = "|".join(my_words)
 
-    async def cog_check(self, ctx):
+    def cog_check(self, ctx):
         if ctx.guild is None:
             return False
         return ctx.author.guild_permissions.ban_members
@@ -78,7 +76,7 @@ class WordCounter(BaseCog):
         row = await CountWord.get_or_none(serverid=ctx.guild.id, word=word)
         if row is None:
             await CountWord.create(serverid = ctx.guild.id, word=word)
-            await self.startup_cleanup()
+            await self.on_ready()
             emoji = Emoji.get_chat_emoji('YES')
             msg = Lang.get_locale_string('word_counter/word_added', ctx, word=word)
             await ctx.send(f"{emoji} {msg}")
@@ -92,7 +90,7 @@ class WordCounter(BaseCog):
         row = await CountWord.get_or_none(serverid=ctx.guild.id, word=word)
         if row is not None:
             await row.delete()
-            await self.startup_cleanup()
+            await self.on_ready()
             emoji = Emoji.get_chat_emoji('YES')
             msg = Lang.get_locale_string('word_counter/word_removed', ctx, word=word)
         else:
@@ -106,7 +104,8 @@ class WordCounter(BaseCog):
             return
 
         prefix = Configuration.get_var("bot_prefix")
-        is_boss = await self.cog_check(message)
+        ctx = await self.bot.get_context(message)
+        is_boss = self.cog_check(ctx)
         command_context = message.content.startswith(prefix, 0) and is_boss
         not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
 
@@ -123,5 +122,5 @@ class WordCounter(BaseCog):
             m.word_counter.labels(word=word, guild_name=message.guild.name, guild_id=message.guild.id).inc()
 
 
-def setup(bot):
-    bot.add_cog(WordCounter(bot))
+async def setup(bot):
+    await bot.add_cog(WordCounter(bot))

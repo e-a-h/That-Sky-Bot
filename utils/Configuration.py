@@ -1,3 +1,4 @@
+import asyncio
 from collections import deque
 from dataclasses import dataclass
 import json
@@ -10,6 +11,7 @@ PERSISTENT = dict()
 PERSISTENT_LOADED = False
 PERSISTENT_DEQUE = deque()
 PERSISTENT_LOCK = False
+PERSISTENT_AIO_QUEUE: asyncio.Queue
 
 
 @dataclass()
@@ -65,11 +67,11 @@ def get_persistent_var(key, default=None):
 
 
 def set_persistent_var(key, value):
-    PERSISTENT_DEQUE.append(PersistentAction(key=key, value=value))
+    PERSISTENT_AIO_QUEUE.put_nowait(PersistentAction(key=key, value=value))
 
 
 def del_persistent_var(key, tolerate_missing=False):
-    PERSISTENT_DEQUE.append(PersistentAction(key=key, delete=True, tolerate_missing=tolerate_missing))
+    PERSISTENT_AIO_QUEUE.put_nowait(PersistentAction(key=key, delete=True, tolerate_missing=tolerate_missing))
 
 
 def do_persistent_action(action: PersistentAction):
@@ -77,6 +79,7 @@ def do_persistent_action(action: PersistentAction):
         # DELETE
         try:
             del PERSISTENT[action.key]
+            # Logging.info("save persistent delete")
             Utils.save_to_disk("persistent", PERSISTENT)
         except KeyError as e:
             if action.tolerate_missing:
@@ -89,4 +92,5 @@ def do_persistent_action(action: PersistentAction):
     elif not action.delete and action.key:
         # SAVE/CREATE
         PERSISTENT[action.key] = action.value
+        # Logging.info("save persistent")
         Utils.save_to_disk("persistent", PERSISTENT)

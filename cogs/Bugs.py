@@ -1,21 +1,37 @@
 import asyncio
 import re
 import time
-from concurrent.futures import CancelledError
+from dataclasses import dataclass
+
+import discord
+
+from utils.Utils import get_member_log_name
+from sky import queue_worker
+from asyncio import CancelledError
 from datetime import datetime
 
 from discord import Forbidden, Embed, NotFound, HTTPException, TextChannel
 from discord.ext import commands, tasks
-from discord.ext.commands import Context, clean_content
+from discord.ext.commands import Context
+from discord.utils import utcnow
 from tortoise.exceptions import DoesNotExist, OperationalError, IntegrityError
 
 import sky
 from cogs.BaseCog import BaseCog
 from utils import Questions, Emoji, Utils, Configuration, Lang, Logging
 from utils.Database import BugReport, Attachments, BugReportingPlatform, BugReportingChannel, Guild
+from utils.Logging import TCol
+
+
+@dataclass()
+class BugReportingAction:
+    author: discord.User
+    channel: discord.TextChannel
 
 
 class Bugs(BaseCog):
+
+    bug_report_queue = asyncio.Queue()
 
     def __init__(self, bot):
         super().__init__(bot)
@@ -25,22 +41,99 @@ class Bugs(BaseCog):
         self.blocking = set()
         self.maintenance_message = None
         self.maint_check_count = 0
+        self.bug_tasks = []
+        self.bug_runner_tasks = [
+            asyncio.create_task(
+                queue_worker(f"Bug Queue {i}", self.bug_report_queue, self.run_bug_report))
+            for i in range(10)
+        ]
+
+    async def cog_unload(self):
+        if self.bug_report_queue.qsize() > 0:
+            Logging.info(f"\tthere are {self.bug_report_queue.qsize()} bug reports not yet started...")
+            # TODO: warn queued users their reports won't start
+            # TODO: cancel report
+            # TODO: save bug progress
+            # TODO: resume report when restarting? inform user report was interrupted by restart, re-ask last question
+        Logging.info(f"\t{TCol.cWarning}Cancel active bug runners{TCol.cEnd}")
+        for task in [*self.bug_runner_tasks, *self.bug_tasks]:
+            task.cancel()
+        try:
+            Logging.info(f"\t{TCol.cWarning}Wait for bug tasks to end{TCol.cEnd}")
+            await asyncio.gather(*self.bug_tasks)
+            Logging.info(f"\t{TCol.cWarning}Wait for bug runners to end{TCol.cEnd}")
+            await asyncio.gather(*self.bug_runner_tasks)
+        except CancelledError:
+            pass
+        except Exception as e:
+            Logging.info(e)
+        Logging.info(f"\t{TCol.cWarning}Verify empty bug queue{TCol.cEnd}")
+        self.verify_empty_bug_queue.cancel()
+        Logging.info(f"\t{TCol.cWarning}Cancel bug cleanup tasks{TCol.cEnd}")
+        for task in self.sweeps:
+            task.cancel()
+        await asyncio.gather(*self.sweeps)
+        Logging.info(f"\t{TCol.cOkGreen}Bugs unloaded{TCol.cEnd}")
+
+    async def cog_load(self):
+        Logging.info("starting bugs")
         m = self.bot.metrics
         m.reports_in_progress.set_function(lambda: len(self.in_progress))
-        bot.loop.create_task(self.startup_cleanup())
+        # this count is only good for reports waiting to start
+        # TODO: how to count number of workers that are working?
+        # m.reports_in_progress.set_function(self.bug_report_queue.qsize)
 
-    def cog_unload(self):
-        self.verify_empty_bug_queue.cancel()
+    async def on_ready(self):
+        Logging.info("readying bugs")
+        # for name, cid in Configuration.get_var("channels").items():
+        reporting_channel_ids = []
+        for row in await BugReportingChannel.all().prefetch_related('guild', 'platform'):
+            cid = row.channelid
+            name = f"{row.platform.platform}_{row.platform.branch}"
+            guild_id = row.guild.serverid
+            channel = self.bot.get_channel(cid)
+            shutdown_key = f"{guild_id}_{name}_shutdown"
+            shutdown_id = Configuration.get_persistent_var(shutdown_key)
+
+            if shutdown_id is not None and channel is not None:
+                Configuration.del_persistent_var(shutdown_key)
+                try:
+                    message = await channel.fetch_message(shutdown_id)
+                    await message.delete()
+                except (NotFound, HTTPException):
+                    pass
+            reporting_channel_ids.append(cid)
+        try:
+            await self.send_bug_info(*reporting_channel_ids)
+        except Exception as e:
+            await Utils.handle_exception("bug startup failure", self.bot, e)
 
     def can_mod(ctx):
         guild = Utils.get_home_guild()
         member = guild.get_member(ctx.author.id)
         return member.guild_permissions.mute_members
 
+    def enqueue_bug_report(self, user, channel):
+        self.bug_report_queue.put_nowait(BugReportingAction(user, channel))
+
+    async def run_bug_report(self, work_item: BugReportingAction):
+        try:
+            Logging.info(f"Beginning bug report for {TCol.cOkCyan}{get_member_log_name(work_item.author)}{TCol.cEnd}")
+            this_task = self.bot.loop.create_task(self.report_bug(work_item.author, work_item.channel))
+            self.bug_tasks.append(this_task)
+            await this_task
+        except CancelledError as e:
+            # TODO: why is CancelledError not caught here during shutdown?
+            Logging.info(f"channel {work_item.channel.mention}, user {get_member_log_name(work_item.author)}")
+            raise e
+        except Exception as e:
+            Logging.info(e)
+            raise e
+
     async def sweep_trash(self, user, ctx):
         await asyncio.sleep(Configuration.get_var("bug_trash_sweep_minutes") * 60)
         if user.id in self.in_progress:
-            if not self.in_progress[user.id].done() or not self.in_progress[user.id].cancelled():
+            if not self.in_progress[user.id].done() or not self.in_progress[user.id].canceled():
                 await user.send(Lang.get_locale_string("bugs/sweep_trash", ctx))
             await self.delete_progress(user.id)
 
@@ -67,82 +160,59 @@ class Bugs(BaseCog):
                 guild_id = row.guild.serverid
                 channel = self.bot.get_channel(cid)
 
-                message = await channel.send(Lang.get_locale_string("bugs/shutdown_message"))
-                Configuration.set_persistent_var(f"{guild_id}_{name}_shutdown", message.id)
+                if channel is not None:
+                    message = await channel.send(Lang.get_locale_string("bugs/shutdown_message"))
+                    Configuration.set_persistent_var(f"{guild_id}_{name}_shutdown", message.id)
+                else:
+                    Logging.info(f"Bugs cog can't send to nonexistent channel {cid}")
             except Exception as e:
                 message = f"Failed sending shutdown message <#{cid}> in server {guild_id} for {name}"
                 await self.bot.guild_log(guild_id, message)
                 await Utils.handle_exception(message, self.bot, e)
 
-    async def startup_cleanup(self):
-        Logging.info("starting bugs")
-        # TODO: find out what the condition is we need to wait for instead of just sleep
-        # await asyncio.sleep(20)
-
-        # for name, cid in Configuration.get_var("channels").items():
-        reporting_channel_ids = []
-        for row in await BugReportingChannel.all().prefetch_related('guild', 'platform'):
-            cid = row.channelid
-            name = f"{row.platform.platform}_{row.platform.branch}"
-            guild_id = row.guild.serverid
-            channel = self.bot.get_channel(cid)
-            shutdown_key = f"{guild_id}_{name}_shutdown"
-            shutdown_id = Configuration.get_persistent_var(shutdown_key)
-
-            if shutdown_id is not None:
-                Configuration.del_persistent_var(shutdown_key)
-                try:
-                    message = await channel.fetch_message(shutdown_id)
-                    await message.delete()
-                except (NotFound, HTTPException):
-                    pass
-            reporting_channel_ids.append(cid)
-        try:
-            await self.send_bug_info(*reporting_channel_ids)
-        except Exception as e:
-            await Utils.handle_exception("bug startup failure", self.bot, e)
-
     async def send_bug_info(self, *args):
+        send_tasks = []
         for channel_id in args:
             channel = self.bot.get_channel(channel_id)
             if channel is None:
                 await Logging.bot_log(f"can't send bug info to nonexistent channel {channel_id}")
                 continue
+            send_tasks.append(self.send_bug_info_impl(channel))
+        await asyncio.gather(*send_tasks)
 
-            bug_info_id = Configuration.get_persistent_var(f"{channel.guild.id}_{channel_id}_bug_message")
+    async def send_bug_info_impl(self, channel):
+        bug_info_id = Configuration.get_persistent_var(f"{channel.guild.id}_{channel.id}_bug_message")
 
-            ctx = None
-            tries = 0
-            while not ctx and tries < 5:
-                tries += 1
-                # this API call fails on startup because connection is not made yet.
-                # TODO: properly wait for connection to be initialized
-                try:
-                    last_message = await channel.send('preparing bug reporting...')
-                    ctx = await self.bot.get_context(last_message)
+        ctx = None
+        tries = 0
+        while not ctx and tries < 5:
+            tries += 1
+            try:
+                last_message = await channel.send('preparing bug reporting...')
+                ctx = await self.bot.get_context(last_message)
 
-                    if bug_info_id is not None:
-                        try:
-                            message = await channel.fetch_message(bug_info_id)
-                        except (NotFound, HTTPException):
-                            pass
-                        else:
-                            await message.delete()
-                            if message.id in self.bug_messages:
-                                self.bug_messages.remove(message.id)
+                if bug_info_id is not None:
+                    try:
+                        message = await channel.fetch_message(bug_info_id)
+                    except (NotFound, HTTPException):
+                        pass
+                    else:
+                        if message.id in self.bug_messages:
+                            self.bug_messages.remove(message.id)
+                        await message.delete()
 
-                    bugemoji = Emoji.get_emoji('BUG')
-                    message = await channel.send(Lang.get_locale_string("bugs/bug_info", ctx, bug_emoji=bugemoji))
-                    self.bug_messages.add(message.id)
-                    await message.add_reaction(bugemoji)
-                    Configuration.set_persistent_var(f"{channel.guild.id}_{channel_id}_bug_message", message.id)
-                    Logging.info(f"Bug report message sent in channel #{channel.name} ({channel.id})")
-                    await last_message.delete()
-                except Exception as e:
-                    await self.bot.guild_log(channel.guild.id, f'Having trouble sending bug message in {channel.mention}')
-                    await Utils.handle_exception(
-                        f"Bug report message failed to send in channel #{channel.name} ({channel.id})", self.bot, e)
-                    await asyncio.sleep(0.5)
+                bugemoji = Emoji.get_emoji('BUG')
+                message = await channel.send(Lang.get_locale_string("bugs/bug_info", ctx, bug_emoji=bugemoji))
+                self.bug_messages.add(message.id)
+                await message.add_reaction(bugemoji)
+                Configuration.set_persistent_var(f"{channel.guild.id}_{channel.id}_bug_message", message.id)
+                Logging.info(f"Bug report message sent in channel #{channel.name} ({channel.id})")
+                await last_message.delete()
+            except Exception as e:
+                await self.bot.guild_log(channel.guild.id, f'Having trouble sending bug message in {channel.mention}')
+                await Utils.handle_exception(
+                    f"Bug report message failed to send in channel #{channel.name} ({channel.id})", self.bot, e)
+                await asyncio.sleep(0.5)
 
     @tasks.loop(seconds=30.0)
     async def verify_empty_bug_queue(self, ctx):
@@ -158,9 +228,10 @@ class Bugs(BaseCog):
                 self.maintenance_message = await ctx.send(msg)
             else:
                 self.maint_check_count += 1
-                await self.maintenance_message.edit(content=msg + (" ." * self.maint_check_count))
+                edited_message = await self.maintenance_message.edit(content=msg + (" ." * self.maint_check_count))
             return
-        elif self.maint_check_count > 0:
+
+        if self.maint_check_count > 0:
             await self.maintenance_message.delete()
             await ctx.send(Lang.get_locale_string('bugs/bugs_all_done', ctx, author=ctx.author.mention))
         else:
@@ -250,13 +321,13 @@ class Bugs(BaseCog):
         # remove command to not flood chat (unless we are in a DM already)
         if ctx.guild is not None:
             await ctx.message.delete()
-        await self.report_bug(ctx.author, ctx.channel)
+        self.enqueue_bug_report(ctx.author, ctx.channel)
 
     @bug.command()
     @commands.check(can_mod)
     async def cleanup(self, ctx):
         await ctx.send("Attempting to re-send bug channel prompt messages...")
-        await self.startup_cleanup()
+        await self.on_ready()
         await ctx.send("Done! ||I think?||")
 
     @bug.group(name='platforms', aliases=['platform'], invoke_without_command=True)
@@ -378,8 +449,9 @@ class Bugs(BaseCog):
     @commands.guild_only()
     @sky.can_admin()
     async def reset_active(self, ctx):
-        """Reset active bug reports. Bot will attempt to DM users whose reports are cancelled."""
-        to_kill = len(self.in_progress)
+        """Reset active bug reports. Bot will attempt to DM users whose reports are canceled."""
+        to_kill = self.bug_report_queue.qsize()
+        # to_kill = len(self.in_progress)
         active_keys = [key for key in self.in_progress.keys()]
         for uid in active_keys:
             try:
@@ -399,7 +471,7 @@ class Bugs(BaseCog):
     async def report_bug(self, user, trigger_channel):
         # fully ignore muted users
         m = self.bot.metrics
-        last_message = await trigger_channel.history(limit=1).flatten()
+        last_message = [message async for message in trigger_channel.history(limit=1)]
         last_message = last_message[0]
         ctx = await self.bot.get_context(last_message)
         await asyncio.sleep(1)
@@ -460,8 +532,9 @@ class Bugs(BaseCog):
         self.sweeps[user.id] = sweep
         try:
             await task
-        except CancelledError as ex:
-            pass
+        except CancelledError as e:
+            Logging.info(f"Cancelling in-progress report for {get_member_log_name(user)}")
+            raise e
 
     async def actual_bug_reporter(self, user, trigger_channel):
         # wrap everything so users can't get stuck in limbo
@@ -470,7 +543,7 @@ class Bugs(BaseCog):
         restarting = False
         try:
             channel = await user.create_dm()
-            last_message = await trigger_channel.history(limit=1).flatten()
+            last_message = [message async for message in trigger_channel.history(limit=1)]
             last_message = last_message[0]
             ctx = await self.bot.get_context(last_message)
 
@@ -535,7 +608,7 @@ class Bugs(BaseCog):
                                             platform_version=platform_version, branch=branch, app_version=app_version,
                                             app_build=app_build, title=title, steps=steps, expected=expected,
                                             actual=actual, additional=additional_text,
-                                            reported_at=int(datetime.utcnow().timestamp()))
+                                            reported_at=int(utcnow().timestamp()))
                 for url in attachment_links:
                     await Attachments.create(report=br, url=url)
 
@@ -594,7 +667,7 @@ class Bugs(BaseCog):
                 restarting = True
                 m.reports_restarted.inc()
                 await self.delete_progress(user.id)
-                self.bot.loop.create_task(self.report_bug(user, trigger_channel))
+                self.enqueue_bug_report(user, trigger_channel)
 
             # start global report timer and question timer
             report_start_time = question_start_time = time.time()
@@ -763,7 +836,8 @@ class Bugs(BaseCog):
 
                 # assemble the report and show to user for review
                 report = Embed(timestamp=datetime.utcfromtimestamp(time.time()))
-                report.set_author(name=f"{user} ({user.id})", icon_url=user.avatar_url_as(size=32))
+                avatar = user.avatar.replace(size=32).url if user.avatar else None
+                report.set_author(name=f"{user} ({user.id})", icon_url=avatar)
                 report.add_field(
                     name=Lang.get_locale_string("bugs/platform", ctx), value=f"{platform} {platform_version}")
                 report.add_field(
@@ -820,6 +894,8 @@ class Bugs(BaseCog):
             if active_question is not None:
                 m.reports_exit_question.observe(active_question)
         except CancelledError as ex:
+            Logging.info(f"Cancel actual bug reporter. user {get_member_log_name(user)}")
+            await channel.send(f"Skybot was attacked by krill and your report got broken. Please try again.")
             m.report_incomplete_count.inc()
             if active_question is not None:
                 m.reports_exit_question.observe(active_question)
@@ -829,7 +905,7 @@ class Bugs(BaseCog):
             await Utils.handle_exception("bug reporting", self.bot, ex)
             raise ex
         finally:
-            self.bot.loop.create_task(self.delete_progress(user.id))
+            await self.delete_progress(user.id)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):
@@ -852,8 +928,8 @@ class Bugs(BaseCog):
                     )
                 except Exception as e:
                     await Utils.handle_exception("bug invocation failure", self.bot, e)
-            await self.report_bug(user, channel)
+            self.enqueue_bug_report(user, channel)
 
 
-def setup(bot):
-    bot.add_cog(Bugs(bot))
+async def setup(bot):
+    await bot.add_cog(Bugs(bot))

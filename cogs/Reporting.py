@@ -64,7 +64,7 @@ class Reporting(BaseCog):
             pl_b = pl_a.lower()
             if pl_b in platforms:
                 return [platforms[pl_b]]
-            return ["Android", "iOS", "Switch"]
+            return ["Android", "iOS", "Switch", "PlayStation"]
 
         # dashes at the start of text are interpreted as formulas by excel. replace with *
         def filter_hyphens(text):
@@ -155,5 +155,5 @@ class Reporting(BaseCog):
         os.remove(f"report_{now}.csv")
 
 
-def setup(bot):
-    bot.add_cog(Reporting(bot))
+async def setup(bot):
+    await bot.add_cog(Reporting(bot))

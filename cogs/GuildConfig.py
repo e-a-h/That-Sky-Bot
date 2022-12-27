@@ -15,19 +15,18 @@ class GuildConfig(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        bot.loop.create_task(self.startup_cleanup())
+        self.loaded_guilds = []
 
-    async def startup_cleanup(self):
+    async def on_ready(self):
         for guild in self.bot.guilds:
             try:
-                await self.init_guild(guild)
+                await self.init_guild(guild.id)
             except Exception as e:
                 Logging.info(e)
 
-    @staticmethod
-    async def init_guild(guild):
-        row, created = await Guild.get_or_create(serverid=guild.id)
-        Utils.GUILD_CONFIGS[guild.id] = row
+    async def init_guild(self, guild_id):
+        row, created = await Guild.get_or_create(serverid=guild_id)
+        Utils.GUILD_CONFIGS[guild_id] = row
         return row
 
     def cog_unload(self):
@@ -491,5 +490,5 @@ class GuildConfig(BaseCog):
         del self.power_task[ctx.guild.id]
 
 
-def setup(bot):
-    bot.add_cog(GuildConfig(bot))
+async def setup(bot):
+    await bot.add_cog(GuildConfig(bot))

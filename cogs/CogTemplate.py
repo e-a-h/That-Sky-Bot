@@ -9,15 +9,18 @@ class CogName(BaseCog):
     def __init__(self, bot):
         super().__init__(bot)
         self.guild_specific_lists = dict()
-        self.bot.loop.create_task(self.startup_cleanup())
-        self.periodic_task.start()
 
-    def cog_unload(self):
-        self.periodic_task.cancel()
+    async def cog_load(self):
+        # initialize anything that should happen before login
+        pass
 
-    async def startup_cleanup(self):
+    async def on_ready(self):
         for guild in self.bot.guilds:
             await self.init_guild(guild)
+        self.periodic_task.start()
+
+    async def cog_unload(self):
+        self.periodic_task.cancel()
 
     async def init_guild(self, guild):
         # init guild-specific dicts and lists
@@ -45,5 +48,5 @@ class CogName(BaseCog):
         pass
 
 
-def setup(bot):
-    bot.add_cog(CogName(bot))
+async def setup(bot):
+    await bot.add_cog(CogName(bot))

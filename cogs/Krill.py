@@ -54,9 +54,7 @@ class Krill(BaseCog):
             n='{0,10}'
         ))
 
-        bot.loop.create_task(self.startup_cleanup())
-
-    async def startup_cleanup(self):
+    async def cog_load(self):
         my_letters = await OreoLetters.all()
         self.oreo_map, created = await OreoMap.get_or_create()
         if len(my_letters) == 0:
@@ -83,8 +81,8 @@ class Krill(BaseCog):
             if row.token_class not in self.oreo_filter:
                 self.oreo_filter[row.token_class] = set()
             if row.token == "":
-                print(f"bad letter... id {row.id}")
-                print(row)
+                Logging.info(f"bad letter... id {row.id}")
+                Logging.info(row)
                 continue
             self.oreo_filter[row.token_class].add(re.escape(row.token))
 
@@ -97,6 +95,7 @@ class Krill(BaseCog):
             # if date gt expiry, unkrill, else schedule unkrilling
         """
 
+    async def on_ready(self):
         # Load channels
         for guild in self.bot.guilds:
             await self.init_guild(guild)
@@ -520,11 +519,11 @@ class Krill(BaseCog):
             if return_value in keys.keys():
                 row = keys[return_value]
                 await ctx.send(Lang.get_locale_string('common/you_chose_codeblock', ctx, value=row.byline))
-                self.bot.loop.create_task(clean_dialog())
+                await clean_dialog()
                 return row
             raise ValueError
         except (ValueError, asyncio.TimeoutError):
-            self.bot.loop.create_task(clean_dialog())
+            await clean_dialog()
             key_dump = ', '.join(str(x) for x in keys)
             await self.nope(ctx, Lang.get_locale_string("common/expect_integer", ctx, keys=key_dump))
             raise
@@ -574,11 +573,11 @@ class Krill(BaseCog):
             if return_value in keys.keys():
                 chosen_type = keys[return_value]
                 await ctx.send(Lang.get_locale_string('common/you_chose_codeblock', ctx, value=chosen_type))
-                self.bot.loop.create_task(clean_dialog())
+                await clean_dialog()
                 return return_value
             raise ValueError
         except (ValueError, asyncio.TimeoutError):
-            self.bot.loop.create_task(clean_dialog())
+            await clean_dialog()
             key_dump = ', '.join(str(x) for x in keys)
             await self.nope(ctx, Lang.get_locale_string("common/expect_integer", ctx, keys=key_dump))
             raise
@@ -818,7 +817,7 @@ class Krill(BaseCog):
         if not guild_krill_config.allow_text:
             arg = ''
 
-        await ctx.trigger_typing()
+        await ctx.typing()
 
         if ctx.message.author.id in self.monsters.keys():
             now = datetime.now().timestamp()
@@ -1047,7 +1046,7 @@ class Krill(BaseCog):
             sky_kid = return_home if count > 0 and going_home else red
             distance = distance - step
             spaces = str(blank) * distance
-            await message.edit(content=f"{space_step}{victim_name} {sky_kid}{spaces}{head}{body}{tail}")
+            message = await message.edit(content=f"{space_step}{victim_name} {sky_kid}{spaces}{head}{body}{tail}")
             await asyncio.sleep(time_step)
             count = count + 1
 
@@ -1056,24 +1055,24 @@ class Krill(BaseCog):
         count = 0
         secaps = ""
         if going_home:
-            await message.edit(content=f"{space_step}{victim_name} {sky_kid}")
+            message = await message.edit(content=f"{space_step}{victim_name} {sky_kid}")
             await asyncio.sleep(time_step*2)
             return_type = self.get_byline_type_id('return_home')
             evaded_by = [byline for byline in bylines if byline.type == return_type['id']]
             # TODO: detect channel/locale
-            await summoned_by.edit(content=choice(evaded_by).byline.format(mention=ctx.author.mention))
-            await message.edit(content=f"{space_step}{victim_name} {party_kid}")
+            summoned_by = await summoned_by.edit(content=choice(evaded_by).byline.format(mention=ctx.author.mention))
+            message = await message.edit(content=f"{space_step}{victim_name} {party_kid}")
         else:
             if distance == 0:
                 # no star animation. send final result
-                await message.edit(content=f"{secaps}{star}{spaces}{bonked_kid} {victim_name}{spaces}{star}{spaces}{star}")
+                message = await message.edit(content=f"{secaps}{star}{spaces}{bonked_kid} {victim_name}{spaces}{star}{spaces}{star}")
             else:
                 # star animation
                 while count < distance:
                     spaces = str(blank) * count
                     count = count + step
                     secaps = str(blank) * (distance - count)
-                    await message.edit(content=f"{secaps}{star}{spaces}{bonked_kid} {victim_name}{spaces}{star}{spaces}{star}")
+                    message = await message.edit(content=f"{secaps}{star}{spaces}{bonked_kid} {victim_name}{spaces}{star}{spaces}{star}")
                     await asyncio.sleep(time_step)
 
         # await message.add_reaction(star)
@@ -1168,5 +1167,5 @@ class Krill(BaseCog):
                 f"{Emoji.get_chat_emoji('NO')} {not_found}")
 
 
-def setup(bot):
-    bot.add_cog(Krill(bot))
+async def setup(bot):
+    await bot.add_cog(Krill(bot))

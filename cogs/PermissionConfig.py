@@ -15,9 +15,8 @@ class PermissionConfig(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        bot.loop.create_task(self.startup_cleanup())
 
-    async def startup_cleanup(self):
+    async def on_ready(self):
         for guild in self.bot.guilds:
             await self.init_guild(guild)
             await self.load_guild(guild)
@@ -144,7 +143,7 @@ class PermissionConfig(BaseCog):
     @commands.is_owner()
     @commands.guild_only()
     async def reload(self, ctx: commands.Context):
-        await self.startup_cleanup()
+        await self.on_ready()
         await ctx.send("reloaded permissions from db...")
         await ctx.invoke(self.permission_config)
 
@@ -153,5 +152,5 @@ class PermissionConfig(BaseCog):
     # TODO: add user to bot_admins
 
 
-def setup(bot):
-    bot.add_cog(PermissionConfig(bot))
+async def setup(bot):
+    await bot.add_cog(PermissionConfig(bot))

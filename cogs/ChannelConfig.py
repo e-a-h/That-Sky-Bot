@@ -12,13 +12,18 @@ class ChannelConfig(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        bot.loop.create_task(self.startup_cleanup())
 
-    async def startup_cleanup(self):
+    async def cog_load(self):
         # Load channels
         self.bot.config_channels = dict()
+
+    async def on_ready(self):
         for guild in self.bot.guilds:
             await self.load_guild(guild)
+
+    async def startup_cleanup(self):
+        await self.cog_load()
+        await self.on_ready()
 
     async def init_guild(self, guild):
         self.bot.config_channels[guild.id] = dict()
@@ -108,5 +113,5 @@ class ChannelConfig(BaseCog):
         return True
 
 
-def setup(bot):
-    bot.add_cog(ChannelConfig(bot))
+async def setup(bot):
+    await bot.add_cog(ChannelConfig(bot))

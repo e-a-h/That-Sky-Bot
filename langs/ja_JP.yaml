@@ -41,7 +41,7 @@ bugs:
   no_numbers: --jp-- There don't appear to be any numbers in there
   text_too_long: --jp-- That text seems suspiciously long for the question asked... Try typing up a shorter answer (up to {max} characters) and we'll see if I like it
   report_header: "--jp-- **Bug Report {id} - submitted by {user}**"
-  report_timeout: --jp-- This report has been cancelled. Go back to the bug report channel to start a new one!
+  report_timeout: --jp-- This report has been canceled. Go back to the bug report channel to start a new one!
   attachments_yes: --jp-- Yes, add pictures/videos
   attachment_info: "--jp-- **Attachment to report {id}**\n{links}"
   attachment_info_plural: "--jp-- **Attachments to report {id}**\n{links}"
@@ -90,8 +90,9 @@ bugs:
     > 1. Look on the back of your Switch
     > 2. The version looks like `MOD. XXX-000` with 3 letters and 3 numbers. Some Switch devices have additional numbers in parentheses
     https://media.discordapp.net/attachments/834518314264821810/840396032457965578/switch_version.jpg
-  device_info_ios:
-  device_info_android:
+  device_info_ios: |
+  device_info_android: |
+  device_info_playstation: |
   question_app_branch: |
     --jp-- ```css
     Sky App Type
@@ -136,6 +137,13 @@ bugs:
     > 4. Version info will be in small print right beneath the game title. Find `Ver. X.X.X.XXXXXX`
     > 5. The first 3 digits, `X.X.X` are the version, and the last 6 digits are the build number
     https://media.discordapp.net/attachments/834518314264821810/840007394154774539/unknown.png
+  version_playstation: |
+    --jp-- **To find the Sky app version for bug reporting:**
+    > 1. Navigate to the main PS menu.
+    > 2. Highlight Sky.
+    > 3. Press the options button on your controller.
+    > 4. App version will show up under “Information”.
+    https://cdn.discordapp.com/attachments/623178459438645248/1050614478825336883/ps_info.png
   title: --jp-- Title/Topic
   question_title: |
     --jp-- ```css
@@ -431,8 +439,8 @@ music:
   dm_unable: '--jp-- {user}, I was unable to DM you to transcribe a song. You can enable this in the privacy settings, found in the server dropdown menu.'
   text_too_long: --jp-- Text response is too long, {max} characters is the max.
   abort_song: --jp-- Ok, I won't ask you any more questions for now. Call me again to start a new song!
-  song_timeout: --jp-- This song creation has been cancelled. Call me again to start a new song!
-  song_trash: --jp-- Sorry to bother you, but you had an in-progress song that was idle for too long. I cancelled it. If you think you received this message in error, please report me to the proper authorites (a moderator in the Sky server)
+  song_timeout: --jp-- This song creation has been canceled. Call me again to start a new song!
+  song_trash: --jp-- Sorry to bother you, but you had an in-progress song that was idle for too long. I canceled it. If you think you received this message in error, please report me to the proper authorites (a moderator in the Sky server)
   start_over: '--jp-- {user} You are already in the middle of creating a song. Do you want to cancel that song to start a new one?'
   start_over_yes: --jp-- Cancel my song and start a new one
   start_over_no: --jp-- Do not cancel my current song creation

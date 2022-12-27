@@ -69,6 +69,7 @@ bugs:
   device_info_switch:
   device_info_ios:
   device_info_android:
+  device_info_playstation:
   question_app_branch:
   app_version:
   question_app_version:
@@ -77,6 +78,7 @@ bugs:
   version_android:
   version_ios:
   version_switch:
+  version_playstation:
   title:
   question_title:
   description:
