@@ -216,9 +216,10 @@ name cooldown is {self.name_cooldown_time} seconds
         wishes_granted = sum(member_counts.values())
         guild = Utils.get_home_guild()
         max_user: discord.Member = guild.get_member(int(max_member_id))
+        max_user_name = Utils.get_member_log_name(max_user)
         await ctx.send(f"{len(member_counts)} people have gotten mischief roles.\n"
                        f"I have granted {wishes_granted} wishes.\n"
-                       f"{max_user.mention} has wished the most, with {member_counts[max_member_id]} wishes granted.",
+                       f"{max_user_name} has wished the most, with {member_counts[max_member_id]} wishes granted.",
                        allowed_mentions=AllowedMentions.none())
 
     @commands.cooldown(1, 60, BucketType.member)

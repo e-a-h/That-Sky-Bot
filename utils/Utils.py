@@ -267,7 +267,9 @@ async def username(uid, fetch=True, clean=True):
 
 
 def get_member_log_name(member):
-    return f"{member.mention} {str(member)} ({member.id})"
+    if member:
+        return f"{member.mention} {str(member)} ({member.id})"
+    return "unknown user"
 
 
 async def clean(text, guild=None, markdown=True, links=True, emoji=True):

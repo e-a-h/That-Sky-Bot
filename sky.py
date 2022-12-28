@@ -282,8 +282,13 @@ async def queue_worker(name, queue, job, shielded=False):
                 else:
                     await asyncio.create_task(job(work_item))
             except asyncio.CancelledError:
-                if not running:
+                Logging.info(f"job cancelled for worker {name}")
+                if not Utils.BOT.loaded:
+                    Logging.info(f"stopping worker {name}")
                     raise
+                Logging.info(f"worker {name} continues")
+            except Exception as e:
+                await Utils.handle_exception("worker unexpected exception", Utils.BOT, e)
             queue.task_done()
     finally:
         Logging.info(f"{name} worker is finished")
@@ -349,6 +354,7 @@ async def main():
     except KeyboardInterrupt:
         pass
     finally:
+        skybot.loaded = False
         running = False
         Logging.info(f"{TCol.cWarning}shutdow finally?{TCol.cEnd}")
         # Wait until all queued jobs are done, then cancel worker.

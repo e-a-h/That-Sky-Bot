@@ -45,7 +45,7 @@ class Bugs(BaseCog):
         self.bug_runner_tasks = [
             asyncio.create_task(
                 queue_worker(f"Bug Queue {i}", self.bug_report_queue, self.run_bug_report))
-            for i in range(10)
+            for i in range(200)
         ]
 
     async def cog_unload(self):
@@ -124,7 +124,7 @@ class Bugs(BaseCog):
             await this_task
         except CancelledError as e:
             # TODO: why is CancelledError not caught here during shutdown?
-            Logging.info(f"channel {work_item.channel.mention}, user {get_member_log_name(work_item.author)}")
+            Logging.info(f"channel {work_item.channel.id}, user {get_member_log_name(work_item.author)}")
             raise e
         except Exception as e:
             Logging.info(e)
