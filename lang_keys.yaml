@@ -246,7 +246,7 @@ custom_commands:
   not_found:
   creating_command:
   command_updated:
-  delete_trigger_updated:
+  deletetrigger_trigger_updated:
   reply_trigger_updated:
 word_counter:
   list_words:

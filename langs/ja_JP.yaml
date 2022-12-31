@@ -384,7 +384,7 @@ custom_commands:
   not_found: --jp-- Unable to remove `{trigger}` as it doesn't seem to exist.
   creating_command: --jp-- This command does not exist, making it for you instead.
   command_updated: --jp-- Command `{trigger}` has been updated!
-  delete_trigger_updated: |
+  deletetrigger_trigger_updated: |
     --jp-- Command `{trigger}` delete triggering command: `{value}`
   reply_trigger_updated: |
     --jp-- Command `{trigger}` reply to command author: `{value}`
