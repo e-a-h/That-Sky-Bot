@@ -1,5 +1,3 @@
-import logging
-
 from tortoise import Tortoise
 from tortoise.models import Model
 from tortoise.fields import \

@@ -1,0 +1,11 @@
+aerich
+asyncmy
+discord
+image-similarity-measures
+prometheus_client
+pytz
+pyyaml
+requests
+sentry-sdk
+setuptools
+tortoise-orm
