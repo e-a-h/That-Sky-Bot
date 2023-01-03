@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 from tortoise.exceptions import OperationalError
@@ -9,7 +10,7 @@ from discord import NotFound, HTTPException
 from discord.ext import commands, tasks
 
 from cogs.BaseCog import BaseCog
-from utils import Utils, Configuration, Lang
+from utils import Utils, Configuration, Lang, Logging
 
 
 class ReactMonitor(BaseCog):
@@ -25,11 +26,13 @@ class ReactMonitor(BaseCog):
         self.guilds = dict()
         self.emoji = dict()
         self.mutes = dict()
+        self.started = False
 
     async def on_ready(self):
         for guild in self.bot.guilds:
             await self.init_guild(guild.id)
         self.check_reacts.start()
+        self.started = True
 
     async def init_guild(self, guild_id):
         watch, created = await ReactWatch.get_or_create(serverid=guild_id)
@@ -377,13 +380,16 @@ class ReactMonitor(BaseCog):
         await ctx.send(f"Members will now be muted for {t} when they use restricted reacts")
 
     def store_reaction_action(self, event):
-        if self.is_user_event_ignored(event):
+        if not self.started or self.is_user_event_ignored(event):
             return
 
         # Add event to dict for tracking fast removal of reactions
         now = datetime.now().timestamp()
         guild = self.bot.get_guild(event.guild_id)
-        self.recent_reactions[guild.id][now] = event
+        try:
+            self.recent_reactions[guild.id][now] = event
+        except KeyError as e:
+            Logging.debug(f"React Monitory Key error: {json.dumps(e)}")
 
     async def process_reaction_add(self, timestamp, event):
         emoji_used = event.emoji

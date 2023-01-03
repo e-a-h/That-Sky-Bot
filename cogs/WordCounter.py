@@ -113,13 +113,17 @@ class WordCounter(BaseCog):
             return
 
         m = self.bot.metrics
-        pattern = re.compile(self.words[message.guild.id], re.IGNORECASE)
-        # find all matches and reduce to unique set
-        words = set(pattern.findall(message.content))
-        for word in words:
-            # increment counters
-            word = str(word).lower()
-            m.word_counter.labels(word=word, guild_name=message.guild.name, guild_id=message.guild.id).inc()
+        try:
+            pattern = re.compile(self.words[message.guild.id], re.IGNORECASE)
+            # find all matches and reduce to unique set
+            words = set(pattern.findall(message.content))
+            for word in words:
+                # increment counters
+                word = str(word).lower()
+                m.word_counter.labels(word=word, guild_name=message.guild.name, guild_id=message.guild.id).inc()
+        except KeyError:
+            # Guild not present or not initialized. Ignore.
+            pass
 
 
 async def setup(bot):

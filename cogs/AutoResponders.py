@@ -974,6 +974,11 @@ class AutoResponders(BaseCog):
 
         is_mod = message.author.guild_permissions.mute_members
         # search guild auto-responders
+
+        if message.channel.guild.id not in self.triggers:
+            # Guild not initialized or AR items empty? Ignore.
+            return
+
         for trigger, data in self.triggers[message.channel.guild.id].items():
             # flags
             active = data['flags'][self.flags['active']]
