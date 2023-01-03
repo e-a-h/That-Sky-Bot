@@ -12,7 +12,7 @@ class WordCounter(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        self.words = None
+        self.words = dict()
 
     async def on_ready(self):
         self.words = dict()
