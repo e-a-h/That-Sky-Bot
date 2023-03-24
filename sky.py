@@ -34,7 +34,8 @@ class Skybot(Bot):
         self.metrics = PrometheusMon(self)
         self.config_channels = dict()
         self.db_keepalive = None
-        Skybot.loaded = False
+        self.my_name = type(self).__name__
+        self.loaded = False
         sys.path.append(
             os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          "sky-python-music-sheet-maker",
@@ -61,7 +62,7 @@ class Skybot(Bot):
                     e)
         Logging.info(f"{TCol.cBold}{TCol.cOkGreen}Cog loading complete{TCol.cEnd}{TCol.cEnd}")
         self.db_keepalive = self.loop.create_task(self.keepDBalive())
-        Skybot.loaded = True
+        self.loaded = True
         Logging.info(f'{TCol.cUnderline}{TCol.cWarning}setup_hook end{TCol.cEnd}{TCol.cEnd}')
 
     async def on_ready(self):
@@ -76,7 +77,7 @@ class Skybot(Bot):
                 on_ready_tasks.append(c.on_ready())
         await asyncio.gather(*on_ready_tasks)
 
-        Logging.info(f"{TCol.cUnderline}{TCol.cWarning}Skybot startup complete{TCol.cEnd}{TCol.cEnd}")
+        Logging.info(f"{TCol.cUnderline}{TCol.cWarning}{self.my_name} startup complete{TCol.cEnd}{TCol.cEnd}")
         await Logging.bot_log(f"Skybot soaring through the skies!")
 
     async def get_guild_log_channel(self, guild_id):
@@ -354,9 +355,9 @@ async def main():
     except KeyboardInterrupt:
         pass
     finally:
-        skybot.loaded = False
+        Utils.BOT.loaded = False
         running = False
-        Logging.info(f"{TCol.cWarning}shutdow finally?{TCol.cEnd}")
+        Logging.info(f"{TCol.cWarning}shutdown finally?{TCol.cEnd}")
         # Wait until all queued jobs are done, then cancel worker.
         if Configuration.PERSISTENT_AIO_QUEUE.qsize() > 0:
             Logging.info(f"there are {Configuration.PERSISTENT_AIO_QUEUE.qsize()} persistent data items left...")
