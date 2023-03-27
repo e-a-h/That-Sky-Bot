@@ -1,0 +1,14 @@
+[Unit]
+Description=Bot Service
+After=mysql.service
+StartLimitIntervalSec=0
+
+[Service]
+WorkingDirectory=/home/username/botfolder
+ExecStart=/bin/bash /home/username/botfolder/Bootloader.sh
+Restart=always
+RestartSec=2
+User=username
+
+[Install]
+WantedBy=multi-user.target
