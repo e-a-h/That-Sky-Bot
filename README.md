@@ -1,4 +1,4 @@
-# WonderStormBot
+# OpeliBot
 A discord bot for collecting bug reports, and a few other things.
 
 # Server setup
@@ -36,6 +36,45 @@ sudo apt-get update
 sudo apt-get install grafana
 ```
 
+## Install and configure Prometheus
+
+Install:
+```bash
+sudo apt isntall prometheus
+```
+
+Edit the prometheus config:
+```bash
+sudo vi /etc/prometheus/prometheus.yml
+```
+
+In the `scrape_configs` the following change to the 'prometheus' job and addition of the 'womderstormbot' job are required:
+```yaml
+  - job_name: 'prometheus'
+
+    # Override the global default and scrape targets from this job every 5 seconds.
+    scrape_interval: 10s
+    scrape_timeout: 10s
+
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'opelibot'
+
+    # Override the global default and scrape targets from this job every 5 seconds.
+    scrape_interval: 60s
+    scrape_timeout: 60s
+
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+
+    static_configs:
+      - targets: ['localhost:28080']
+```
+
 ## Install other dependencies
 ```bash
 sudo apt install influxdb
@@ -43,6 +82,7 @@ sudo apt install mysql-server
 sudo apt install python3.9
 sudo apt install python3.9-venv
 sudo apt install tmux
+sudo apt install fail2ban
 ```
 
 ## Configure firewall
@@ -137,13 +177,13 @@ unbind -Tcopy-mode MouseDrag1Pane
 # for ease of use. Replace [hostname] with something meaningful if you like.
 # The text here will show in the tmux status line **verbatim**
 # so make it whatever you want
-new -s "wonderstorm" -n "WONDERSTORM[hostname]" bash
+new -s "opelibot" -n "OPELIBOT[hostname]" bash
 
 # a window in the bot directory with the python virtual-environment activated
-splitw -h -p 50 -t 0 -c /home/username/wonderstormbot
+splitw -h -p 50 -t 0 -c /home/username/opelibot
 send-keys 'source venv/bin/activate' Enter
 # a window in the bot directory without venv
-splitw -v -p 50 -t 0 -c /home/username/wonderstormbot
+splitw -v -p 50 -t 0 -c /home/username/opelibot
 splitw -v -p 50 -t 2
 selectp -t 0
 ```
@@ -262,100 +302,4 @@ GRANT ALL PRIVILEGES ON *.* TO 'ahart'@'localhost' WITH GRANT OPTION;
 
 Now you can connect to mysql as read-only or read-write, and you can connect using a client that supports ssh tunneling, such as DataGrip.
 
-# Bot Deployment
-
-This section details deployment of the bot to your hosting server.
-
-## Clone the bot
-
-```bash
-git clone https://github.com/e-a-h/wonderstormbot.git ~/wonderstormbot
-```
-
-## Create a database schema
-
-In a mysql client (command line or remote GUI client, doesn't matter) create a schema for the new bot. The name is not important, but must match in the bot config file. From a mysql command line, the command is:
-```sql
-create schema wonderstormbot;
-```
-
-## Edit configuration files
-
-The bot comes with a config example, but you must create a config file. Values for the config are all sensitive and will not be repeated here. If you are setting up this bot and don't know what the values should be, then you will not be successful. Config can be populated from the example:
-```bash
-cd ~/wonderstormbot
-cp config.example.json config.json
-```
-
-## Create a system service for the bot
-
-Make a service file for the bot starting with the example service file:
-```bash
-mkdir ~/bin
-cp ~/wonderstormbot/bot.example.service ~/bin/wonderstormbot.service
-vi ~/bin/wonderstormbot.service
-```
-
-Edit the WorkingDirectory, ExecStart and User lines to match your environment. Edit other info as necessary when deviating from this guide. Ensure that the Bootloader.sh script is executable and contents are correct for your environment.
-
-Start with the Bootloader.example.sh and edit contents to match your environment:
-
-```bash
-cd ~/wonderstormbot
-cp Bootloader.example.sh Bootloader.sh
-vi Bootloader.sh
-```
-
-Enable the service!
-```bash
-sudo systemctl enable /home/username/bin/wonderstormbot.service --now
-```
-
-## Start and stop the bot
-
-Commands to start, stop, restart and check status
-```bash
-sudo systemctl stop wonderstormbot
-sudo systemctl start wonderstormbot
-sudo systemctl restart wonderstormbot
-sudo systemctl status wonderstormbot
-```
-
-## Bot logging
-
-Bot logs are stored in the bot directory in a folder called "logs." Watch the log in realtime like this:
-
-```bash
-tail -f ~/wonderstormbot/logs/wonderstormbot.log
-```
-
-## Webhook
-
-Grafana can be used to trigger a webhook that restarts the bot in case certain failure conditions are detected. Setting rules for these conditions *is up to you* and should be done with care.
-
-Install webhook
-```bash
-sudo apt install webhook
-```
-
-Create a webhook file
-```
-something goes here
-```
-
-Test it.
-
-## Discord guild steps
-
-This assumes the hosting discord guild uses native member onboarding. Rules verification and phone number requirement are highly recommended.
-
-1. Create channels for:
-   * Bug reports per platform and branch, e.g. #bugs-android-beta
-   * Bug reporting maintenance channel
-1. Create member role and add the id to config.json
-1. Channel permissions:
-   * Bug report channels should be
-     * **@everone:** -read, -add reaction
-     * **members:** +read
-     * **bot:** +read, +add reaction
-1. Config file required. see config.example.json and fill in channel IDs, guild ID, role IDs
+Continue by [deploying the bot!](docs/deploy.md)
