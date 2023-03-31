@@ -24,7 +24,7 @@ cp config.example.json config.json
 
 In a mysql client (command line or remote GUI client, doesn't matter) create a database for the new bot. The name is not important, but must match in the bot config file. From a mysql command line, the command is:
 ```sql
-create database opelibot;
+CREATE DATABASE opelibot CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 ```
 
 ## Create a Python virtual environment

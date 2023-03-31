@@ -6,7 +6,7 @@ from logging.handlers import TimedRotatingFileHandler
 
 BOT_LOG_CHANNEL = None
 
-LOGGER = logging.getLogger('thatskybot')
+LOGGER = logging.getLogger('opelibot')
 DISCORD_LOGGER = logging.getLogger('discord')
 
 
@@ -38,7 +38,7 @@ def init():
 
     if not os.path.isdir("logs"):
         os.mkdir("logs")
-    handler = TimedRotatingFileHandler(filename='logs/thatskybot.log', encoding='utf-8', when="midnight",
+    handler = TimedRotatingFileHandler(filename='logs/opelibot.log', encoding='utf-8', when="midnight",
                                        backupCount=30)
     handler.setFormatter(formatter)
     handler.setLevel(logging.INFO)
