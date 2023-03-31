@@ -112,7 +112,7 @@ class Mischief(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
-        Configuration.del_persistent_var(f"name_cooldown_{guild.id}")
+        Configuration.del_persistent_var(f"name_cooldown_{guild.id}", True)
 
     @tasks.loop(seconds=1)
     async def name_task(self):

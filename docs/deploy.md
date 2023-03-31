@@ -8,12 +8,9 @@ This section details deployment of the bot to your hosting server.
 git clone https://github.com/e-a-h/opelibot.git ~/opelibot
 ```
 
-## Create a database schema
+## Create a sentry.io project and get the "DSN" for the project.
 
-In a mysql client (command line or remote GUI client, doesn't matter) create a schema for the new bot. The name is not important, but must match in the bot config file. From a mysql command line, the command is:
-```sql
-create schema opelibot;
-```
+Refer to [sentry.io](https://sentry.io) For more on this step. The DSN is needed for the bot configuration file. 
 
 ## Edit configuration files
 
@@ -21,6 +18,32 @@ The bot comes with a config example, but you must create a config file. Values f
 ```bash
 cd ~/opelibot
 cp config.example.json config.json
+```
+
+## Create a database
+
+In a mysql client (command line or remote GUI client, doesn't matter) create a database for the new bot. The name is not important, but must match in the bot config file. From a mysql command line, the command is:
+```sql
+create database opelibot;
+```
+
+## Create a Python virtual environment
+
+Create an execution environemnt for the bot. (Exit mysql if you still have it open!) Then:
+```bash
+cd ~/opelibot
+python3.9 -m venv ./venv
+```
+
+Any time you want to perform python-specific tasks using the bot codebase, the virtual environment needs to be activated:
+```bash
+source venv/bin/activate
+```
+
+Now with the virtual environment activated, initialize the database. This will be done **only once**, when configuring a new copy of this bot. Make sure the name given at the end of this command matches the name of the database created above:
+```bash
+cd ~/bot_dir/
+python init_db.py opelibot
 ```
 
 ## Create a system service for the bot
@@ -49,21 +72,7 @@ sudo systemctl enable /home/username/bin/opelibot.service --now
 
 ## Start and stop the bot
 
-Commands to start, stop, restart and check status
-```bash
-sudo systemctl stop opelibot
-sudo systemctl start opelibot
-sudo systemctl restart opelibot
-sudo systemctl status opelibot
-```
-
-## Bot logging
-
-Bot logs are stored in the bot directory in a folder called "logs." Watch the log in realtime like this:
-
-```bash
-tail -f ~/opelibot/logs/opelibot.log
-```
+Details for starting and stopping the bot, and viewing logs can be found in [this document](server_side_maintenance.md).
 
 ## Webhook
 
@@ -117,17 +126,10 @@ Jan 01 00:00:01 hostname root: [HOOK] bot starting...
 
 If everything works as planned, then you can edit the `rebot.sh` script to uncomment the `sudo` lines that actually do the work! Because the hook is dangerous to expose to the public, there's no need to open port 9000 in the firewall. This webhook will only be used by grafana, which will be running on the same server, accessed via loopback interface.
 
-## Discord guild steps
+## Discord Guild Setup
 
-This assumes the hosting discord guild uses native member onboarding. Rules verification and phone number requirement are highly recommended.
+Once the bot is started and invited to the production guild, proceed to the [Guild Setup Guide](guild_setup.md).
 
-1. Create channels for:
-   * Bug reports per platform and branch, e.g. #bugs-android-beta
-   * Bug reporting maintenance channel
-1. Create member role and add the id to config.json
-1. Channel permissions:
-   * Bug report channels should be
-     * **@everone:** -read, -add reaction
-     * **members:** +read
-     * **bot:** +read, +add reaction
-1. Config file required. see config.example.json and fill in channel IDs, guild ID, role IDs
+# Other documentation:
+* [README](../README.md)
+* [Server-side Maintenance](server_side_maintenance.md)

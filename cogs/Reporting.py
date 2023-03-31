@@ -31,40 +31,32 @@ class Reporting(BaseCog):
             branch: typing.Optional[str] = "",
             platform: typing.Optional[str] = ""):
         """Export bug reports starting from {start} to CSV file
-        csv                        exports 100 most recent reports
-        csv 15 20                  exports reports with ids in the range 15-20
-        csv -200                   exports the last 200 reports matching other criteria (max 1000)
-        csv [both|beta|stable]     exports reports for given branch
-        csv {both|beta|stable} [all|android|ios|etc]
-                                   exports reports for given branch and platform"""
+        csv                      exports 100 most recent reports
+        csv 15 20                exports reports with ids in the range 15-20
+        csv -200                 exports the last 200 reports matching other criteria (max 1000)
+        csv [beta|stable]        exports reports for given branch (all platforms)
+        csv {beta|stable} [android|ios|etc]
+                                 exports reports for given branch and platform"""
         # TODO: start from date?
         # TODO: migrate to async ORM like tortoise
 
-        async def get_branch(br_a):
-            platforms = dict()
-            branches = set()
+        async def get_branch(a_branch):
+            branches = {p.branch for p in await BugReportingPlatform.all()}
 
-            for p in await BugReportingPlatform.all():
-                branches.add(p.branch)
-                if p.branch not in platforms:
-                    platforms[p.branch] = set()
-                platforms[p.branch].add(p.platform)
+            for this_branch in branches:
+                if a_branch.lower() == this_branch.lower():
+                    return this_branch
 
-            br_b = br_a.lower().capitalize()
-            if br_b in branches:
-                return [br_b]
-            return ["Beta", "Stable"]
+            return branches
 
-        async def get_platform(pl_a):
-            platforms = dict()
+        async def get_platform(a_platform):
+            platforms = [p.platform for p in await BugReportingPlatform.all()]
 
-            for p in await BugReportingPlatform.all():
-                platforms[p.platform.lower()] = p.platform
+            for this_platform in platforms:
+                if a_platform.lower() == this_platform.lower():
+                    return this_platform
 
-            pl_b = pl_a.lower()
-            if pl_b in platforms:
-                return [platforms[pl_b]]
-            return ["Android", "iOS", "Switch", "PlayStation"]
+            return platforms
 
         # dashes at the start of text are interpreted as formulas by excel. replace with *
         def filter_hyphens(text):

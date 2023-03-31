@@ -303,3 +303,7 @@ GRANT ALL PRIVILEGES ON *.* TO 'ahart'@'localhost' WITH GRANT OPTION;
 Now you can connect to mysql as read-only or read-write, and you can connect using a client that supports ssh tunneling, such as DataGrip.
 
 Continue by [deploying the bot!](docs/deploy.md)
+
+Other documentation:
+* [Guild Setup](docs/guild_setup.md)
+* [Server-side Maintenance](docs/server_side_maintenance.md)

@@ -44,7 +44,7 @@ class GuildConfig(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
-        await self.init_guild(guild)
+        await self.init_guild(guild.id)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
@@ -149,7 +149,7 @@ class GuildConfig(BaseCog):
         try:
             setattr(my_guild, field, val.id)
             await my_guild.save()
-            await self.init_guild(ctx.guild)
+            await self.init_guild(ctx.guild.id)
             await ctx.send(f"Ok! `{field}` is now `{val.name} ({val.id})`")
         except Exception as e:
             await ctx.send(f"I failed to set `{field}` value to `{val.name} ({val.id})`")
@@ -275,7 +275,7 @@ class GuildConfig(BaseCog):
         try:
             my_guild.rulesreactmessageid = msg.id
             await my_guild.save()
-            await self.init_guild(ctx.guild)
+            await self.init_guild(ctx.guild.id)
             await ctx.send(f"Ok! `rulesreactmessageid` is now `{msg.id}`")
         except Exception as e:
             await ctx.send(f"I failed to set `rulesreactmessageid` value to `{msg.id}`")

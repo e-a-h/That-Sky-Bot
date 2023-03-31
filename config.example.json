@@ -1,49 +1,50 @@
 /* Fill in details and REMOVE ALL COMMENTS */
 {
-    "ADMINS": [
-        /* list of IDs of users allowed to admin the bot */
-    ],
-    "token": "",
-    "SENTRY_DSN": "your discord bot token goes here",
     "bot_prefix": "!", // choose any string that doesn't conflict with other bots present e.g. "z!"
-    "DATABASE_NAME": "sky",
+    "bot_name": "thisbot",
+    "token": "discord token goes here",
+    "DATABASE_NAME": "dn_name",
     "DATABASE_USER": "db_user",
     "DATABASE_PASS": "db_user_password",
     "DATABASE_HOST": "localhost",
     "DATABASE_PORT": 3306,
-    "channels": {
-        "android_beta":  0,
-        "android_stable":  0,
-        "ios_beta":  0,
-        "ios_stable":  0
-    },
+    "METRICS_PORT": 28080,
+    "SENTRY_DSN": "your sentry url goes here",
+    "SENTRY_ENV": "Dev",
+    "ADMINS": [
+        /* list of IDs of users allowed to admin the bot */
+    ],
     "EMOJI": {
         /* custom emoji overrides. see utils/Emoji.py for defaults that can be overriden */
         "NO": 624094243371352084,
         "YES": 624094243329146900
     },
-    "question_timeout_seconds": 300,
-    "bug_maintenance_channel": 0,
-    "bug_trash_sweep_minutes": 40,
-    "max_attachments": 3,
-    "log_channel": 0,
     "cogs": [
         /* list of cogs to load */
         "Basic",
-        "Reload",
-        "Welcomer",
-        "Eden",
-        "CustCommands",
-        "AutoResponders",
+        "GuildConfig",
+        "PermissionConfig",
         "ChannelConfig",
-        "Music"
+        "LangConfig",
+        "Reload",
+        "PromMonitoring",
+        "CustCommands",
+        "Welcomer",
+        "ReactMonitor",
+        "AutoResponders",
+        "Sweepstakes",
+        "WordCounter",
+        "DropBox",
+        "Bugs",
+        "Reporting"
     ],
-     "roles": {
-         /* reaction:role associations */
-        "\uD83D\uDD6F": 0
-    },
     "admin_roles": [],
-    "member_role": 0,
-    "muted_role": 0,
+    "broadcast_locale": "ALL_LOCALES",
+    /* The PRIMARY guild for the bot. This should be the production server, not the test/dev server */
     "guild_id": 0,
+    /* The log channel for primary bot logging, probably in the test/dev server */
+    "log_channel": 0,
+    "max_attachments": 3,
+    "question_timeout_seconds": 300,
+    "bug_trash_sweep_minutes": 40
 }
