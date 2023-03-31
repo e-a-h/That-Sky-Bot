@@ -40,6 +40,13 @@ Any time you want to perform python-specific tasks using the bot codebase, the v
 source venv/bin/activate
 ```
 
+## Install pip-tools and sync with requirements
+
+```bash
+pip install pip-tools
+pip-sync
+```
+
 Now with the virtual environment activated, initialize the database. This will be done **only once**, when configuring a new copy of this bot. Make sure the name given at the end of this command matches the name of the database created above:
 ```bash
 cd ~/bot_dir/

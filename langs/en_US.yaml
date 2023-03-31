@@ -24,29 +24,29 @@ permission_config:
   info: Permission Configuration for {server_name}
   permission_set: Permission for {subject} is now {status}
 bugs:
-  bug_info: "**Report a New Bug!**\nBrowse or search this channel to see bug reports. To report a bug, click/tap the {bug_emoji} reaction on this message and the bot will DM you for details. You must have DMs open for this server in order to submit a bug report."
-  shutdown_message: This bot is going offline, reporting bugs is not possible at this time. Please check back later to report your bug.
-  sweep_trash: Sorry to bother you, but you had an in-progress bug report that was idle for too long. I deleted it. If you think you received this message in error, please report me to the proper authorites (a moderator in the Sky server)
-  user_reset: Sorry to bother you, but if you had a Sky bug report active, it has been aborted. If you still have a bug to report, please try again later.
-  stop_spamming: "{user} stop spamming the bug reaction!"
-  reset_fail: I failed to reset an in-progress bug report for <@{uid}> so I'll just abandon the report. Maybe send them a DM if you want, I don't care either way.
-  reset_success: I reset an in-progress bug report for <@{uid}> and informed them by DM
+  bug_info: "**Report a New Bug!**\nBrowse or search this channel to check out other bug reports. To report your own bug to the team, click/tap the {bug_emoji} reaction on this message and the bot will DM you and coach you through the bug submission process. Important: You must have DMs open for this server in order to submit a bug report."
+  shutdown_message: "This bot is going offline, so reporting bugs is not possible at this time. Please check back later when I'm online to report your bug!"
+  sweep_trash: "Hello! I'm sorry to bother you, but you had an in-progress bug report that was idle for too long, so I deleted it. (If you think you received this message in error, please report me to a Wonderstorm admin.)"
+  user_reset: Sorry to bother you, but if you had a bug report submission active, it has been aborted. If you still have a bug to report, please try again later.
+  stop_spamming: "{user}, will you please stop spamming the bug reaction?"
+  reset_fail: "I failed to reset an in-progress bug report for <@{uid}> so I'll just abandon the report. (Maybe send them a DM if you want?)"
+  reset_success: I reset an in-progress bug report for <@{uid}> and informed them by DM.
   start_over: "{user} You are already in the middle of reporting a bug. Do you want to cancel that report to start over?"
-  start_over_yes: Cancel my in-progress report and start a new one
-  start_over_no: Do not cancel my in-progress report
-  skip_step: Skip this step
-  abort_report: Ok, I won't ask you any more questions for now. Go back to the bug report channel any time to start a new one!
+  start_over_yes: "Cancel my in-progress report and let's start over with a new one!"
+  start_over_no: Do not cancel my in-progress bug report.
+  skip_step: Skip this step.
+  abort_report: "Okey-dokey, I won''t bug you anymore. I'm always here in the bug report channel if you need to start a new report!"
   latest_not_allowed: Tell me a number! ``Latest`` is not valid because the latest version changes with every update. You might not even have the latest version if you didn't update recently, so an actual number is really helpful here!
   love_letter: Whoa there, I just need a version number, not an entire love letter
   no_numbers: There don't appear to be any numbers in there
-  text_too_long: That text seems suspiciously long for the question asked... Try typing up a shorter answer (up to {max} characters) and we'll see if I like it
+  text_too_long: "That text seems suspiciously long for the question asked... Try typing up a shorter answer (up to {max} characters) and we'll see if I like it"
   report_header: "**Bug Report {id} - submitted by {user}**"
   report_timeout: This report has been canceled. Go back to the bug report channel to start a new one!
   attachments_yes: Yes, add pictures/videos
   attachment_info: "**Attachment to report {id}**\n{links}"
   attachment_info_plural: "**Attachments to report {id}**\n{links}"
-  report_confirmation: Thank you! Your report was submitted, and can be found in {channel_info}!
-  maint_check_fail: Sorry {author} but I give up. Maybe the bug queue is busted, as usual.
+  report_confirmation: Yay, your report was successfully submitted, and can be found in {channel_info}! Thanks for helping us make PROJECT ARCANUM magical.
+  maint_check_fail: Sorry {author} but I give up. Maybe the bug queue is busted?
   bugs_all_done: Bug reports are all done, {author}!!
   none_in_progress: There are no bug reports in progress.
   report_channel_permissions_fail: Failed to set permissions on channel {channel} in server `{server}`. Check channel permissions because I might have broken something...
@@ -58,139 +58,51 @@ bugs:
     Report a Bug
     ```
     Help me collect the following information. It will be *very helpful* in identifying, reproducing, and fixing bugs:
-        - Device type
-        - Operating System Version
-        - Sky App Type
-        - Version of the Sky app
         - Description of the problem, and how to reproduce it
         - Attachment(s)
         - Additional Information
 
     **Don't start typing your report yet!** For questions like this one that have reaction icons, press one of the reactions to answer! Ready to start?
-  platform: Platform
-  question_platform: |
-    ```css
-    Device Type
-    ```
-    What kind of device do you play Sky on?
-  question_platform_version: |
-    ```css
-    Operating System Version
-    ```
-    What {platform} version do you use? This can be found in device settings. You can ***type*** your answer this time
-  device_info: Device
-  question_device_info: |
-    ```css
-    Device Info
-    ```
-    What model of {platform} device were you using when the bug occurred ({max} characters max)?
-    {device_info_help}
-  device_info_switch: |
-    **To find your Nintendo Switch hardware version:**
-    > 1. Look on the back of your Switch
-    > 2. The version looks like `MOD. XXX-000` with 3 letters and 3 numbers. Some Switch devices have additional numbers in parentheses
-    https://media.discordapp.net/attachments/834518314264821810/840396032457965578/switch_version.jpg
-  device_info_ios: |
-  device_info_android: |
-  device_info_playstation: |
-  question_app_branch: |
-    ```css
-    Sky App Type
-    ```
-    Are you using the `Live` or `Beta` version of Sky?
-    Beta is installed through TestFlight on iOS, through Google Groups on Android, or via invite code on Nintendo Switch.
-    If you are unsure, then choose Live
-  app_version: Sky app version
-  question_app_version: |
-    ```css
-    Sky App Version Number
-    ```
-    What **version** of the Sky app were you using when you experienced the bug?
-    {version_help}
-  app_build: Sky app build
-  question_app_build: |
-    ```css
-    Sky App Build Number
-    ```
-    What **build** of the Sky app were you using when you experienced the bug?
-    See the instructions above. The build number is in parentheses or 6 digits at the end of the version number.
-  version_android: |
-    **To find Sky version and build on Android devices:**
-    > 1. Device settings
-    > 2. Apps
-    > 3. Sky
-    > 4. Scroll down to find: `Version X.X.X (XXXXXX)`
-    > 5. The first 3 digits, `X.X.X` are the version, the 6 digits in parentheses are the build number
-    https://media.discordapp.net/attachments/575818186440572938/623647193143836674/sky_version_build3.jpg
-  version_ios: |
-    **To find Sky version and build on iOS devices:**
-    > 1. Device settings
-    > 2. Scroll down to Sky
-    > 3. Scroll down to find: `Version X.X.X (XXXXXX)`
-    > 4. The first 3 digits, `X.X.X` are the version, the 6 digits in parentheses are the build number
-    https://media.discordapp.net/attachments/575818186440572938/623643882445471764/sky_version_ios2.png
-  version_switch: |
-    **To find the Sky build number for bug reporting:**
-    > 1. Navigate to the Nintendo Switch home screen
-    > 2. Select sky
-    > 3. Press the **+** button on your controller
-    > 4. Version info will be in small print right beneath the game title. Find `Ver. X.X.X.XXXXXX`
-    > 5. The first 3 digits, `X.X.X` are the version, and the last 6 digits are the build number
-    https://media.discordapp.net/attachments/834518314264821810/840007394154774539/unknown.png
-  version_playstation: |
-    **To find the Sky app version for bug reporting:**
-    > 1. Navigate to the main PS menu.
-    > 2. Highlight Sky.
-    > 3. Press the options button on your controller.
-    > 4. App version will show up under “Information”.
-    https://cdn.discordapp.com/attachments/623178459438645248/1050614478825336883/ps_info.png
   title: Title/Topic
   question_title: |
     ```css
     Title/Topic
     ```
     Provide a brief title or topic for your bug ({max} characters max)
-  description: Bug description
+  description: 'Bug description'
   question_actual: |
     ```css
     Describe the bug
     ```
-    Describe the problem you experienced, what looked or worked the wrong way. I'll ask for steps to reproduce the problem next, so don't tell me *how* it happened yet ({max} characters max)
+    Describe the problem you experienced, and/or what looked or worked the wrong way. I'll ask for steps to reproduce the problem in the follow-up question, so don't tell me *how* it happened yet. ({max} characters max)
   steps_to_reproduce: Steps to reproduce
   question_steps: |
     ```css
     How to Reproduce the Bug
     ```
-    How did the bug happen? Tell me the steps you took that lead to the problem ({max} characters max). Example:
+    How did the bug happen? Tell me the steps you took that led you to the bug instance. ({max} characters max). Example:
     ```
     - step 1
     - step 2
     - step 3
     ```
-  expected: Expected outcome
-  question_expected: |
-    ```css
-    Expectation
-    ```
-    When following the steps you gave, what did you expect to happen ({max} characters max)?
   additional_info: Additional information
   question_additional: |
     ```css
     Additional Information
     ```
-    Do you have any other information to add to this report?
+    Do you have any other information or attachments to add to this report? If you were able to grab screenshots or video of the bug, this is where you would share that with me.
   question_additional_info: What other information would you like me to include in your report?
   additional_info_yes: Provide additional information
   question_attachments: |
     ```css
     Attachments
     ```
-    Do you have screenshots, videos, or other documents to add? Video may be attached directly to this report, but size is limited for direct messages. If your video is too large, you can share it in the appropriate screenshot channel or on a site like youtube and add a link to your report instead.
+    Do you have screenshots, videos, or other documents to add? Video may be attached directly to this report, but keep in mind that Discord limits size for direct messages.
   question_ok: This is what your report will look like. Should I **submit** it or **discard** it? You have **{timeout} to review.**
-  send_report: All done! Send this report
-  mistake: Nope, I made a mistake. Throw away this report and start again
-  no_live_android: There is no live version available on Android yet, only beta. Go back to the bug report channel any time to start a new report!
-  dm_unable: '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
+  send_report: All done! Send this report to Wonderstorm.
+  mistake: "Nope, I made a mistake. Throw away this report and let's start again!"
+  dm_unable: 'Hey {user}, I was unable to DM you for questions to submit your bug report to Wonderstorm. Please allow DMs from this server to file bug reports, which you can enable in the privacy settings that are found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
 eden:
   dm_prompt: Did you know you can use the `!edenreset` or `!er` command in my DMs? Shorter cooldown there too.
   reset: |
@@ -304,59 +216,6 @@ autoresponder:
   on_or_off: |
     `{subject}` on or off?
   expect_integer: I was hoping for one of these values ```{keys}```
-krill:
-  config_title: Krill Configuration for {server_name}
-  config_bylines_title: Krill bylines for {server_name}
-  list_channels: Krill channels for {server_name}.
-  list_oreo_filter: Oreo filters for {server_name}.
-  list_oreo_monsters: The most horrible people in the _"{server_name}"_ server.
-  no_channels: No channels set for krill command. `!krill` may be used in any channel.
-  channel_added: Channel {channel} is now approved for krilling.
-  channel_removed: Channel {channel} has been fumigated. No more krill allowed.
-  channel_not_found: There are no krill in {channel}
-  channel_found: The channel {channel} is already infested by krill
-  letter_not_found: the character "{letter}" is not in my filters
-  smells_clean: All the letters in "{value}" are already covered.
-  invalid_letter_category: You can only use letters `{categories}`
-  bad_person: Bad Person
-  letter_already_filtered: That {letter} is already on the list
-  letter_filter_added: I added "{letter}" to the {category} list!
-  letter_not_filtered: That {letter} is not on the list
-  letter_filter_removed: I removed "{letter}" from the {category} list!
-  oreo_cooldown_reset: Oreo cooldown reset
-  no_monsters: There are no monsters in sight!
-  monster_added: |
-    {name} is a monster
-  monster_removed: |
-    {name} isn't a monster anymore
-  member_ignored: |
-    {name} is ignored
-  member_not_ignored: |
-    {name} isn't a ignored anymore
-  member_not_found: beep boop, no {name} here
-  oreo_cooldown_message: |
-    {name} is a horrible person and can spend the next {time_remaining} thinking about what they've done
-  not_oreo: not Oreo! {victim_name}, you monster!!
-  dirty_trick: That's a dirty trick, {name}, and I'm not falling for it
-  too_much_text: too much text!
-  too_many_emoji: too many emoji!
-  nice_try: rofl nice try!
-  summoned_by: |
-    *summoned by {name}*
-  evaded_by: |
-    *{name}, the krill you summoned was evaded*
-  cooldown_message: Cool it, {name}. Try again in {time_remaining}
-  no_such_channel: |
-    No such channel: `{channel_id}`
-  available_bylines: |
-    **Available krill bylines:**
-  duplicate_byline: That one already exists. Try something different.
-  confirm_byline: |
-    Does this look right?
-    {formatted_byline}
-  add_byline: New krill byline added ```{byline}```
-  remove_byline: Byline {number} removed.
-  not_changing_byline: Ok, no changes. Gimme a call when you make up your mind.
 react_monitor:
   info_title: Emoji reaction monitor settings for {server_name}
 art:
@@ -434,12 +293,3 @@ sweeps:
     End Sub-commands:
       `!sweeps end [clear|clean] jump_url` List entrants and remove all reactions
       `!sweeps end [reset|restart] jump_url` List entrants to-date and reset reactions to starting state
-music:
-  dm_unable: '{user}, I was unable to DM you to transcribe a song. You can enable this in the privacy settings, found in the server dropdown menu.'
-  text_too_long: Text response is too long, {max} characters is the max.
-  abort_song: Ok, I won't ask you any more questions for now. Call me again to start a new song!
-  song_timeout: This song creation has been canceled. Call me again to start a new song!
-  song_trash: Sorry to bother you, but you had an in-progress song that was idle for too long. I canceled it. If you think you received this message in error, please report me to the proper authorites (a moderator in the Sky server)
-  start_over: '{user} You are already in the middle of creating a song. Do you want to cancel that song to start a new one?'
-  start_over_yes: Cancel my song and start a new one
-  start_over_no: Do not cancel my current song creation
