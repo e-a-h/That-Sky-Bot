@@ -3,7 +3,7 @@ from datetime import datetime
 
 from tortoise.exceptions import OperationalError
 
-from utils.Database import ReactWatch, WatchedEmoji, Guild
+from utils.Database import ReactWatch, WatchedEmoji, Guild, BugReportingChannel
 
 import discord
 from discord import NotFound, HTTPException
@@ -65,8 +65,8 @@ class ReactMonitor(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
-        Configuration.del_persistent_var(f"min_react_lifespan_{guild.id}")
-        Configuration.del_persistent_var(f"react_mutes_{guild.id}")
+        Configuration.del_persistent_var(f"min_react_lifespan_{guild.id}", True)
+        Configuration.del_persistent_var(f"react_mutes_{guild.id}", True)
         del self.mutes[guild.id]
         del self.mute_duration[guild.id]
         del self.min_react_lifespan[guild.id]
@@ -84,11 +84,11 @@ class ReactMonitor(BaseCog):
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):
-        self.store_reaction_action(event)
+        await self.store_reaction_action(event)
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, event):
-        self.store_reaction_action(event)
+        await self.store_reaction_action(event)
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -120,9 +120,9 @@ class ReactMonitor(BaseCog):
         await watch.save()
         self.react_watch_servers.remove(guild_id)
 
-    def is_user_event_ignored(self, event):
-        ignored_channels = Configuration.get_var('channels')
-        is_ignored_channel = event.channel_id in ignored_channels.values()
+    async def is_user_event_ignored(self, event):
+        ignored_channels = [row.channelid for row in await BugReportingChannel.all()]
+        is_ignored_channel = event.channel_id in ignored_channels
         guild = self.bot.get_guild(event.guild_id)
         if not guild:
             # Don't listen to DMs
@@ -379,8 +379,8 @@ class ReactMonitor(BaseCog):
         t = Utils.to_pretty_time(mute_time)
         await ctx.send(f"Members will now be muted for {t} when they use restricted reacts")
 
-    def store_reaction_action(self, event):
-        if not self.started or self.is_user_event_ignored(event):
+    async def store_reaction_action(self, event):
+        if not self.started or await self.is_user_event_ignored(event):
             return
 
         # Add event to dict for tracking fast removal of reactions
@@ -455,7 +455,7 @@ class ReactMonitor(BaseCog):
 
         # listening setting only apples to quick-remove
         server_is_listening = event.guild_id in self.react_watch_servers
-        if not server_is_listening or self.is_user_event_ignored(event):
+        if not server_is_listening or await self.is_user_event_ignored(event):
             return
 
         # check recent reacts to see if they match the remove event

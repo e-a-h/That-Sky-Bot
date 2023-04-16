@@ -298,6 +298,12 @@ class DropBox(BaseCog):
     @commands.group(name="dropbox", invoke_without_command=True)
     @commands.guild_only()
     async def dropbox(self, ctx):
+        """List the dropbox settings. Use sub-commands to configure dropboxes
+
+        Parameters
+        ----------
+        ctx
+        """
         # list dropbox channels
         embed = Embed(
             timestamp=ctx.message.created_at,
@@ -327,7 +333,25 @@ class DropBox(BaseCog):
 
     @dropbox.command()
     @commands.guild_only()
-    async def add(self, ctx, sourceid: int, targetid: int):
+    async def add(self, ctx, source_channel: discord.TextChannel, target_channel: discord.TextChannel):
+        """Add a dropbox channel. Messages sent by non-moderator members will be delivered from the source channel to a
+        destination channel. Destination can be public or private, as long as the bot has access.
+
+        Parameters
+        ----------
+        ctx
+        sourceid
+            ID of the source channel
+        targetid
+            ID of the destination channel
+
+        Returns
+        -------
+
+        """
+        sourceid = source_channel.id
+        targetid = target_channel.id
+
         # validate channel ids
         source_channel = self.bot.get_channel(sourceid)
         target_channel = self.bot.get_channel(targetid)
@@ -408,7 +432,20 @@ class DropBox(BaseCog):
 
     @dropbox.command()
     @commands.guild_only()
-    async def remove(self, ctx, sourceid: int):
+    async def remove(self, ctx, source_channel: discord.TextChannel):
+        """Remove a dropbox channel. Stop delivering messages from the given channel.
+
+        Parameters
+        ----------
+        ctx
+        source_channel: discord.TextChannel
+            ID of the source channel.
+
+        Returns
+        -------
+
+        """
+        sourceid = source_channel.id
         source_description = Utils.get_channel_description(self.bot, sourceid)
         if sourceid not in self.dropboxes[ctx.guild.id]:
             await ctx.send(Lang.get_locale_string('dropbox/not_removed', ctx, source=source_description))
@@ -431,11 +468,17 @@ class DropBox(BaseCog):
     @dropbox.command(aliases=['delay', 'delete_delay'])
     @commands.guild_only()
     async def set_delay(self, ctx, channel: discord.TextChannel, delay: float):
-        """
-        Set the lifespan for response messages in the channel
+        """Set the lifespan for response messages in the channel
 
         Also applies to any non-mod messages, so the delay time must be greater than the initial wait for message drops.
-        delay: Time until responses expire (seconds)
+
+        Parameters
+        ----------
+        ctx
+        channel: discord.TextChannel
+            Channel mention or ID
+        delay: int
+            Time until responses expire (seconds)
         """
         if channel.id in self.dropboxes[ctx.guild.id]:
             drop_row = self.dropboxes[ctx.guild.id][channel.id]
@@ -448,9 +491,16 @@ class DropBox(BaseCog):
 
     @dropbox.command()
     @commands.guild_only()
-    async def set_receipt(self, ctx, source_channel: discord.TextChannel, receipt_setting:bool):
-        """
-        set whether or not this dropbox channel should include a dm that sends the message author a copy of their message
+    async def set_receipt(self, ctx, source_channel: discord.TextChannel, receipt_setting: bool):
+        """Enable/disable DM receipts. When set, a copy of each dropbox message is sent by DM to the author.
+
+        Parameters
+        ----------
+        ctx
+        source_channel: discord.TextChannel
+            Channel mention or ID
+        receipt_setting: bool
+            Boolean (on or off, 0 or 1, yes or no)
         """
         if source_channel.id in self.dropboxes[ctx.guild.id]:
             drop_row = self.dropboxes[ctx.guild.id][source_channel.id]

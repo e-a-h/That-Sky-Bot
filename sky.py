@@ -78,7 +78,7 @@ class Skybot(Bot):
         await asyncio.gather(*on_ready_tasks)
 
         Logging.info(f"{TCol.cUnderline}{TCol.cWarning}{self.my_name} startup complete{TCol.cEnd}{TCol.cEnd}")
-        await Logging.bot_log(f"Skybot soaring through the skies!")
+        await Logging.bot_log(f"{Configuration.get_var('bot_name', 'this bot')} startup complete")
 
     async def get_guild_log_channel(self, guild_id):
         # TODO: cog override for logging channel
@@ -217,7 +217,10 @@ class Skybot(Bot):
 async def run_db_migrations():
     try:
         Logging.info(f'{TCol.cUnderline}{TCol.cOkBlue}######## dg migrations ########{TCol.cEnd}{TCol.cEnd}')
-        command = Command(tortoise_config=utils.tortoise_settings.TORTOISE_ORM, app='skybot')
+        command = Command(
+            tortoise_config=utils.tortoise_settings.TORTOISE_ORM,
+            app=utils.tortoise_settings.app_name
+        )
         await command.init()
         result = await command.upgrade()
         if result:
@@ -232,9 +235,6 @@ async def run_db_migrations():
 
 
 def before_send(event, hint):
-    # TODO: this is broken obvs becuase logger is named 'thatskybot' - used by sentry, but how?
-    if event['level'] == "error" and 'logger' in event.keys() and event['logger'] == 'gearbot':
-        return None  # we send errors manually, in a much cleaner way
     if 'exc_info' in hint:
         exc_type, exc_value, tb = hint['exc_info']
         for t in [ConnectionClosed, ClientOSError, ServerDisconnectedError]:
@@ -300,7 +300,7 @@ async def main():
     global running
     running = True
     Logging.init()
-    Logging.info("Launching Skybot!")
+    Logging.info("Launching bot!")
     my_token = Configuration.get_var("token")
 
     dsn = Configuration.get_var('SENTRY_DSN', '')
@@ -378,4 +378,4 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
     finally:
-        Logging.info(f"{TCol.cOkGreen}Skybot shutdown complete{TCol.cEnd}")
+        Logging.info(f"{TCol.cOkGreen}bot shutdown complete{TCol.cEnd}")

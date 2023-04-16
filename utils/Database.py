@@ -2,7 +2,10 @@ from tortoise import Tortoise
 from tortoise.models import Model
 from tortoise.fields import \
     BooleanField, BigIntField, IntField, SmallIntField, CharField, ForeignKeyField, OneToOneField, ReverseRelation
+
+import utils.tortoise_settings
 from utils import tortoise_settings, Logging
+from utils.tortoise_settings import app_name as app
 import os
 
 
@@ -10,8 +13,8 @@ async def init(db_name=''):
     #  specify the app name of 'models'
     #  which contain models from "app.models"
 
-    # env var SKYBOT_DB will override db name from both init call AND config.json
-    override_db_name = os.getenv('SKYBOT_DB')
+    # env var BOT_DB will override db name from both init call AND config.json
+    override_db_name = os.getenv('BOT_DB')
     if override_db_name:
         db_name = override_db_name
 
@@ -35,11 +38,11 @@ class DeprecatedServerIdMixIn:
 
 
 class GuildMixin:
-    guild = OneToOneField('skybot.Guild', related_name='krill_config', index=True)
+    guild = OneToOneField(f'{app}.Guild', related_name='krill_config', index=True)
 
 
 class AdminRole(AbstractBaseModel):
-    guild = ForeignKeyField('skybot.Guild', related_name='admin_roles', index=True)
+    guild = ForeignKeyField(f'{app}.Guild', related_name='admin_roles', index=True)
     roleid = BigIntField()
 
     def __str__(self):
@@ -51,7 +54,7 @@ class AdminRole(AbstractBaseModel):
 
 
 class ArtChannel(AbstractBaseModel, DeprecatedServerIdMixIn):
-    # guild = ForeignKeyField('skybot.Guild', related_name='artchannels')
+    # guild = ForeignKeyField(f'{app}.Guild', related_name='artchannels')
     listenchannelid = BigIntField(default=0)
     collectionchannelid = BigIntField(default=0)
     tag = CharField(max_length=30, default="")
@@ -66,7 +69,7 @@ class ArtChannel(AbstractBaseModel, DeprecatedServerIdMixIn):
 
 class Attachments(AbstractBaseModel):
     url = CharField(max_length=255)
-    report = ForeignKeyField('skybot.BugReport', related_name='attachments', index=True)
+    report = ForeignKeyField(f'{app}.BugReport', related_name='attachments', index=True)
 
     def __str__(self):
         return self.url
@@ -131,9 +134,9 @@ class BugReport(AbstractBaseModel):
 
 
 class BugReportingChannel(AbstractBaseModel):
-    guild = ForeignKeyField('skybot.Guild', related_name='bug_channels', index=True)
+    guild = ForeignKeyField(f'{app}.Guild', related_name='bug_channels', index=True)
     channelid = BigIntField()
-    platform = ForeignKeyField('skybot.BugReportingPlatform', related_name="bug_channels", index=True)
+    platform = ForeignKeyField(f'{app}.BugReportingPlatform', related_name="bug_channels", index=True)
 
     def __str__(self):
         return str(self.channelid)
@@ -172,7 +175,7 @@ class ConfigChannel(AbstractBaseModel, DeprecatedServerIdMixIn):
 
 
 class CountWord(AbstractBaseModel, DeprecatedServerIdMixIn):
-    # guild = ForeignKeyField('skybot.Guild', related_name='watchwords')
+    # guild = ForeignKeyField(f'{app}.Guild', related_name='watchwords')
     word = CharField(max_length=300)
 
     def __str__(self):
@@ -223,7 +226,7 @@ class Guild(AbstractBaseModel):
     entrychannelid = BigIntField(default=0)
     maintenancechannelid = BigIntField(default=0)
     rulesreactmessageid = BigIntField(default=0)
-    defaultlocale = CharField(max_length=10)
+    defaultlocale = CharField(max_length=10, default="en_US")
 
     admin_roles: ReverseRelation["AdminRole"]
     bug_channels: ReverseRelation["BugReportingChannel"]
@@ -240,7 +243,7 @@ class Guild(AbstractBaseModel):
 
 
 class KrillByLines(AbstractBaseModel):
-    krill_config = ForeignKeyField('skybot.KrillConfig', related_name='bylines', index=True)
+    krill_config = ForeignKeyField(f'{app}.KrillConfig', related_name='bylines', index=True)
     byline = CharField(max_length=100)
     type = SmallIntField(default=0)
     channelid = BigIntField(default=0)
@@ -266,7 +269,7 @@ class KrillChannel(AbstractBaseModel, DeprecatedServerIdMixIn):
 
 
 class KrillConfig(AbstractBaseModel):
-    guild = OneToOneField('skybot.Guild', related_name='krill_config', index=True)
+    guild = OneToOneField(f'{app}.Guild', related_name='krill_config', index=True)
     return_home_freq = SmallIntField(default=0)
     shadow_roll_freq = SmallIntField(default=0)
     krill_rider_freq = SmallIntField(default=0)
@@ -284,7 +287,7 @@ class KrillConfig(AbstractBaseModel):
 
 
 class Localization(AbstractBaseModel):
-    guild = ForeignKeyField('skybot.Guild', related_name='locales', index=True)
+    guild = ForeignKeyField(f'{app}.Guild', related_name='locales', index=True)
     channelid = BigIntField(default=0)
     locale = CharField(max_length=10, default='')
 
@@ -297,7 +300,7 @@ class Localization(AbstractBaseModel):
 
 
 class MischiefRole(AbstractBaseModel):
-    guild = ForeignKeyField('skybot.Guild', related_name='mischief_roles', index=True)
+    guild = ForeignKeyField(f'{app}.Guild', related_name='mischief_roles', index=True)
     roleid = BigIntField()
     alias = CharField(max_length=100)
 
@@ -310,7 +313,7 @@ class MischiefRole(AbstractBaseModel):
 
 
 class ModRole(AbstractBaseModel):
-    guild = ForeignKeyField('skybot.Guild', related_name='mod_roles', index=True)
+    guild = ForeignKeyField(f'{app}.Guild', related_name='mod_roles', index=True)
     roleid = BigIntField()
 
     def __str__(self):
@@ -350,7 +353,7 @@ class OreoMap(AbstractBaseModel):
 
 
 class ReactWatch(AbstractBaseModel):
-    # guild = OneToOneField('skybot.Guild', related_name='watchemoji')
+    # guild = OneToOneField(f'{app}.Guild', related_name='watchemoji')
     serverid = BigIntField(unique=True)
     muteduration = SmallIntField(default=600)
     watchremoves = BooleanField(default=False)
@@ -367,7 +370,7 @@ class ReactWatch(AbstractBaseModel):
 
 class Repros(AbstractBaseModel):
     user = BigIntField()
-    report = ForeignKeyField('skybot.BugReport', related_name='repros', index=True)
+    report = ForeignKeyField(f'{app}.BugReport', related_name='repros', index=True)
 
     def __str__(self):
         return f"repro #{self.id} (unused)"
@@ -378,7 +381,7 @@ class Repros(AbstractBaseModel):
 
 
 class TrustedRole(AbstractBaseModel):
-    guild = ForeignKeyField('skybot.Guild', related_name='trusted_roles', index=True)
+    guild = ForeignKeyField(f'{app}.Guild', related_name='trusted_roles', index=True)
     roleid = BigIntField()
 
     def __str__(self):
@@ -390,7 +393,7 @@ class TrustedRole(AbstractBaseModel):
 
 
 class UserPermission(AbstractBaseModel):
-    guild = ForeignKeyField('skybot.Guild', related_name='command_permissions', index=True)
+    guild = ForeignKeyField(f'{app}.Guild', related_name='command_permissions', index=True)
     userid = BigIntField()
     command = CharField(max_length=200, default='')
     allow = BooleanField(default=True)
@@ -404,7 +407,7 @@ class UserPermission(AbstractBaseModel):
 
 
 class WatchedEmoji(AbstractBaseModel):
-    watcher = ForeignKeyField('skybot.ReactWatch', related_name='emoji', index=True)
+    watcher = ForeignKeyField(f'{app}.ReactWatch', related_name='emoji', index=True)
     emoji = CharField(max_length=50)
     log = BooleanField(default=False)
     remove = BooleanField(default=False)

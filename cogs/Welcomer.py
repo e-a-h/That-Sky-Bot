@@ -140,7 +140,8 @@ class Welcomer(BaseCog):
         """
         List muted members
         """
-        muted_role = ctx.guild.get_role(Configuration.get_var("muted_role"))
+        guild_row = await self.bot.get_guild_db_config(ctx.guild.id)
+        muted_role = ctx.guild.get_role(guild_row.mutedrole)
         untracked_mute = []
         for member in ctx.guild.members:
             if muted_role in member.roles:
@@ -161,7 +162,9 @@ class Welcomer(BaseCog):
         Count members who have shadow role
         """
         members = self.bot.get_all_members()
-        nonmember_role = ctx.guild.get_role(Configuration.get_var("nonmember_role"))
+
+        guild_row = await self.bot.get_guild_db_config(ctx.guild.id)
+        nonmember_role = ctx.guild.get_role(guild_row.nonmemberrole)
 
         await ctx.send(f"counting members who have the shadow role...")
         count = 0
@@ -236,7 +239,9 @@ class Welcomer(BaseCog):
             # Only act if roles change, in case other bot (e.g. yagpdb.xyz) assigns a role.
             if before.roles != after.roles:
                 # TODO: should this be configurable on|off?
-                member_role = before.guild.get_role(Configuration.get_var("member_role"))
+                guild_row = await self.bot.get_guild_db_config(before.guild.id)
+                member_role = before.guild.get_role(guild_row.memberrole)
+
                 if member_role is None:
                     return
 

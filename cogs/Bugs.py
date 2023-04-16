@@ -85,7 +85,6 @@ class Bugs(BaseCog):
 
     async def on_ready(self):
         Logging.info("readying bugs")
-        # for name, cid in Configuration.get_var("channels").items():
         reporting_channel_ids = []
         for row in await BugReportingChannel.all().prefetch_related('guild', 'platform'):
             cid = row.channelid
@@ -552,6 +551,13 @@ class Bugs(BaseCog):
             platform = ""
             branch = ""
             app_build = None
+            platform_version = ''
+            app_version = ''
+            deviceinfo = ''
+            title = ''
+            actual = ''
+            steps = ''
+            expected = ''
             additional = False
             additional_text = ""
             attachments = False
@@ -698,42 +704,58 @@ class Bugs(BaseCog):
             if asking:
                 # question 1: android or ios?
                 platforms = set()
-                options = []
                 for platform_row in await BugReportingPlatform.all():
                     platforms.add(platform_row.platform)
-                for platform_name in platforms:
-                    options.append(
-                        Questions.Option(
-                            platform_name.upper(),
-                            platform_name,
-                            set_platform,
-                            [platform_name]))
 
-                await Questions.ask(self.bot, channel, user, Lang.get_locale_string("bugs/question_platform", ctx),
-                                    options, show_embed=True, locale=ctx)
+                if len(platforms) == 0:
+                    platform = "NONE"
+                elif len(platforms) == 1:
+                    platform = platforms.pop()
+                else:
+                    options = []
+                    for platform_name in platforms:
+                        options.append(
+                            Questions.Option(
+                                platform_name.upper(),
+                                platform_name,
+                                set_platform,
+                                [platform_name]))
+                    await Questions.ask(self.bot, channel, user, Lang.get_locale_string("bugs/question_platform", ctx),
+                                        options, show_embed=True, locale=ctx)
                 update_metrics()
 
-                # question 2: android/ios version
-                platform_version = await Questions.ask_text(self.bot, channel, user,
-                                                            Lang.get_locale_string("bugs/question_platform_version",
-                                                                                   ctx,
-                                                                                   platform=platform),
-                                                            validator=verify_version, locale=ctx)
-                update_metrics()
+                try:
+                    # question 2: android/ios version
+                    platform_version = await Questions.ask_text(
+                        self.bot, channel, user,
+                        Lang.get_locale_string("bugs/question_platform_version",
+                                               ctx,
+                                               platform=platform),
+                        validator=verify_version, locale=ctx)
+                    update_metrics()
+                except KeyError:
+                    # Expected when a question is not defined
+                    pass
 
-                # question 3: hardware info
-                device_info_platform = Lang.get_locale_string(f"bugs/device_info_{platform.lower()}", ctx)
-                deviceinfo = await Questions.ask_text(self.bot, channel, user,
-                                                      Lang.get_locale_string("bugs/question_device_info",
-                                                                             ctx, platform=platform,
-                                                                             device_info_help=device_info_platform,
-                                                                             max=200),
-                                                      validator=max_length(200), locale=ctx)
-                update_metrics()
+                try:
+                    # question 3: hardware info
+                    device_info_platform = Lang.get_locale_string(f"bugs/device_info_{platform.lower()}", ctx)
+                    deviceinfo = await Questions.ask_text(
+                        self.bot, channel, user,
+                        Lang.get_locale_string("bugs/question_device_info",
+                                               ctx, platform=platform,
+                                               device_info_help=device_info_platform,
+                                               max=200),
+                        validator=max_length(200), locale=ctx)
+                    update_metrics()
+                except KeyError:
+                    # Expected when a question is not defined
+                    pass
 
                 # question 4: stable or beta?
                 branches = set()
                 for platform_row in await BugReportingPlatform.all():
+                    # select branches that are available for the chosen platform
                     if platform_row.platform == platform:
                         branches.add(platform_row.branch)
                 if len(branches) == 0:
@@ -754,58 +776,87 @@ class Bugs(BaseCog):
                                         options, show_embed=True, locale=ctx)
                 update_metrics()
 
-                # question 5: sky app version
-                app_version = await Questions.ask_text(
-                    self.bot,
-                    channel,
-                    user,
-                    Lang.get_locale_string(
-                        "bugs/question_app_version", ctx,
-                        version_help=Lang.get_locale_string("bugs/version_" + platform.lower())),
-                    validator=verify_version, locale=ctx)
-                update_metrics()
+                try:
+                    # question 5: app version
+                    app_version = await Questions.ask_text(
+                        self.bot, channel, user,
+                        Lang.get_locale_string(
+                            "bugs/question_app_version", ctx,
+                            version_help=Lang.get_locale_string("bugs/version_" + platform.lower())),
+                        validator=verify_version, locale=ctx)
+                    update_metrics()
+                except KeyError:
+                    # Expected when a question is not defined
+                    pass
 
-                # question 6: sky app build number
-                app_build = await Questions.ask_text(
-                    self.bot, channel, user, Lang.get_locale_string("bugs/question_app_build", ctx),
-                    validator=verify_version, locale=ctx)
-                update_metrics()
+                try:
+                    # question 6: sky app build number
+                    app_build = await Questions.ask_text(
+                        self.bot, channel, user,
+                        Lang.get_locale_string("bugs/question_app_build", ctx),
+                        validator=verify_version, locale=ctx)
+                    update_metrics()
+                except KeyError:
+                    # Expected when a question is not defined
+                    pass
 
-                # question 7: Title
-                title = await Questions.ask_text(
-                    self.bot, channel, user, Lang.get_locale_string("bugs/question_title", ctx, max=300),
-                    validator=max_length(300), locale=ctx)
-                update_metrics()
+                try:
+                    # question 7: Title
+                    title = await Questions.ask_text(
+                        self.bot, channel, user,
+                        Lang.get_locale_string("bugs/question_title", ctx, max=300),
+                        validator=max_length(300), locale=ctx)
+                    update_metrics()
+                except KeyError:
+                    # Expected when a question is not defined
+                    pass
 
-                # question 8: "actual" - defect behavior
-                actual = await Questions.ask_text(
-                    self.bot, channel, user, Lang.get_locale_string("bugs/question_actual", ctx, max=800),
-                    validator=max_length(800), locale=ctx)
-                update_metrics()
+                try:
+                    # question 8: "actual" - defect behavior
+                    actual = await Questions.ask_text(
+                        self.bot, channel, user,
+                        Lang.get_locale_string("bugs/question_actual", ctx, max=800),
+                        validator=max_length(800), locale=ctx)
+                    update_metrics()
+                except KeyError:
+                    # Expected when a question is not defined
+                    pass
 
-                # question 9: steps to reproduce
-                steps = await Questions.ask_text(
-                    self.bot, channel, user, Lang.get_locale_string("bugs/question_steps", ctx, max=800),
-                    validator=max_length(800), locale=ctx)
-                update_metrics()
+                try:
+                    # question 9: steps to reproduce
+                    steps = await Questions.ask_text(
+                        self.bot, channel, user, Lang.get_locale_string("bugs/question_steps", ctx, max=800),
+                        validator=max_length(800), locale=ctx)
+                    update_metrics()
+                except KeyError:
+                    # Expected when a question is not defined
+                    pass
 
-                # question 10: expected behavior
-                expected = await Questions.ask_text(
-                    self.bot, channel, user,
-                    Lang.get_locale_string("bugs/question_expected", ctx, max=800),
-                    validator=max_length(800), locale=ctx)
-                update_metrics()
+                try:
+                    # question 10: expected behavior
+                    expected = await Questions.ask_text(
+                        self.bot, channel, user,
+                        Lang.get_locale_string("bugs/question_expected", ctx, max=800),
+                        validator=max_length(800), locale=ctx)
+                    update_metrics()
+                except KeyError:
+                    # Expected when a question is not defined
+                    pass
 
-                # question 11: attachments y/n
-                await Questions.ask(
-                    self.bot, channel, user, Lang.get_locale_string("bugs/question_attachments", ctx),
-                    [
-                        Questions.Option("YES",
-                                         Lang.get_locale_string("bugs/attachments_yes", ctx),
-                                         handler=add_attachments),
-                        Questions.Option("NO", Lang.get_locale_string("bugs/skip_step", ctx))
-                    ], show_embed=True, locale=ctx)
-                update_metrics()
+                try:
+                    # question 11: attachments y/n
+                    await Questions.ask(
+                        self.bot, channel, user, Lang.get_locale_string("bugs/question_attachments", ctx),
+                        [
+                            Questions.Option("YES",
+                                             Lang.get_locale_string("bugs/attachments_yes", ctx),
+                                             handler=add_attachments),
+                            Questions.Option("NO", Lang.get_locale_string("bugs/skip_step", ctx))
+                        ], show_embed=True, locale=ctx)
+                    update_metrics()
+                except KeyError:
+                    # Expected when a question is not defined
+                    pass
 
                 if attachments:
                     # question 12: attachments
@@ -814,16 +865,20 @@ class Bugs(BaseCog):
                 # update metrics outside condition to keep count up-to-date and reflect skipped question as zero time
                 update_metrics()
 
-                # question 13: additional info y/n
-                await Questions.ask(
-                    self.bot, channel, user, Lang.get_locale_string("bugs/question_additional", ctx),
-                    [
-                        Questions.Option("YES",
-                                         Lang.get_locale_string("bugs/additional_info_yes", ctx),
-                                         handler=add_additional),
-                        Questions.Option("NO", Lang.get_locale_string("bugs/skip_step", ctx))
-                    ], show_embed=True, locale=ctx)
-                update_metrics()
+                try:
+                    # question 13: additional info y/n
+                    await Questions.ask(
+                        self.bot, channel, user, Lang.get_locale_string("bugs/question_additional", ctx),
+                        [
+                            Questions.Option("YES",
+                                             Lang.get_locale_string("bugs/additional_info_yes", ctx),
+                                             handler=add_additional),
+                            Questions.Option("NO", Lang.get_locale_string("bugs/skip_step", ctx))
+                        ], show_embed=True, locale=ctx)
+                    update_metrics()
+                except KeyError:
+                    # Expected when a question is not defined
+                    pass
 
                 if additional:
                     # question 14: additional info
@@ -838,22 +893,27 @@ class Bugs(BaseCog):
                 report = Embed(timestamp=datetime.utcfromtimestamp(time.time()))
                 avatar = user.avatar.replace(size=32).url if user.avatar else None
                 report.set_author(name=f"{user} ({user.id})", icon_url=avatar)
-                report.add_field(
-                    name=Lang.get_locale_string("bugs/platform", ctx), value=f"{platform} {platform_version}")
-                report.add_field(
-                    name=Lang.get_locale_string("bugs/app_version", ctx), value=app_version)
-                report.add_field(
-                    name=Lang.get_locale_string("bugs/app_build", ctx), value=app_build)
-                report.add_field(
-                    name=Lang.get_locale_string("bugs/device_info", ctx), value=deviceinfo, inline=False)
-                report.add_field(
-                    name=Lang.get_locale_string("bugs/title", ctx), value=title, inline=False)
-                report.add_field(
-                    name=Lang.get_locale_string("bugs/description", ctx), value=actual, inline=False)
-                report.add_field(
-                    name=Lang.get_locale_string("bugs/steps_to_reproduce", ctx), value=steps, inline=False)
-                report.add_field(
-                    name=Lang.get_locale_string("bugs/expected", ctx), value=expected)
+                fields = [
+                    {'name': "bugs/platform", 'value': f"{platform} {platform_version}", 'inline': True},
+                    {'name': "bugs/app_version", 'value': app_version, 'inline': True},
+                    {'name': "bugs/app_build", 'value': app_build, 'inline': True},
+                    {'name': "bugs/device_info", 'value': deviceinfo, 'inline': False},
+                    {'name': "bugs/title", 'value': title, 'inline': False},
+                    {'name': "bugs/description", 'value': actual, 'inline': False},
+                    {'name': "bugs/steps_to_reproduce", 'value': steps, 'inline': False},
+                    {'name': "bugs/expected", 'value': expected, 'inline': True},
+                ]
+
+                for item in fields:
+                    try:
+                        report.add_field(
+                            name=Lang.get_locale_string(item['name'], ctx),
+                            value=item['value'],
+                            inline=item['inline'])
+                    except KeyError:
+                        # Expected when a field title is not defined in Lang.yaml
+                        pass
+
                 if additional:
                     report.add_field(
                         name=Lang.get_locale_string("bugs/additional_info", ctx), value=additional_text, inline=False)
@@ -895,7 +955,7 @@ class Bugs(BaseCog):
                 m.reports_exit_question.observe(active_question)
         except CancelledError as ex:
             Logging.info(f"Cancel actual bug reporter. user {get_member_log_name(user)}")
-            await channel.send(f"Skybot was attacked by krill and your report got broken. Please try again.")
+            await channel.send(f"The bot ran into unexpected trouble and your report got broken. Please try again.")
             m.report_incomplete_count.inc()
             if active_question is not None:
                 m.reports_exit_question.observe(active_question)

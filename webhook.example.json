@@ -1,0 +1,21 @@
+[
+  {
+    "id": "reboot-bot",
+    "execute-command": "/home/username/botdir/rebot.sh",
+    "command-working-directory": "/home/username/botdir",
+    "response-message": "bot should be rebooting now...",
+    "trigger-rule":
+    {
+      "match":
+      {
+        "type": "value",
+        "value": "deadbeat",
+        "parameter":
+        {
+          "source": "url",
+          "name": "token"
+        }
+      }
+    }
+  }
+]

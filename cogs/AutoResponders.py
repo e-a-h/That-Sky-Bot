@@ -97,7 +97,7 @@ class AutoResponders(BaseCog):
         del self.ar_list_messages[guild.id]
         del self.mod_action_expiry[guild.id]
         try:
-            Configuration.del_persistent_var(f"mod_messages_{guild.id}")
+            Configuration.del_persistent_var(f"mod_messages_{guild.id}", True)
             del Configuration.MASTER_CONFIG[f'auto_action_expiry_seconds_{guild.id}']
             Configuration.save()
         except Exception as e:
