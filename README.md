@@ -1,4 +1,4 @@
-# OpeliBot
+# README
 A discord bot for collecting bug reports, and a few other things.
 
 # Server setup
@@ -62,7 +62,7 @@ In the `scrape_configs` the following change to the 'prometheus' job and additio
     static_configs:
       - targets: ['localhost:9090']
 
-  - job_name: 'opelibot'
+  - job_name: 'discordbot'
 
     # Override the global default and scrape targets from this job every 5 seconds.
     scrape_interval: 60s
@@ -177,13 +177,13 @@ unbind -Tcopy-mode MouseDrag1Pane
 # for ease of use. Replace [hostname] with something meaningful if you like.
 # The text here will show in the tmux status line **verbatim**
 # so make it whatever you want
-new -s "opelibot" -n "OPELIBOT[hostname]" bash
+new -s "discordbot" -n "DISCORDBOT[hostname]" bash
 
 # a window in the bot directory with the python virtual-environment activated
-splitw -h -p 50 -t 0 -c /home/username/opelibot
+splitw -h -p 50 -t 0 -c /home/username/discordbot
 send-keys 'source venv/bin/activate' Enter
 # a window in the bot directory without venv
-splitw -v -p 50 -t 0 -c /home/username/opelibot
+splitw -v -p 50 -t 0 -c /home/username/discordbot
 splitw -v -p 50 -t 2
 selectp -t 0
 ```

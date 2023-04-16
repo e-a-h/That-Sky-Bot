@@ -300,7 +300,7 @@ async def main():
     global running
     running = True
     Logging.init()
-    Logging.info("Launching bot!")
+    Logging.info(f"Launching {Configuration.get_var('bot_name', 'this bot')}!")
     my_token = Configuration.get_var("token")
 
     dsn = Configuration.get_var('SENTRY_DSN', '')

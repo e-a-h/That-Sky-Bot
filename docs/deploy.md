@@ -5,7 +5,7 @@ This section details deployment of the bot to your hosting server.
 ## Clone the bot
 
 ```bash
-git clone https://github.com/e-a-h/opelibot.git ~/opelibot
+git clone https://github.com/whatever/discordbot.git ~/discordbot
 ```
 
 ## Create a sentry.io project and get the "DSN" for the project.
@@ -16,7 +16,7 @@ Refer to [sentry.io](https://sentry.io) For more on this step. The DSN is needed
 
 The bot comes with a config example, but you must create a config file. Values for the config are all sensitive and will not be repeated here. If you are setting up this bot and don't know what the values should be, then you will not be successful. Config can be populated from the example:
 ```bash
-cd ~/opelibot
+cd ~/discordbot
 cp config.example.json config.json
 ```
 
@@ -24,14 +24,14 @@ cp config.example.json config.json
 
 In a mysql client (command line or remote GUI client, doesn't matter) create a database for the new bot. The name is not important, but must match in the bot config file. From a mysql command line, the command is:
 ```sql
-CREATE DATABASE opelibot CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+CREATE DATABASE discordbot CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 ```
 
 ## Create a Python virtual environment
 
 Create an execution environemnt for the bot. (Exit mysql if you still have it open!) Then:
 ```bash
-cd ~/opelibot
+cd ~/discordbot
 python3.9 -m venv ./venv
 ```
 
@@ -50,7 +50,7 @@ pip-sync
 Now with the virtual environment activated, initialize the database. This will be done **only once**, when configuring a new copy of this bot. Make sure the name given at the end of this command matches the name of the database created above:
 ```bash
 cd ~/bot_dir/
-python init_db.py opelibot
+python init_db.py discordbot
 ```
 
 ## Create a system service for the bot
@@ -58,8 +58,8 @@ python init_db.py opelibot
 Make a service file for the bot starting with the example service file:
 ```bash
 mkdir ~/bin
-cp ~/opelibot/bot.example.service ~/bin/opelibot.service
-vi ~/bin/opelibot.service
+cp ~/discordbot/bot.example.service ~/bin/discordbot.service
+vi ~/bin/discordbot.service
 ```
 
 Edit the WorkingDirectory, ExecStart and User lines to match your environment. Edit other info as necessary when deviating from this guide. Ensure that the Bootloader.sh script is executable and contents are correct for your environment.
@@ -67,14 +67,14 @@ Edit the WorkingDirectory, ExecStart and User lines to match your environment. E
 Start with the Bootloader.example.sh and edit contents to match your environment:
 
 ```bash
-cd ~/opelibot
+cd ~/discordbot
 cp Bootloader.example.sh Bootloader.sh
 vi Bootloader.sh
 ```
 
 Enable the service!
 ```bash
-sudo systemctl enable /home/username/bin/opelibot.service --now
+sudo systemctl enable /home/username/bin/discordbot.service --now
 ```
 
 ## Start and stop the bot
@@ -97,7 +97,7 @@ cat /etc/webhook.conf
 
 If it's nonexistent or empty, then copy the example, edit it, and then restart the webhook service:
 ```bash
-sudo cp ~/opelibot/webhook.example.json /etc/webhook.conf
+sudo cp ~/discordbot/webhook.example.json /etc/webhook.conf
 sudo vi /etc/webhook.conf
 ```
 

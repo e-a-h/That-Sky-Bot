@@ -61,12 +61,32 @@ bugs:
   maint_on:
   maint_off:
   question_ready:
+  platform:
+  question_platform:
+  question_platform_version:
+  device_info:
+  question_device_info:
+  device_info_switch:
+  device_info_ios:
+  device_info_android:
+  device_info_playstation:
+  question_app_branch:
+  app_version:
+  question_app_version:
+  app_build:
+  question_app_build:
+  version_android:
+  version_ios:
+  version_switch:
+  version_playstation:
   title:
   question_title:
   description:
   question_actual:
   steps_to_reproduce:
   question_steps:
+  expected:
+  question_expected:
   additional_info:
   question_additional:
   question_additional_info:
@@ -75,6 +95,7 @@ bugs:
   question_ok:
   send_report:
   mistake:
+  no_live_android:
   dm_unable:
 eden:
   dm_prompt:

@@ -6,10 +6,10 @@ This guide details regular tasks that may need to be performed to keep the bot r
 
 Commands to start, stop, restart and check status:
 ```bash
-sudo systemctl stop opelibot
-sudo systemctl start opelibot
-sudo systemctl restart opelibot
-sudo systemctl status opelibot
+sudo systemctl stop discordbot
+sudo systemctl start discordbot
+sudo systemctl restart discordbot
+sudo systemctl status discordbot
 ```
 
 ## Bot logging
@@ -19,7 +19,7 @@ Logs for startup are detailed and will be helpful in identifying conditions that
 Bot logs are stored in the bot directory in a folder called "logs." Watch the log in realtime like this:
 
 ```bash
-tail -F ~/opelibot/logs/opelibot.log
+tail -F ~/discordbot/logs/discordbot.log
 ```
 
 The syslog may also have additional useful information:
