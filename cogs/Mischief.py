@@ -156,7 +156,7 @@ class Mischief(BaseCog):
         except Exception as e:
             await utils.Utils.handle_exception("mischief name task error", self.bot, e)
 
-    @tasks.loop(seconds=10)
+    @tasks.loop(seconds=600)
     async def role_count_task(self):
         # periodic task to run while cog is loaded
 
