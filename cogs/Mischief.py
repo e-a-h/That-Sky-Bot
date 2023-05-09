@@ -408,17 +408,21 @@ You can also use the `!team_mischief` command right here to find out more""")
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
         # decrement role counts only for roles removed
-        my_map = self.role_counts[after.guild.id]
-        for role in before.roles:
-            if role not in after.roles and role.id in my_map:
-                my_map[role.id] = my_map[role.id] - 1
-                # Logging.info(f"{after.display_name} --{role.name}")
+        try:
+            my_map = self.role_counts[after.guild.id]
+            for role in before.roles:
+                if role not in after.roles and role.id in my_map:
+                    my_map[role.id] = my_map[role.id] - 1
+                    # Logging.info(f"{after.display_name} --{role.name}")
 
-        # increment role counts only for roles added
-        for role in after.roles:
-            if role not in before.roles and role.id in my_map:
-                my_map[role.id] = my_map[role.id] + 1
-                # Logging.info(f"{after.display_name} ++{role.name}")
+            # increment role counts only for roles added
+            for role in after.roles:
+                if role not in before.roles and role.id in my_map:
+                    my_map[role.id] = my_map[role.id] + 1
+                    # Logging.info(f"{after.display_name} ++{role.name}")
+        except KeyError:
+            # caught before bot is fully initialized. ignore
+            pass
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
