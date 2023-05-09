@@ -4,6 +4,7 @@ from datetime import datetime
 from random import random, choice
 
 import discord
+import tortoise
 from discord import AllowedMentions
 from discord.ext import commands, tasks
 from discord.ext.commands import BucketType
@@ -15,6 +16,7 @@ from utils.Database import MischiefRole
 
 
 class Mischief(BaseCog):
+    me_again = "me again"
     mischief_names = [
       "Cackling {name}",
       "Crabby {name}!",
@@ -82,7 +84,7 @@ class Mischief(BaseCog):
         self.name_cooldown_time = 60.0
         self.name_cooldown = dict()
         self.mischief_map = dict()
-        self.role_counts = {}
+        self.role_counts = dict()
 
     async def cog_load(self):
         self.name_cooldown_time = float(Configuration.get_persistent_var("name_mischief_cooldown", 10.0))
@@ -103,6 +105,7 @@ class Mischief(BaseCog):
         self.name_cooldown[str(guild.id)] = Configuration.get_persistent_var(f"name_cooldown_{guild.id}", dict())
         guild_row = await self.bot.get_guild_db_config(guild.id)
         self.mischief_map[guild.id] = dict()
+        self.role_counts[guild.id] = dict()
         async for row in guild_row.mischief_roles.all():
             self.mischief_map[guild.id][row.alias] = guild.get_role(row.roleid)
 
@@ -153,7 +156,7 @@ class Mischief(BaseCog):
         except Exception as e:
             await utils.Utils.handle_exception("mischief name task error", self.bot, e)
 
-    @tasks.loop(seconds=600)
+    @tasks.loop(seconds=10)
     async def role_count_task(self):
         # periodic task to run while cog is loaded
 
@@ -175,9 +178,10 @@ class Mischief(BaseCog):
         for guild in self.bot.guilds:
             for my_role in self.mischief_map[guild.id].values():
                 try:
-                    self.role_counts[str(my_role.id)] = len(my_role.members)
+                    self.role_counts[guild.id][my_role.id] = len(my_role.members)
                 except:
-                    Logging.info(f"can't update role counts for {my_role.name}")
+                    Logging.info(f"can't update role counts for {my_role}")
+                    continue
 
     @commands.group(name="name_mischief", invoke_without_command=True)
     @commands.guild_only()
@@ -204,9 +208,9 @@ name cooldown is {self.name_cooldown_time} seconds
         Configuration.set_persistent_var("name_mischief_cooldown", seconds)
         await ctx.invoke(self.name_mischief)
 
+    @commands.group(name="mischief", invoke_without_command=True)
     @commands.cooldown(1, 60, BucketType.member)
     @commands.max_concurrency(3, wait=True)
-    @commands.command()
     async def mischief(self, ctx):
         if ctx.guild and not Utils.can_mod_official(ctx):
             return
@@ -221,6 +225,48 @@ name cooldown is {self.name_cooldown_time} seconds
                        f"I have granted {wishes_granted} wishes.\n"
                        f"{max_user_name} has wished the most, with {member_counts[max_member_id]} wishes granted.",
                        allowed_mentions=AllowedMentions.none())
+
+    @mischief.command()
+    @commands.guild_only()
+    @commands.has_permissions(ban_members=True)
+    async def add_role(self, ctx, role: discord.Role):
+        pattern = re.compile(r'^(the|a|an) +', re.IGNORECASE)
+        alias = re.sub(pattern, '', role.name)
+        guild_row = await self.bot.get_guild_db_config(ctx.guild.id)
+        new_row, created = await MischiefRole.get_or_create(guild=guild_row, alias=alias, roleid=role.id)
+        if created:
+            self.mischief_map[ctx.guild.id][alias] = role
+            self.role_counts[ctx.guild.id][role.id] = 0
+            await ctx.send(f"`{role.name}` is now a Mischief role!")
+        else:
+            await ctx.send(f"`{role.name}` is already a Mischief role")
+
+        await ctx.invoke(self.team_mischief)
+
+    @mischief.command()
+    @commands.guild_only()
+    @commands.has_permissions(ban_members=True)
+    async def remove_role(self, ctx, role: discord.Role):
+        guild_row = await self.bot.get_guild_db_config(ctx.guild.id)
+        old_role = await MischiefRole.get_or_none(guild_id=guild_row.id, roleid=role.id)
+        if old_role is None:
+            await ctx.send(f"`{role.name}` is not a Mischief role, can't remove it")
+        else:
+            try:
+                # remove role from database
+                await old_role.delete()
+                # remove role from map
+                for alias, map_role in dict(self.mischief_map[ctx.guild.id]).items():
+                    if map_role.id == role.id:
+                        del self.mischief_map[ctx.guild.id][alias]
+                        del self.role_counts[ctx.guild.id][role.id]
+                        break
+                await ctx.send(f"`{role.name}` is no longer a Mischief role!")
+            except (tortoise.exceptions.OperationalError, KeyError):
+                await ctx.send(f"I had some trouble. Trying to recover...")
+                await self.init_guild(ctx.guild)
+
+        await ctx.invoke(self.team_mischief)
 
     @commands.cooldown(1, 60, BucketType.member)
     @commands.max_concurrency(3, wait=True)
@@ -239,7 +285,7 @@ name cooldown is {self.name_cooldown_time} seconds
             title="Mischief!")
 
         for this_role in self.mischief_map[guild.id].values():
-            member_count = self.role_counts[str(this_role.id)]
+            member_count = self.role_counts[guild.id][this_role.id]
             embed.add_field(name=this_role.name, value=str(member_count), inline=True)
 
             if len(embed.fields) == 25:
@@ -302,9 +348,11 @@ name cooldown is {self.name_cooldown_time} seconds
         # get selection out of matching message
         selection = result.group(3).lower().strip()
         if selection in ["myself", "myself again", "me"]:
-            selection = "me again"
+            selection = Mischief.me_again
 
-        if selection not in self.mischief_map[guild.id]:
+        if selection == Mischief.me_again:
+            remove = True
+        elif selection not in self.mischief_map[guild.id]:
             return
 
         # Selection is now validated
@@ -323,9 +371,6 @@ name cooldown is {self.name_cooldown_time} seconds
                 pass
             return
         # END cooldown
-
-        if selection == "me again":
-            remove = True
 
         # remove all mischief roles
         for old_role in self.mischief_map[guild.id].values():
@@ -363,23 +408,25 @@ You can also use the `!team_mischief` command right here to find out more""")
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
         # decrement role counts only for roles removed
+        my_map = self.role_counts[after.guild.id]
         for role in before.roles:
-            if role not in after.roles and str(role.id) in self.role_counts:
-                self.role_counts[str(role.id)] = self.role_counts[str(role.id)] - 1
+            if role not in after.roles and role.id in my_map:
+                my_map[role.id] = my_map[role.id] - 1
                 # Logging.info(f"{after.display_name} --{role.name}")
 
         # increment role counts only for roles added
         for role in after.roles:
-            if role not in before.roles and str(role.id) in self.role_counts:
-                self.role_counts[str(role.id)] = self.role_counts[str(role.id)] + 1
+            if role not in before.roles and role.id in my_map:
+                my_map[role.id] = my_map[role.id] + 1
                 # Logging.info(f"{after.display_name} ++{role.name}")
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
         # decrement role counts for any tracked roles the departed member had
+        my_map = self.role_counts[member.guild.id]
         for role in member.roles:
-            if role.id in self.role_counts:
-                self.role_counts[str(role.id)] = self.role_counts[str(role.id)] - 1
+            if role.id in my_map:
+                my_map[role.id] = my_map[role.id] - 1
 
     async def mischief_namer(self, message):
         if not hasattr(message.author, "guild"):

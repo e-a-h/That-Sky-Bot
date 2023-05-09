@@ -531,6 +531,9 @@ class Bugs(BaseCog):
         self.sweeps[user.id] = sweep
         try:
             await task
+        except TimeoutError as e:
+            Logging.info(f"Report timed out for {get_member_log_name(user)}")
+            return
         except CancelledError as e:
             Logging.info(f"Cancelling in-progress report for {get_member_log_name(user)}")
             raise e
