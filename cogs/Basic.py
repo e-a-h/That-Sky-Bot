@@ -10,7 +10,7 @@ from utils import Utils
 class Basic(BaseCog):
 
     async def cog_check(self, ctx):
-        return Utils.permission_official_mute(ctx.author.id)
+        return await Utils.permission_official_mute(ctx)
 
     @command(hidden=True)
     async def ping(self, ctx: Context):
@@ -29,7 +29,7 @@ class Basic(BaseCog):
 
     @command()
     async def now(self, ctx, *args):
-        if ctx.author.bot or not Utils.can_mod_official(ctx):
+        if ctx.author.bot or not await Utils.can_mod_official(ctx):
             return
 
         now = int(datetime.now().timestamp())

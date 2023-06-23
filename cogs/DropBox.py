@@ -52,9 +52,8 @@ class DropBox(BaseCog):
         self.clean_channels.cancel()
 
     async def cog_check(self, ctx):
-        if ctx.guild is None:
-            return False
-        return ctx.author.guild_permissions.ban_members
+        return ctx.guild is not None \
+            and (ctx.author.guild_permissions.ban_members or await self.bot.permission_manage_bot(ctx))
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
@@ -265,7 +264,7 @@ class DropBox(BaseCog):
                         my_member = guild.get_member(message.author.id)
                         if my_member is None:
                             continue
-                        is_mod = my_member.guild_permissions.ban_members
+                        is_mod = my_member.guild_permissions.ban_members or await self.bot.member_is_admin(my_member.id)
                         age = (now-message.created_at).seconds
                         expired = age > drop.deletedelayms / 1000
                         queued_for_delete = message.id in self.delete_in_progress[guild.id][channel_id]
@@ -518,7 +517,7 @@ class DropBox(BaseCog):
             message_not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
             author_not_in_guild = not hasattr(message.author, "guild")
             channel_not_in_dropboxes = message.channel.id not in self.dropboxes[guild_id]
-            is_mod = message.author.guild_permissions.ban_members
+            is_mod = message.author.guild_permissions.ban_members or await self.bot.member_is_admin(message.author.id)
         except Exception as e:
             return
 

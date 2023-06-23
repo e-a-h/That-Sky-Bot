@@ -75,7 +75,7 @@ class PermissionConfig(BaseCog):
     async def cog_check(self, ctx):
         # Minimum permission for all permissions commands: manage_server
         if ctx.guild:
-            if ctx.author.guild_permissions.manage_guild:
+            if ctx.author.guild_permissions.manage_guild or await self.bot.permission_manage_bot(ctx):
                 return True
             for role in ctx.author.roles:
                 if role.id in self.admin_roles[ctx.guild.id]:

@@ -134,7 +134,7 @@ class ReactMonitor(BaseCog):
             return True  # ignore reaction events from departing members
 
         is_mod = member and member.guild_permissions.ban_members
-        is_admin = event.user_id in Configuration.get_var("ADMINS", [])
+        is_admin = await self.bot.member_is_admin(event.user_id)
         has_admin = False
 
         for role in member.roles:
@@ -147,9 +147,7 @@ class ReactMonitor(BaseCog):
         return False
 
     async def cog_check(self, ctx):
-        if ctx.guild is None:
-            return False
-        return ctx.author.guild_permissions.ban_members
+        return ctx.guild and (ctx.author.guild_permissions.ban_members or await self.bot.permission_manage_bot(ctx))
 
     @tasks.loop(seconds=1.0)
     async def check_reacts(self):

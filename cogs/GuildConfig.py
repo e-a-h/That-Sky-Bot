@@ -35,7 +35,7 @@ class GuildConfig(BaseCog):
     async def cog_check(self, ctx):
         if ctx.guild is None:
             return False
-        return ctx.author.guild_permissions.ban_members
+        return ctx.author.guild_permissions.ban_members or await self.bot.permission_manage_bot(ctx)
 
     async def get_guild_config(self, guild_id):
         if guild_id in Utils.GUILD_CONFIGS:
@@ -382,7 +382,10 @@ class GuildConfig(BaseCog):
 
         # protect bots, mods, and higher
         for member in ctx.guild.members:
-            if member.bot or member.guild_permissions.ban_members or member.guild_permissions.manage_channels:
+            if (member.bot
+                    or member.guild_permissions.ban_members
+                    or member.guild_permissions.manage_channels
+                    or await self.bot.member_is_admin(member.id)):
                 protected_members.add(member)
             if member not in protected_members:
                 kick_members.add(member)
@@ -465,7 +468,8 @@ class GuildConfig(BaseCog):
             if member not in protected_members and \
                     not member.bot and \
                     not member.guild_permissions.ban_members and \
-                    not member.guild_permissions.manage_channels:
+                    not member.guild_permissions.manage_channels and\
+                    not await self.bot.member_is_admin(member.id):
                 await ctx.send(f"kicking {Utils.get_member_log_name(member)}",
                                allowed_mentions=AllowedMentions.none())
                 try:

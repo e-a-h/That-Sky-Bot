@@ -26,10 +26,10 @@ class WordCounter(BaseCog):
             my_words.add(re.escape(row.word))
         self.words[guild.id] = "|".join(my_words)
 
-    def cog_check(self, ctx):
+    async def cog_check(self, ctx):
         if ctx.guild is None:
             return False
-        return ctx.author.guild_permissions.ban_members
+        return ctx.author.guild_permissions.ban_members or await self.bot.permission_manage_bot(ctx)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
@@ -105,7 +105,7 @@ class WordCounter(BaseCog):
 
         prefix = Configuration.get_var("bot_prefix")
         ctx = await self.bot.get_context(message)
-        is_boss = self.cog_check(ctx)
+        is_boss = await self.cog_check(ctx)
         command_context = message.content.startswith(prefix, 0) and is_boss
         not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
 

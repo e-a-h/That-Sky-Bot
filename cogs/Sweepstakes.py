@@ -22,7 +22,7 @@ class Sweepstakes(BaseCog):
             return False
         # TODO: change to admin role
         #  and/or separate roles for view and manage sweeps
-        return ctx.author.guild_permissions.manage_channels
+        return ctx.author.guild_permissions.manage_channels or await self.bot.permission_manage_bot(ctx)
 
     async def get_reaction_message(self, ctx, jump_url):
         parts = jump_url.split('/')

@@ -185,7 +185,7 @@ class Mischief(BaseCog):
 
     @commands.group(name="name_mischief", invoke_without_command=True)
     @commands.guild_only()
-    @commands.has_permissions(ban_members=True)
+    @commands.check(Utils.can_mod_official)
     async def name_mischief(self, ctx):
         await ctx.send(f"""
 name mischief is at {self.name_mischief_chance*100}%
@@ -194,7 +194,7 @@ name cooldown is {self.name_cooldown_time} seconds
 
     @name_mischief.command()
     @commands.guild_only()
-    @commands.has_permissions(ban_members=True)
+    @commands.check(Utils.can_mod_official)
     async def set_chance(self, ctx, chance: float):
         self.name_mischief_chance = chance/100
         Configuration.set_persistent_var("name_mischief_chance", chance/100)
@@ -202,7 +202,7 @@ name cooldown is {self.name_cooldown_time} seconds
 
     @name_mischief.command()
     @commands.guild_only()
-    @commands.has_permissions(ban_members=True)
+    @commands.check(Utils.can_mod_official)
     async def set_cooldown(self, ctx, seconds: int):
         self.name_cooldown_time = seconds
         Configuration.set_persistent_var("name_mischief_cooldown", seconds)
@@ -212,7 +212,8 @@ name cooldown is {self.name_cooldown_time} seconds
     @commands.cooldown(1, 60, BucketType.member)
     @commands.max_concurrency(3, wait=True)
     async def mischief(self, ctx):
-        if ctx.guild and not Utils.can_mod_official(ctx):
+        # mods/admins can use this in guild. everyone else can use it in DM
+        if ctx.guild and not await Utils.can_mod_official(ctx):
             return
 
         member_counts = Configuration.get_persistent_var(f"mischief_usage", dict())
@@ -228,7 +229,7 @@ name cooldown is {self.name_cooldown_time} seconds
 
     @mischief.command()
     @commands.guild_only()
-    @commands.has_permissions(ban_members=True)
+    @commands.check(Utils.can_mod_official)
     async def add_role(self, ctx, role: discord.Role):
         pattern = re.compile(r'^(the|a|an) +', re.IGNORECASE)
         alias = re.sub(pattern, '', role.name)
@@ -245,7 +246,7 @@ name cooldown is {self.name_cooldown_time} seconds
 
     @mischief.command()
     @commands.guild_only()
-    @commands.has_permissions(ban_members=True)
+    @commands.check(Utils.can_mod_official)
     async def remove_role(self, ctx, role: discord.Role):
         guild_row = await self.bot.get_guild_db_config(ctx.guild.id)
         old_role = await MischiefRole.get_or_none(guild_id=guild_row.id, roleid=role.id)
@@ -275,7 +276,7 @@ name cooldown is {self.name_cooldown_time} seconds
         guild = ctx.guild
         if not ctx.guild:
             guild = Utils.get_home_guild()
-        elif not Utils.can_mod_official(ctx):
+        elif not await Utils.can_mod_official(ctx):
             # members can only use this command in DMs
             return
 
@@ -363,7 +364,7 @@ name cooldown is {self.name_cooldown_time} seconds
         remaining = self.cooldown_time - cooldown_elapsed
 
         ctx = await self.bot.get_context(message)
-        if not Utils.can_mod_official(ctx) and (cooldown_elapsed < self.cooldown_time):
+        if not await Utils.can_mod_official(ctx) and (cooldown_elapsed < self.cooldown_time):
             try:
                 remaining_time = Utils.to_pretty_time(remaining)
                 await channel.send(f"wait {remaining_time} longer before you make another wish...")

@@ -22,7 +22,7 @@ class ArtCollector(BaseCog):
         self.collection_channels = dict()
 
     async def cog_check(self, ctx):
-        return ctx.author.guild_permissions.ban_members
+        return ctx.author.guild_permissions.ban_members or await self.bot.permission_manage_bot(ctx)
 
     async def on_ready(self):
         # Load channels
@@ -260,7 +260,10 @@ class ArtCollector(BaseCog):
                 return
 
             user_is_bot = u_id == self.bot.user.id
-            has_permission = my_member.guild_permissions.mute_members  # TODO: change to role-based?
+
+            # TODO: add role-based check?
+            has_permission = my_member.guild_permissions.mute_members or await self.bot.member_is_admin(my_member.id)
+
             if user_is_bot or not has_permission:
                 return
 

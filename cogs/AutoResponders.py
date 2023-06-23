@@ -127,7 +127,7 @@ class AutoResponders(BaseCog):
     async def cog_check(self, ctx):
         if ctx.guild is None:
             return False
-        return ctx.author.guild_permissions.ban_members
+        return ctx.author.guild_permissions.ban_members or await self.bot.permission_manage_bot(ctx)
 
     def get_flag_name(self, index):
         for key, value in self.flags.items():
@@ -972,7 +972,8 @@ class AutoResponders(BaseCog):
         if command_context or in_ignored_channel:
             return
 
-        is_mod = message.author.guild_permissions.mute_members
+        ctx = self.bot.get_context(message)
+        is_mod = message.author.guild_permissions.mute_members or await self.bot.permission_manage_bot(ctx)
         # search guild auto-responders
 
         if message.channel.guild.id not in self.triggers:
@@ -1087,7 +1088,8 @@ class AutoResponders(BaseCog):
             my_guild = self.bot.get_guild(channel.guild.id)
             member = my_guild.get_member(event.user_id)
             user_is_bot = event.user_id == self.bot.user.id
-            has_permission = member.guild_permissions.mute_members  # TODO: change to role-based?
+            # TODO: change to role-based?
+            has_permission = member.guild_permissions.mute_members or await self.bot.member_is_admin(event.user_id)
             if user_is_bot or not has_permission:
                 return
 

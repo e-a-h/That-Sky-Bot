@@ -4,6 +4,7 @@ import math
 import re
 import time
 import traceback
+import typing
 from collections import OrderedDict, namedtuple
 from datetime import datetime
 from json import JSONDecodeError
@@ -16,7 +17,7 @@ from discord.abc import PrivateChannel
 
 from utils import Logging, Configuration
 
-BOT = None
+BOT: typing.Any = None
 GUILD_CONFIGS = dict()
 ID_MATCHER = re.compile("<@!?([0-9]+)[\\\\]*>")
 ROLE_ID_MATCHER = re.compile("<@&([0-9]+)>")
@@ -63,16 +64,16 @@ async def fetch_last_message_by_channel(channel):
         return None
 
 
-def permission_official_mute(member_id):
-    return permission_official(member_id, 'mute_members')
+async def permission_official_mute(ctx):
+    return permission_official(ctx.author.id, 'mute_members') or await BOT.permission_manage_bot(ctx)
 
 
-def permission_official_ban(member_id):
-    return permission_official(member_id, 'ban_members')
+async def permission_official_ban(ctx):
+    return permission_official(ctx.author.id, 'ban_members') or await BOT.permission_manage_bot(ctx)
 
 
-def can_mod_official(ctx):
-    return permission_official_ban(ctx.author.id)
+async def can_mod_official(ctx):
+    return await permission_official_ban(ctx)
 
 
 def permission_official(member_id, permission_name):

@@ -125,19 +125,24 @@ class Skybot(Bot):
         return None
 
     async def permission_manage_bot(self, ctx):
-        db_admin = await BotAdmin.get_or_none(userid=ctx.author.id) is not None
-        # Logging.info(f"db_admin: {'yes' if db_admin else 'no'}")
-        owner = await ctx.bot.is_owner(ctx.author)
-        # Logging.info(f"owner: {'yes' if owner else 'no'}")
-        in_admins = ctx.author.id in Configuration.get_var("ADMINS", [])
-        # Logging.info(f"in_admins: {'yes' if in_admins else 'no'}")
+        is_admin = await self.member_is_admin(ctx.author.id)
+        # Logging.info(f"admin: {'yes' if is_admin else 'no'}")
         has_admin_role = False
         if ctx.guild:
             for role in ctx.author.roles:
                 if role in Configuration.get_var("admin_roles", []):
                     has_admin_role = True
         # Logging.info(f"has_admin_role: {'yes' if has_admin_role else 'no'}")
-        return db_admin or owner or in_admins or has_admin_role
+        return is_admin or has_admin_role
+
+    async def member_is_admin(self, member_id):
+        is_owner = await self.is_owner(self.get_user(member_id))
+        is_db_admin = await BotAdmin.get_or_none(userid=member_id) is not None
+        in_admins = member_id in Configuration.get_var("ADMINS", [])
+        # Logging.info(f"owner: {'yes' if is_owner else 'no'}")
+        # Logging.info(f"db_admin: {'yes' if is_db_admin else 'no'}")
+        # Logging.info(f"in_admins: {'yes' if in_admins else 'no'}")
+        return is_db_admin or is_owner or in_admins
 
     async def guild_log(self, guild_id: int, message=None, embed=None):
         channel = await self.get_guild_log_channel(guild_id)
@@ -243,11 +248,11 @@ def before_send(event, hint):
     return event
 
 
-def can_help(ctx):
-    return ctx.author.guild_permissions.mute_members
+async def can_help(ctx):
+    return ctx.author.guild_permissions.mute_members or await Utils.BOT.permission_manage_bot(ctx)
 
 
-def can_admin():
+async def can_admin(ctx):
     async def predicate(ctx):
         return await ctx.bot.permission_manage_bot(ctx)
     return commands.check(predicate)

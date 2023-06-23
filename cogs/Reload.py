@@ -126,7 +126,7 @@ class Reload(BaseCog):
         await message.edit(content="Hot reload complete")
 
     @commands.command()
-    @commands.has_guild_permissions(ban_members=True)
+    @commands.check(Utils.can_mod_official)
     async def restart(self, ctx):
         """Restart the bot"""
         shutdown_message = await ctx.send("Restarting...")

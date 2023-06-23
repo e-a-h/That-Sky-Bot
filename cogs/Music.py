@@ -217,8 +217,9 @@ class Music(BaseCog):
         out_name = await Utils.clean(name) if not out_name else out_name
         return out_name
 
-    def can_admin(ctx):
-        return ctx.author.guild_permissions.manage_channels
+    async def can_admin(ctx):
+        return await Utils.BOT.permission_manage_bot(ctx) or \
+            (ctx.guild and ctx.author.guild_permissions.manage_channels)
 
     @commands.command(aliases=['songs'])
     @commands.guild_only()

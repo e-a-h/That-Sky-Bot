@@ -37,9 +37,7 @@ class Welcomer(BaseCog):
         pass
 
     async def cog_check(self, ctx):
-        if ctx.guild is None:
-            return False
-        return ctx.author.guild_permissions.ban_members
+        return await self.bot.permission_manage_bot(ctx) or (ctx.guild and ctx.author.guild_permissions.ban_members)
 
     @commands.group(name="welcome", invoke_without_command=True)
     @commands.guild_only()
@@ -50,7 +48,7 @@ class Welcomer(BaseCog):
 
     @welcome.command(aliases=['verify'])
     @commands.guild_only()
-    @sky.can_admin()
+    @commands.check(sky.can_admin)
     async def verify_invited(self, ctx, *, member_list=""):
         async with ctx.channel.typing():
             await ctx.send("This might take a while. rate limiting stops me searching all members quickly...")
@@ -294,7 +292,7 @@ class Welcomer(BaseCog):
                     ''')
                 return
 
-        if message.author.guild_permissions.mute_members or \
+        if message.author.guild_permissions.mute_members or self.bot.member_is_admin(message.author.id) or \
                 (member_role is not None and member_role in message.author.roles):
             # is a mod or
             # message from regular member. no action to take.

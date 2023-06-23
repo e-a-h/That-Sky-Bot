@@ -107,10 +107,10 @@ class Bugs(BaseCog):
         except Exception as e:
             await Utils.handle_exception("bug startup failure", self.bot, e)
 
-    def can_mod(ctx):
+    async def can_mod(ctx):
         guild = Utils.get_home_guild()
         member = guild.get_member(ctx.author.id)
-        return member.guild_permissions.mute_members
+        return member.guild_permissions.mute_members or await Utils.BOT.permission_manage_bot(ctx)
 
     def enqueue_bug_report(self, user, channel):
         self.bug_report_queue.put_nowait(BugReportingAction(user, channel))
@@ -330,7 +330,7 @@ class Bugs(BaseCog):
         await ctx.send("Done! ||I think?||")
 
     @bug.group(name='platforms', aliases=['platform'], invoke_without_command=True)
-    @sky.can_admin()
+    @commands.check(sky.can_admin)
     async def platforms(self, ctx):
         platforms = dict()
 
@@ -356,7 +356,7 @@ class Bugs(BaseCog):
             await ctx.send(embed=embed)
 
     @platforms.command(aliases=['add'])
-    @sky.can_admin()
+    @commands.check(sky.can_admin)
     async def add_platform(self, ctx, platform, branch):
         row, create = await BugReportingPlatform.get_or_create(platform=platform, branch=branch)
         if create:
@@ -366,7 +366,7 @@ class Bugs(BaseCog):
 
     @bug.group(name='channels', aliases=['channel'], invoke_without_command=True)
     @commands.guild_only()
-    @sky.can_admin()
+    @commands.check(sky.can_admin)
     async def channels(self, ctx):
         # TODO: allow guild admins to use this, restricted to single guild
         embed = Embed(
@@ -404,7 +404,7 @@ class Bugs(BaseCog):
 
     @channels.command(aliases=['remove'])
     @commands.guild_only()
-    @sky.can_admin()
+    @commands.check(sky.can_admin)
     async def remove_channel(self, ctx, channel: TextChannel):
         try:
             row = await BugReportingChannel.get(channelid=channel.id)
@@ -418,7 +418,7 @@ class Bugs(BaseCog):
 
     @channels.command(aliases=['add'])
     @commands.guild_only()
-    @sky.can_admin()
+    @commands.check(sky.can_admin)
     async def add_channel(self, ctx, channel: TextChannel, platform, branch):
         try:
             guild_row = await Guild.get(serverid=ctx.guild.id)
@@ -446,7 +446,7 @@ class Bugs(BaseCog):
 
     @bug.command(aliases=["resetactive", "reset_in_progress", "resetinprogress", "reset", "clean"])
     @commands.guild_only()
-    @sky.can_admin()
+    @commands.check(sky.can_admin)
     async def reset_active(self, ctx):
         """Reset active bug reports. Bot will attempt to DM users whose reports are canceled."""
         to_kill = self.bug_report_queue.qsize()

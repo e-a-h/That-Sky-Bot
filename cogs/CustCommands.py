@@ -13,7 +13,7 @@ class CustCommands(BaseCog):
         self.commands = dict()
 
     async def cog_check(self, ctx):
-        return hasattr(ctx.author, 'guild_permissions') and ctx.author.guild_permissions.ban_members
+        return ((ctx.guild and ctx.author.guild_permissions.ban_members) or await self.bot.permission_manage_bot(ctx))
 
     async def on_ready(self):
         for guild in self.bot.guilds:

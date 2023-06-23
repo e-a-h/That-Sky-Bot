@@ -145,17 +145,17 @@ class Krill(BaseCog):
         #  remove mute role
         pass
 
-    def can_mod_krill(ctx):
-        return Utils.can_mod_official(ctx)
+    async def can_mod_krill(ctx):
+        return await Utils.can_mod_official(ctx)
 
-    def can_admin_krill(ctx):
-        return ctx.author.guild_permissions.manage_channels
+    async def can_admin_krill(ctx):
+        return ctx.author.guild_permissions.manage_channels or await Utils.BOT.permission_manage_bot(ctx)
 
-    def can_krill(ctx):
+    async def can_krill(ctx):
         # mod, empty channel list, or matching channel required
         no_channels = ctx.cog.channels[ctx.guild.id] == set()
         channel_match = ctx.channel.id in ctx.cog.channels[ctx.guild.id]
-        bypass = ctx.author.guild_permissions.mute_members
+        bypass = ctx.author.guild_permissions.mute_members or await Utils.BOT.permission_manage_bot(ctx)
         return bypass or no_channels or channel_match
 
     @commands.group(name="oreo", invoke_without_command=True)
@@ -944,7 +944,7 @@ class Krill(BaseCog):
 
         args = arg.split(' ')
         byline_type = self.get_byline_type_id('normal')
-        cheats = Krill.can_mod_krill(ctx)
+        cheats = await Krill.can_mod_krill(ctx)
         going_home = ("return_home" in args and cheats) or False
         krill_riding = ('krill_rider' in args and cheats) or (random() < (guild_krill_config.krill_rider_freq/100))
         shadow_rolling = ("shadow_roll" in args and cheats) or (random() < (guild_krill_config.shadow_roll_freq/100))
@@ -1083,7 +1083,9 @@ class Krill(BaseCog):
     @krill.error
     async def krill_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
-            if ctx.message.author.guild_permissions.mute_members or ctx.channel.id not in self.channels[ctx.guild.id]:
+            if ctx.message.author.guild_permissions.mute_members \
+                    or await self.bot.permission_manage_bot(ctx) \
+                    or ctx.channel.id not in self.channels[ctx.guild.id]:
                 # Bypass cooldown for mute permission and for invocations outside allowed channels
                 await ctx.reinvoke()
                 return

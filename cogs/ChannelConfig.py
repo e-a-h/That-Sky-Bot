@@ -46,10 +46,9 @@ class ChannelConfig(BaseCog):
         del self.bot.config_channels[guild.id]
         await ConfigChannel.filter(serverid=guild.id).delete()
 
-    def cog_check(self, ctx):
-        if ctx.guild is not None and ctx.author.guild_permissions.ban_members:
-            return True
-        return ctx.bot.is_owner(ctx.author) or ctx.author.id in Configuration.get_var("ADMINS", [])
+    async def cog_check(self, ctx):
+        return (ctx.guild is not None
+                and (ctx.author.guild_permissions.ban_members or await self.bot.permission_manage_bot(ctx)))
 
     @commands.group(name="channel_config", aliases=["chanconf", "channelconfig"], invoke_without_command=True)
     @commands.guild_only()
