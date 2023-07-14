@@ -435,8 +435,14 @@ class Bugs(BaseCog):
         try:
             record, created = await BugReportingChannel.get_or_create(
                 guild=guild_row, platform=platform_row, channelid=channel.id)
+        except DoesNotExist:
+            # database constraint has prevented creation of a new record
+            await ctx.send(f"bugs for `{platform}`/`{branch}` are already reported in another channel. To report in a "
+                           f"new channel, remove the old one first.")
+            return
         except IntegrityError:
-            await ctx.send(f"channel{channel.mention} is already in use for bug reporting")
+            # channel already in use for reporting
+            await ctx.send(f"channel {channel.mention} is already in use for bug reporting")
             return
 
         if created:
