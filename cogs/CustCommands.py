@@ -209,6 +209,8 @@ class CustCommands(BaseCog):
             return
         if not hasattr(message.channel, "guild") or message.channel.guild is None:
             return
+        if message.guild.id not in self.commands:
+            return
         prefix = Configuration.get_var("bot_prefix")
         if message.content.startswith(prefix, 0):
             for trigger in self.commands[message.guild.id]:

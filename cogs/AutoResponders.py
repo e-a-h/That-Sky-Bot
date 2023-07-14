@@ -70,7 +70,8 @@ class AutoResponders(BaseCog):
             await self.init_guild(guild)
         self.reload_mod_actions()
         await self.reload_triggers()
-        self.clean_old_autoresponders.start()
+        if not self.clean_old_autoresponders.is_running():
+            self.clean_old_autoresponders.start()
 
     def cog_unload(self):
         self.clean_old_autoresponders.cancel()
@@ -965,14 +966,14 @@ class AutoResponders(BaseCog):
             return
 
         prefix = Configuration.get_var("bot_prefix")
-        can_command = await self.cog_check(message)
+        ctx = await self.bot.get_context(message)
+        can_command = await self.cog_check(ctx)
         command_context = message.content.startswith(prefix, 0) and can_command
         in_ignored_channel = False  # TODO: commands for global ignore channels, populate with channels
 
         if command_context or in_ignored_channel:
             return
 
-        ctx = self.bot.get_context(message)
         is_mod = message.author.guild_permissions.mute_members or await self.bot.permission_manage_bot(ctx)
         # search guild auto-responders
 

@@ -38,8 +38,10 @@ class DropBox(BaseCog):
                 self.dropboxes[guild.id][row.sourcechannelid] = row
 
         # TODO: replace with asyncio queue?
-        self.deliver_to_channel.start()
-        self.clean_channels.start()
+        if not self.deliver_to_channel.is_running():
+            self.deliver_to_channel.start()
+        if not self.clean_channels.is_running():
+            self.clean_channels.start()
 
     async def init_guild(self, guild_id):
         self.dropboxes[guild_id] = dict()
@@ -267,7 +269,10 @@ class DropBox(BaseCog):
                         is_mod = my_member.guild_permissions.ban_members or await self.bot.member_is_admin(my_member.id)
                         age = (now-message.created_at).seconds
                         expired = age > drop.deletedelayms / 1000
+
+                        # TODO: keyerror here?
                         queued_for_delete = message.id in self.delete_in_progress[guild.id][channel_id]
+
                         # periodically clear out expired messages sent by bot and non-mod
                         if expired and not queued_for_delete and (message.author.bot or not is_mod):
                             self.delete_in_progress[guild.id][channel_id].add(message.id)

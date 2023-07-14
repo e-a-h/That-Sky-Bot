@@ -505,14 +505,18 @@ class Bugs(BaseCog):
             # block more clicks to the initial trigger
             self.blocking.add(user.id)
 
-            # ask if user wants to start over
-            await Questions.ask(self.bot, trigger_channel, user,
-                                Lang.get_locale_string("bugs/start_over", ctx, user=user.mention),
-                                [
-                                    Questions.Option("YES", Lang.get_locale_string("bugs/start_over_yes", ctx),
-                                                     handler=start_over),
-                                    Questions.Option("NO", Lang.get_locale_string("bugs/start_over_no", ctx))
-                                ], delete_after=True, show_embed=True, locale=ctx)
+            try:
+                # ask if user wants to start over
+                await Questions.ask(self.bot, trigger_channel, user,
+                                    Lang.get_locale_string("bugs/start_over", ctx, user=user.mention),
+                                    [
+                                        Questions.Option("YES", Lang.get_locale_string("bugs/start_over_yes", ctx),
+                                                         handler=start_over),
+                                        Questions.Option("NO", Lang.get_locale_string("bugs/start_over_no", ctx))
+                                    ], delete_after=True, show_embed=True, locale=ctx)
+            except TimeoutError:
+                Logging.info(f"Bug report restart prompt timed out for {get_member_log_name(user)}")
+                return
 
             # not starting over. remove blocking
             if user.id in self.blocking:
@@ -531,7 +535,7 @@ class Bugs(BaseCog):
         self.sweeps[user.id] = sweep
         try:
             await task
-        except TimeoutError as e:
+        except TimeoutError:
             Logging.info(f"Report timed out for {get_member_log_name(user)}")
             return
         except CancelledError as e:

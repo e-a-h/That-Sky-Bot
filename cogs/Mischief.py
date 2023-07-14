@@ -94,8 +94,11 @@ class Mischief(BaseCog):
         Logging.info(f"Mischief on_ready")
         for guild in self.bot.guilds:
             await self.init_guild(guild)
-        self.role_count_task.start()
-        self.name_task.start()
+
+        if not self.role_count_task.is_running():
+            self.role_count_task.start()
+        if not self.name_task.is_running():
+            self.name_task.start()
 
     def cog_unload(self):
         self.role_count_task.cancel()
@@ -286,6 +289,14 @@ name cooldown is {self.name_cooldown_time} seconds
             title="Mischief!")
 
         for this_role in self.mischief_map[guild.id].values():
+            if guild.id not in self.role_counts:
+                Logging.error(f"guild {guild.id} not available for team_mischief")
+                continue
+
+            if this_role.id not in  self.role_counts[guild.id]:
+                Logging.error(f"role {this_role.id} not set for team_mischief in guild {guild.id}")
+                continue
+
             member_count = self.role_counts[guild.id][this_role.id]
             embed.add_field(name=this_role.name, value=str(member_count), inline=True)
 
@@ -428,10 +439,14 @@ You can also use the `!team_mischief` command right here to find out more""")
     @commands.Cog.listener()
     async def on_member_remove(self, member):
         # decrement role counts for any tracked roles the departed member had
-        my_map = self.role_counts[member.guild.id]
-        for role in member.roles:
-            if role.id in my_map:
-                my_map[role.id] = my_map[role.id] - 1
+        try:
+            my_map = self.role_counts[member.guild.id]
+            for role in member.roles:
+                if role.id in my_map:
+                    my_map[role.id] = my_map[role.id] - 1
+        except KeyError:
+            # caught before bot is fully initialized. ignore
+            pass
 
     async def mischief_namer(self, message):
         if not hasattr(message.author, "guild"):

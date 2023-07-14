@@ -92,6 +92,9 @@ class ReactMonitor(BaseCog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
+        if member.guild.id not in self.mutes:
+            return
+
         if str(member.id) in self.mutes[member.guild.id]:
             guild = member.guild
             guild_config = await self.bot.get_guild_db_config(guild.id)

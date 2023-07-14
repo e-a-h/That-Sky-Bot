@@ -292,7 +292,7 @@ class Welcomer(BaseCog):
                     ''')
                 return
 
-        if message.author.guild_permissions.mute_members or self.bot.member_is_admin(message.author.id) or \
+        if message.author.guild_permissions.mute_members or await self.bot.member_is_admin(message.author.id) or \
                 (member_role is not None and member_role in message.author.roles):
             # is a mod or
             # message from regular member. no action to take.
