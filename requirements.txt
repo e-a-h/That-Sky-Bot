@@ -24,12 +24,16 @@ certifi==2023.5.7
     # via
     #   requests
     #   sentry-sdk
+cffi==1.15.1
+    # via cryptography
 charset-normalizer==3.2.0
     # via
     #   aiohttp
     #   requests
 click==8.1.5
     # via aerich
+cryptography==41.0.2
+    # via -r requirements.in
 dictdiffer==0.9.0
     # via aerich
 discord==2.3.1
@@ -79,9 +83,11 @@ pillow==10.0.0
     #   scikit-image
 prometheus-client==0.17.1
     # via -r requirements.in
-pydantic==2.0.2
+pycparser==2.21
+    # via cffi
+pydantic==2.0.3
     # via aerich
-pydantic-core==2.1.2
+pydantic-core==2.3.0
     # via pydantic
 pypika-tortoise==0.1.6
     # via tortoise-orm

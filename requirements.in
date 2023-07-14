@@ -1,5 +1,6 @@
 aerich
 asyncmy
+cryptography
 discord
 image-similarity-measures
 prometheus_client
