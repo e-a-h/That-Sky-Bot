@@ -199,13 +199,14 @@ bugs:
     ```
     Do you have screenshots, videos, or other documents to add? Video may be attached directly to this report, but size is limited for direct messages. If your video is too large, you can share it in the appropriate screenshot channel or on a site like youtube and add a link to your report instead.
   question_attachments_windows: |
-    --jp-- **For Windows players,** it's important to provide us with a .txt file of **DxDiag** info, so please attach that now
-
+    --jp-- 🖥️ __**For Windows players**__ 🖥️
+    It's important to provide us with a .txt file of **DxDiag** info, so __**please react YES**__ and provide that in the next step.
+    
     How to obtain DxDiag information:
-    > * From the Windows desktop, type dxdiag in the search field of the Windows taskbar.
-    > * Select the dxdiag Run command from the populated list.
-    > * In the DirectX Diagnostic Tool window, choose Save All Information.
-    > * In the Save As window, the DirectX information is saved as a text (.TXT) file. Choose the Desktop or another easily accessible location to save your file, and then click Save.
+    > 1. From the Windows desktop, type dxdiag in the search field of the Windows taskbar.
+    > 1. Select the dxdiag Run command from the populated list.
+    > 1. In the DirectX Diagnostic Tool window, choose Save All Information.
+    > 1. In the Save As window, the DirectX information is saved as a text (.TXT) file. Choose the Desktop or another easily accessible location to save your file, and then click Save.
   question_ok: --jp-- This is what your report will look like. Should I **submit** it or **discard** it? You have **{timeout} to review.**
   send_report: --jp-- All done! Send this report
   mistake: --jp-- Nope, I made a mistake. Throw away this report and start again

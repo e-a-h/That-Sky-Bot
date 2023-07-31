@@ -20,7 +20,7 @@ class Reporting(BaseCog):
     fetch_limit = 1000
 
     async def cog_check(self, ctx):
-        return Utils.can_mod_official(ctx)
+        return await Utils.can_mod_official(ctx)
 
     @command(hidden=True)
     async def csv(

@@ -198,7 +198,8 @@ bugs:
     ```
     Do you have screenshots, videos, or other documents to add? Video may be attached directly to this report, but size is limited for direct messages. If your video is too large, you can share it in the appropriate screenshot channel or on a site like youtube and add a link to your report instead.
   question_attachments_windows: |
-    **For Windows players,** it's important to provide us with a .txt file of **DxDiag** info, so __**please react YES**__ and provide that in the next step.
+    🖥️ __**For Windows players**__ 🖥️
+    It's important to provide us with a .txt file of **DxDiag** info, so __**please react YES**__ and provide that in the next step.
     
     How to obtain DxDiag information:
     > 1. From the Windows desktop, type dxdiag in the search field of the Windows taskbar.
