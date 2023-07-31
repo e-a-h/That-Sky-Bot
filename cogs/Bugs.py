@@ -365,6 +365,19 @@ class Bugs(BaseCog):
         else:
             await ctx.send(f"That platform/branch combination is already in my database")
 
+    @platforms.command(aliases=['remove'])
+    @commands.check(sky.can_admin)
+    async def remove_platform(self, ctx, platform, branch):
+        row = await BugReportingPlatform.get_or_none(platform=platform, branch=branch)
+        if row is None:
+            await ctx.send(f"That platform/branch is not in my database")
+        else:
+            try:
+                await row.delete()
+                await ctx.send(f"Ok, I removed `{platform}/{branch}` from my database")
+            except OperationalError:
+                await ctx.send(f"I couldn't delete `{platform}/{branch}` from my database. I really tried, I promise!")
+
     @bug.group(name='channels', aliases=['channel'], invoke_without_command=True)
     @commands.guild_only()
     @commands.check(sky.can_admin)
