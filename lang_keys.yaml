@@ -70,6 +70,7 @@ bugs:
   device_info_ios:
   device_info_android:
   device_info_playstation:
+  device_info_windows:
   question_app_branch:
   app_version:
   question_app_version:
@@ -79,6 +80,7 @@ bugs:
   version_ios:
   version_switch:
   version_playstation:
+  version_windows:
   title:
   question_title:
   description:
@@ -92,10 +94,12 @@ bugs:
   question_additional_info:
   additional_info_yes:
   question_attachments:
+  question_attachments_windows:
   question_ok:
   send_report:
   mistake:
   no_live_android:
+  no_live_windows:
   dm_unable:
 eden:
   dm_prompt:

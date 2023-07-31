@@ -1,6 +1,8 @@
 import asyncio
 import inspect
 import re
+import typing
+
 from discord import Embed, Reaction
 from utils import Emoji, Utils, Configuration, Lang
 from dataclasses import dataclass
@@ -12,7 +14,7 @@ from dataclasses import dataclass
 class Option:
     emoji: str = None
     text: str = None
-    handler: 'function' = None
+    handler: typing.Callable = None
     args: str = None
 
 
@@ -116,6 +118,7 @@ async def ask_text(
 
     while ask_again:
         message_cleaned = ""
+        content = ""
         my_messages.append(await channel.send(text))
         try:
             while True:
@@ -125,7 +128,9 @@ async def ask_text(
                     result = Lang.get_locale_string("questions/text_only", locale)
                 else:
                     message_cleaned = clean_text(message.content)
-                    result = validator(message_cleaned) if validator is not None else True
+                    # escape_markdown may increase the length of the answer. add buffer if length is limited
+                    content = Utils.escape_markdown(message_cleaned) if escape else message_cleaned
+                    result = validator(content) if validator is not None else True
                 if result is True:
                     break
                 else:
@@ -140,7 +145,6 @@ async def ask_text(
             )
             raise ex
         else:
-            content = Utils.escape_markdown(message_cleaned) if escape else message_cleaned
             if confirm:
                 ask_again = True
                 backticks = "``" if len(message_cleaned.splitlines()) == 1 else "```"

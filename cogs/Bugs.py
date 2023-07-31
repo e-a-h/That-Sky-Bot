@@ -19,7 +19,8 @@ from tortoise.exceptions import DoesNotExist, OperationalError, IntegrityError
 import sky
 from cogs.BaseCog import BaseCog
 from utils import Questions, Emoji, Utils, Configuration, Lang, Logging
-from utils.Database import BugReport, Attachments, BugReportingPlatform, BugReportingChannel, Guild
+from utils.Database import BugReport, Attachments, BugReportingPlatform, BugReportingChannel
+from utils.Database import Guild, BugReportFieldLength
 from utils.Logging import TCol
 
 
@@ -609,7 +610,7 @@ class Bugs(BaseCog):
                 # TODO: double check if we actually want to enforce this
                 if len(Utils.NUMBER_MATCHER.findall(v)) == 0:
                     return Lang.get_locale_string("bugs/no_numbers", ctx)
-                if len(v) > 20:
+                if len(v) > BugReportFieldLength.generic_version:
                     return Lang.get_locale_string("bugs/love_letter", ctx)
                 return True
 
@@ -758,8 +759,8 @@ class Bugs(BaseCog):
                         Lang.get_locale_string("bugs/question_device_info",
                                                ctx, platform=platform,
                                                device_info_help=device_info_platform,
-                                               max=200),
-                        validator=max_length(200), locale=ctx)
+                                               max=BugReportFieldLength.deviceinfo),
+                        validator=max_length(BugReportFieldLength.deviceinfo), locale=ctx)
                     update_metrics()
                 except KeyError:
                     # Expected when a question is not defined
@@ -795,7 +796,7 @@ class Bugs(BaseCog):
                         self.bot, channel, user,
                         Lang.get_locale_string(
                             "bugs/question_app_version", ctx,
-                            version_help=Lang.get_locale_string("bugs/version_" + platform.lower())),
+                            version_help=Lang.get_locale_string(f"bugs/version_{platform.lower()}", ctx)),
                         validator=verify_version, locale=ctx)
                     update_metrics()
                 except KeyError:
@@ -817,8 +818,8 @@ class Bugs(BaseCog):
                     # question 7: Title
                     title = await Questions.ask_text(
                         self.bot, channel, user,
-                        Lang.get_locale_string("bugs/question_title", ctx, max=300),
-                        validator=max_length(300), locale=ctx)
+                        Lang.get_locale_string("bugs/question_title", ctx, max=BugReportFieldLength.title),
+                        validator=max_length(BugReportFieldLength.title), locale=ctx)
                     update_metrics()
                 except KeyError:
                     # Expected when a question is not defined
@@ -828,8 +829,8 @@ class Bugs(BaseCog):
                     # question 8: "actual" - defect behavior
                     actual = await Questions.ask_text(
                         self.bot, channel, user,
-                        Lang.get_locale_string("bugs/question_actual", ctx, max=800),
-                        validator=max_length(800), locale=ctx)
+                        Lang.get_locale_string("bugs/question_actual", ctx, max=BugReportFieldLength.actual),
+                        validator=max_length(BugReportFieldLength.actual), locale=ctx)
                     update_metrics()
                 except KeyError:
                     # Expected when a question is not defined
@@ -838,8 +839,13 @@ class Bugs(BaseCog):
                 try:
                     # question 9: steps to reproduce
                     steps = await Questions.ask_text(
-                        self.bot, channel, user, Lang.get_locale_string("bugs/question_steps", ctx, max=800),
-                        validator=max_length(800), locale=ctx)
+                        self.bot,
+                        channel,
+                        user,
+                        Lang.get_locale_string("bugs/question_steps",
+                                               ctx, max=BugReportFieldLength.steps),
+                        validator=max_length(BugReportFieldLength.steps),
+                        locale=ctx)
                     update_metrics()
                 except KeyError:
                     # Expected when a question is not defined
@@ -849,8 +855,8 @@ class Bugs(BaseCog):
                     # question 10: expected behavior
                     expected = await Questions.ask_text(
                         self.bot, channel, user,
-                        Lang.get_locale_string("bugs/question_expected", ctx, max=800),
-                        validator=max_length(800), locale=ctx)
+                        Lang.get_locale_string("bugs/question_expected", ctx, max=BugReportFieldLength.expected),
+                        validator=max_length(BugReportFieldLength.expected), locale=ctx)
                     update_metrics()
                 except KeyError:
                     # Expected when a question is not defined
@@ -858,14 +864,21 @@ class Bugs(BaseCog):
 
                 try:
                     # question 11: attachments y/n
+                    attachment_prompt = Lang.get_locale_string("bugs/question_attachments", ctx)
+                    try:
+                        platform_attachment_prompt = Lang.get_locale_string(
+                            f"bugs/question_attachments_{platform.lower()}", ctx)
+                        attachment_prompt += f"\n{platform_attachment_prompt}"
+                    except KeyError:
+                        pass
                     await Questions.ask(
-                        self.bot, channel, user, Lang.get_locale_string("bugs/question_attachments", ctx),
+                        self.bot, channel, user, attachment_prompt,
                         [
                             Questions.Option("YES",
                                              Lang.get_locale_string("bugs/attachments_yes", ctx),
                                              handler=add_attachments),
                             Questions.Option("NO", Lang.get_locale_string("bugs/skip_step", ctx))
-                        ], show_embed=True, locale=ctx)
+                        ], show_embed=True, timeout=300, locale=ctx)
                     update_metrics()
                 except KeyError:
                     # Expected when a question is not defined
@@ -873,7 +886,8 @@ class Bugs(BaseCog):
 
                 if attachments:
                     # question 12: attachments
-                    attachment_links = await Questions.ask_attachements(self.bot, channel, user, locale=ctx)
+                    attachment_links = await Questions.ask_attachements(
+                        self.bot, channel, user, timeout=300, locale=ctx)
                     attachment_links = set(attachment_links)
                 # update metrics outside condition to keep count up-to-date and reflect skipped question as zero time
                 update_metrics()
@@ -898,7 +912,7 @@ class Bugs(BaseCog):
                     additional_text = await Questions.ask_text(
                         self.bot, channel, user,
                         Lang.get_locale_string("bugs/question_additional_info", ctx),
-                        validator=max_length(500), locale=ctx)
+                        validator=max_length(BugReportFieldLength.additional), locale=ctx)
                 # update metrics outside condition to keep count up-to-date and reflect skipped question as zero time
                 update_metrics()
 

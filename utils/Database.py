@@ -1,9 +1,10 @@
+from dataclasses import dataclass
+
 from tortoise import Tortoise
 from tortoise.models import Model
 from tortoise.fields import \
     BooleanField, BigIntField, IntField, SmallIntField, CharField, ForeignKeyField, OneToOneField, ReverseRelation
 
-import utils.tortoise_settings
 from utils import tortoise_settings, Logging
 from utils.tortoise_settings import app_name as app
 import os
@@ -106,21 +107,37 @@ class BotAdmin(AbstractBaseModel):
         table = 'botadmin'
 
 
+@dataclass(frozen=True)
+class BugReportFieldLength:
+    platform: int = 100
+    generic_version: int = 20
+    platform_version: int = 20
+    branch: int = 20
+    app_version: int = 20
+    app_build: int = 20
+    title: int = 330
+    deviceinfo: int = 100
+    steps: int = 1024
+    expected: int = 880
+    actual: int = 880
+    additional: int = 500
+
+
 class BugReport(AbstractBaseModel):
     reporter = BigIntField()
     message_id = BigIntField(unique=True, null=True)
     attachment_message_id = BigIntField(unique=True, null=True)
-    platform = CharField(100)
-    platform_version = CharField(20)
-    branch = CharField(20)
-    app_version = CharField(20)
-    app_build = CharField(20, null=True)
-    title = CharField(330)
-    deviceinfo = CharField(100)
-    steps = CharField(1024)
-    expected = CharField(880)
-    actual = CharField(880)
-    additional = CharField(500)
+    platform = CharField(BugReportFieldLength.platform)
+    platform_version = CharField(BugReportFieldLength.generic_version)
+    branch = CharField(BugReportFieldLength.branch)
+    app_version = CharField(BugReportFieldLength.generic_version)
+    app_build = CharField(BugReportFieldLength.app_build, null=True)
+    title = CharField(BugReportFieldLength.title)
+    deviceinfo = CharField(BugReportFieldLength.deviceinfo)
+    steps = CharField(BugReportFieldLength.steps)
+    expected = CharField(BugReportFieldLength.expected)
+    actual = CharField(BugReportFieldLength.actual)
+    additional = CharField(BugReportFieldLength.additional)
     reported_at = BigIntField()
 
     attachments: ReverseRelation["Attachments"]

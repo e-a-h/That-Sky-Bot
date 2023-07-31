@@ -93,6 +93,12 @@ bugs:
   device_info_ios: |
   device_info_android: |
   device_info_playstation: |
+  device_info_windows: |
+    Help us by providing the following details about your system:
+    
+    > 1. CPU model
+    > 2. GPU model
+    > 3. Physical RAM
   question_app_branch: |
     ```css
     Sky App Type
@@ -144,6 +150,11 @@ bugs:
     > 3. Press the options button on your controller.
     > 4. App version will show up under “Information”.
     https://cdn.discordapp.com/attachments/623178459438645248/1050614478825336883/ps_info.png
+  version_windows: |
+    **To find the Sky version and build number on Windows:**
+    > 1. Boot the game to the Title Screen (The screen with the Play button)
+    > 2. Look for the number in the bottom left corner (formatted as 0.0.0.X)
+    > 3. Please provide the full number
   title: Title/Topic
   question_title: |
     ```css
@@ -186,10 +197,19 @@ bugs:
     Attachments
     ```
     Do you have screenshots, videos, or other documents to add? Video may be attached directly to this report, but size is limited for direct messages. If your video is too large, you can share it in the appropriate screenshot channel or on a site like youtube and add a link to your report instead.
+  question_attachments_windows: |
+    **For Windows players,** it's important to provide us with a .txt file of **DxDiag** info, so __**please react YES**__ and provide that in the next step.
+    
+    How to obtain DxDiag information:
+    > 1. From the Windows desktop, type dxdiag in the search field of the Windows taskbar.
+    > 1. Select the dxdiag Run command from the populated list.
+    > 1. In the DirectX Diagnostic Tool window, choose Save All Information.
+    > 1. In the Save As window, the DirectX information is saved as a text (.TXT) file. Choose the Desktop or another easily accessible location to save your file, and then click Save.
   question_ok: This is what your report will look like. Should I **submit** it or **discard** it? You have **{timeout} to review.**
   send_report: All done! Send this report
   mistake: Nope, I made a mistake. Throw away this report and start again
   no_live_android: There is no live version available on Android yet, only beta. Go back to the bug report channel any time to start a new report!
+  no_live_windows: There is no live version available on Windows yet, only beta. Go back to the bug report channel any time to start a new report!
   dm_unable: '{user}, I was unable to DM you for questions about your bug, Please allow DMs from this server to file bug reports. You can enable this in the privacy settings, found in the server dropdown menu. Once your report is filed, you may disable DMs again if you like.'
 eden:
   dm_prompt: Did you know you can use the `!edenreset` or `!er` command in my DMs? Shorter cooldown there too.
