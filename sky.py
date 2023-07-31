@@ -227,7 +227,7 @@ async def run_db_migrations():
             app=utils.tortoise_settings.app_name
         )
         await command.init()
-        result = await command.upgrade()
+        result = await command.upgrade(False)
         if result:
             Logging.info(f"{TCol.cOkGreen}##### db migrations done: #####{TCol.cEnd}")
             Logging.info(result)
