@@ -534,7 +534,7 @@ class Bugs(BaseCog):
                                                          handler=start_over),
                                         Questions.Option("NO", Lang.get_locale_string("bugs/start_over_no", ctx))
                                     ], delete_after=True, show_embed=True, locale=ctx)
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 Logging.info(f"Bug report restart prompt timed out for {get_member_log_name(user)}")
                 return
 
@@ -555,7 +555,7 @@ class Bugs(BaseCog):
         self.sweeps[user.id] = sweep
         try:
             await task
-        except TimeoutError:
+        except asyncio.TimeoutError:
             Logging.info(f"Report timed out for {get_member_log_name(user)}")
             return
         except CancelledError as e:
