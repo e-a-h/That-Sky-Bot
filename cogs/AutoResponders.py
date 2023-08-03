@@ -200,10 +200,15 @@ class AutoResponders(BaseCog):
                         # not json. do not raise exception, use string instead
                         response = responder.response
 
+                if isinstance(response, int):
+                    response = str(response)
+
                 # use JSON object to require each of several triggers in any order
                 try:
                     # TODO: enforce structure and depth limit. Currently written to accept 1D and 2D array of strings
                     match_list = json.loads(responder.trigger)
+                    if not isinstance(match_list, list):
+                        match_list = None
 
                     # 1D Array means a matching string will have each word in the list, in any order
                     # A list in any index of the list means any *one* word in the 2nd level list will match
@@ -1004,7 +1009,7 @@ class AutoResponders(BaseCog):
                     my_word = rf"{my_word}\b"
                 return my_word
 
-            if data['match_list'] is not None:
+            if data['match_list'] is not None and isinstance(data['match_list'], list):
                 # full match done as whole word match per item in list when using list-match
                 words = []
                 for word in data['match_list']:
