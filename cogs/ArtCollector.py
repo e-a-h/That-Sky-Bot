@@ -230,8 +230,12 @@ class ArtCollector(BaseCog):
                     content_shown = True
                 embed.set_image(url=attachment.url)
                 sent = await my_channel.send(embed=embed)
-                await sent.add_reaction(Emoji.get_emoji("YES"))
-                await sent.add_reaction(Emoji.get_emoji("NO"))
+                try:
+                    await sent.add_reaction(Emoji.get_emoji("YES"))
+                    await sent.add_reaction(Emoji.get_emoji("NO"))
+                except (discord.DiscordServerError, discord.Forbidden):
+                    # no reactions for you!
+                    pass
 
         if tags:
             for tag in tags:

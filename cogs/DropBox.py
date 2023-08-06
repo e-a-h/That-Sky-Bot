@@ -270,8 +270,11 @@ class DropBox(BaseCog):
                         age = (now-message.created_at).seconds
                         expired = age > drop.deletedelayms / 1000
 
-                        # TODO: keyerror here?
-                        queued_for_delete = message.id in self.delete_in_progress[guild.id][channel_id]
+                        try:
+                            queued_for_delete = message.id in self.delete_in_progress[guild.id][channel_id]
+                        except KeyError:
+                            # bot is restarting - stop processing and pick this up next time
+                            break
 
                         # periodically clear out expired messages sent by bot and non-mod
                         if expired and not queued_for_delete and (message.author.bot or not is_mod):

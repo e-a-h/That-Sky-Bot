@@ -10,7 +10,7 @@ from sky import queue_worker
 from asyncio import CancelledError
 from datetime import datetime
 
-from discord import Forbidden, Embed, NotFound, HTTPException, TextChannel
+from discord import Forbidden, Embed, NotFound, HTTPException, TextChannel, AllowedMentions
 from discord.ext import commands, tasks
 from discord.ext.commands import Context
 from discord.utils import utcnow
@@ -294,7 +294,11 @@ class Bugs(BaseCog):
                     await channel.set_permissions(default_role, overwrite=channel_overwrite)
 
                     if re.search(r'beta', branch, re.I) and beta_role:
-                        beta_overwrite = channel.overwrites[beta_role]
+                        if beta_role in channel.overwrites:
+                            beta_overwrite = channel.overwrites[beta_role]
+                        else:
+                            await ctx.send(f"Channel {channel.mention} does not have a permission overwrite "
+                                           f"for the {beta_role.mention} Role", allowed_mentions=AllowedMentions.none())
                         beta_overwrite.read_messages = False if active else True
                         await channel.set_permissions(beta_role, overwrite=beta_overwrite)
             except Exception as e:

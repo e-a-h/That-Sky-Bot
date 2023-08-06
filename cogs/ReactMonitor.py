@@ -31,7 +31,8 @@ class ReactMonitor(BaseCog):
     async def on_ready(self):
         for guild in self.bot.guilds:
             await self.init_guild(guild.id)
-        self.check_reacts.start()
+        if not self.check_reacts.is_running():
+            self.check_reacts.start()
         self.started = True
 
     async def init_guild(self, guild_id):

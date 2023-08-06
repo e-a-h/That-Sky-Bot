@@ -17,7 +17,8 @@ class CogName(BaseCog):
     async def on_ready(self):
         for guild in self.bot.guilds:
             await self.init_guild(guild)
-        self.periodic_task.start()
+        if not self.periodic_task.is_running():
+            self.periodic_task.start()
 
     async def cog_unload(self):
         self.periodic_task.cancel()
