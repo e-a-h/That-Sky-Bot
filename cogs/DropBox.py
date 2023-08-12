@@ -2,6 +2,7 @@ import asyncio
 import io
 from asyncio import CancelledError
 
+import aiohttp
 import discord
 import tortoise.exceptions
 from discord import Forbidden, Embed, NotFound, HTTPException
@@ -287,11 +288,17 @@ class DropBox(BaseCog):
                 except (CancelledError, asyncio.TimeoutError, discord.DiscordServerError, NotFound, RuntimeError) as e:
                     # I think these are safe to ignore...
                     pass
+                except aiohttp.ClientOSError:
+                    await self.bot.guild_log(guild.id, f"Dropbox client error. Probably safe to ignore, but check "
+                                                       f"your dropbox channels to make sure they are clean.")
+                    continue
                 except RuntimeError as e:
                     await self.bot.guild_log(guild.id, f"Dropbox error for guild `{guild.name}`. What's broken?")
+                    # fall through and report
                 except Exception as e:
                     # ignore but log
                     await Utils.handle_exception('dropbox clean failure', self.bot, e)
+                    continue
         self.clean_in_progress = False
 
     async def clean_message(self, message):

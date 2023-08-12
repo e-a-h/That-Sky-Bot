@@ -6,7 +6,7 @@ from random import randint, random, choice
 
 import discord
 import tortoise.exceptions
-from discord import utils
+from discord import utils, NotFound
 from discord.ext import commands
 from discord.ext.commands import command, UserConverter, BucketType
 
@@ -914,7 +914,11 @@ class Krill(BaseCog):
 
         # Initial validation passed. Delete command message and check or start
         Logging.info(f"krill by {Utils.get_member_log_name(ctx.author)} - args: {arg}")
-        await ctx.message.delete()
+        try:
+            await ctx.message.delete()
+        except NotFound:
+            # most likely a censored message. do not respond.
+            return
 
         # EMOJI hard coded because... it must be exactly these
         head = utils.get(self.bot.emojis, id=640741616080125981)
