@@ -641,7 +641,7 @@ async def run():
             for channel_row in row.bug_channels:
                 await channel_row.fetch_related("guild", "platform")
                 print(f"\t\t--{channel_row.channelid} in {channel_row.guild.serverid}")
-    except:
+    except Exception:
         print("__**prefetch failed**__")
 
     print("\nExample filters:")
@@ -690,7 +690,7 @@ async def run():
         for row in await my_other_guild.bug_channels:
             print(f"\t\tdelete row? {row.id}")
             await row.delete()
-    except:
+    except Exception:
         print("relation filter delete fail")
 
 if __name__ == "__main__":

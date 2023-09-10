@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import signal
 import sys
@@ -13,6 +14,7 @@ from prometheus_client import CollectorRegistry
 from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 from tortoise import Tortoise
 from aerich import Command
+from hanging_threads import start_monitoring
 
 import utils.tortoise_settings
 from utils import Logging, Configuration, Utils, Emoji, Database, Lang
@@ -302,6 +304,8 @@ async def queue_worker(name, queue, job, shielded=False):
 
 
 async def main():
+    start_monitoring(seconds_frozen=10, test_interval=100)
+
     global running
     running = True
     Logging.init()
@@ -382,5 +386,8 @@ if __name__ == '__main__':
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
+    except Exception as e:
+        # Who knows... log this.
+        Logging.error(f"Unhandled exception: {e} - {json.dumps(e)}")
     finally:
         Logging.info(f"{TCol.cOkGreen}bot shutdown complete{TCol.cEnd}")

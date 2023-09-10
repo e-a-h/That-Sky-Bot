@@ -494,7 +494,8 @@ class Krill(BaseCog):
                 try:
                     await msg.delete()
                     await asyncio.sleep(0.1)
-                except Exception:
+                except Exception as e:
+                    await Utils.handle_exception("Krill choose_byline clean_dialog exception", self.bot, e)
                     pass
 
         for row in guild_bylines:
@@ -548,7 +549,8 @@ class Krill(BaseCog):
                 try:
                     await msg.delete()
                     await asyncio.sleep(0.1)
-                except Exception:
+                except Exception as e:
+                    await Utils.handle_exception("Krill choose_byline_type clean_dialog exception", self.bot, e)
                     pass
 
         for i, v in enumerate(self.byline_types):

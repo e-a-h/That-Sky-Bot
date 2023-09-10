@@ -10,3 +10,4 @@ requests
 sentry-sdk
 setuptools
 tortoise-orm
+hanging_threads

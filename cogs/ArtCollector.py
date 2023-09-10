@@ -177,8 +177,9 @@ class ArtCollector(BaseCog):
                     collectchannel=cc_mention,
                     tag=key)
                 await ctx.send(f"{Emoji.get_chat_emoji('YES')} {channel_removed_str}")
-            except:
+            except Exception as e:
                 await ctx.send(Lang.get_locale_string('art/remove_channel_failed', ctx))
+                await Utils.handle_exception("Art collector remove exception", self.bot, e)
         else:
             channel_not_found_str = Lang.get_locale_string(
                 'art/channel_not_found', ctx,

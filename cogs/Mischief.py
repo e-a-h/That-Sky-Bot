@@ -174,16 +174,18 @@ class Mischief(BaseCog):
                 if (now - member_last_access_time) < self.cooldown_time:
                     updated_cooldown[str_uid] = member_last_access_time
             Configuration.set_persistent_var(f"mischief_cooldown", updated_cooldown)
-        except:
+        except Exception as e:
             Logging.info("can't clear cooldown")
+            await Utils.handle_exception("Mischief role_count_task cooldown exception", self.bot, e)
 
         # update role count storage (because it's slow)
         for guild in self.bot.guilds:
             for my_role in self.mischief_map[guild.id].values():
                 try:
                     self.role_counts[guild.id][my_role.id] = len(my_role.members)
-                except:
+                except Exception as e:
                     Logging.info(f"can't update role counts for {my_role}")
+                    await Utils.handle_exception("Mischief role_count_task counting roles exception", self.bot, e)
                     continue
 
     @commands.group(name="name_mischief", invoke_without_command=True)
@@ -324,7 +326,7 @@ name cooldown is {self.name_cooldown_time} seconds
                 if my_member is not None and len(message.content) <= 60 and len(my_member.roles) > 1:
                     try:
                         dm_channel = await my_member.create_dm() # try to create DM channel
-                    except:
+                    except Exception:
                         dm_channel = None  # Don't message member because creating DM channel failed
 
                     on_message_tasks.append(asyncio.create_task(self.role_mischief(message, my_member, dm_channel)))
@@ -379,7 +381,8 @@ name cooldown is {self.name_cooldown_time} seconds
             try:
                 remaining_time = Utils.to_pretty_time(remaining)
                 await channel.send(f"wait {remaining_time} longer before you make another wish...")
-            except:
+            except Exception:
+                # no channel to message, or messaging failed
                 pass
             return
         # END cooldown
@@ -389,7 +392,8 @@ name cooldown is {self.name_cooldown_time} seconds
             try:
                 if old_role in member.roles:
                     await member.remove_roles(old_role)
-            except:
+            except Exception:
+                # member role already removed or something...
                 pass
 
         try:
@@ -414,7 +418,8 @@ name cooldown is {self.name_cooldown_time} seconds
                 else:
                     await channel.send(f"""Congratulations, you are now **{selection}**!! You can wish again in my DMs if you want!
 You can also use the `!team_mischief` command right here to find out more""")
-            except:
+            except Exception:
+                # failed to message. ignore.
                 pass
 
     @commands.Cog.listener()

@@ -32,7 +32,7 @@ if __name__ == "__main__":
             print("Provide a schema name")
             raise Exception
         run_async(run(schema))
-    except:
+    except Exception:
         print(">> failed. make sure the database exists and matches the name you gave <<")
         exit()
 

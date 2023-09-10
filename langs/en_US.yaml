@@ -58,13 +58,13 @@ bugs:
     Report a Bug
     ```
     Help me collect the following information. It will be *very helpful* in identifying, reproducing, and fixing bugs:
-        - Device type
-        - Operating System Version
-        - Sky App Type
-        - Version of the Sky app
-        - Description of the problem, and how to reproduce it
-        - Attachment(s)
-        - Additional Information
+    - Device type
+    - Operating System Version
+    - Sky App Type
+    - Version of the Sky app
+    - Description of the problem, and how to reproduce it
+    - Attachment(s)
+    - Additional Information
 
     **Don't start typing your report yet!** For questions like this one that have reaction icons, press one of the reactions to answer! Ready to start?
   platform: Platform

@@ -29,7 +29,8 @@ class Reload(BaseCog):
                 message = await channel.fetch_message(restart_mid)
                 author = self.bot.get_user(author_id)
                 await message.edit(content=f"Restart complete {author.mention}")
-            except Exception:
+            except Exception as e:
+                await Utils.handle_exception("Reload on_ready exception", self.bot, e)
                 pass
 
     @commands.command()

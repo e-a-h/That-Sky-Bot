@@ -331,7 +331,8 @@ class AutoResponders(BaseCog):
                 try:
                     await msg.delete()
                     await asyncio.sleep(0.1)
-                except:
+                except Exception as e:
+                    await Utils.handle_exception("Autoresponder choose_trigger clean_dialog exception", self.bot, e)
                     pass
 
         for trigger_string, data in self.triggers[ctx.guild.id].items():
