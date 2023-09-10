@@ -1,9 +1,9 @@
 import asyncio
 import collections
-from dataclasses import dataclass
 import json
 import random
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from json import JSONDecodeError
@@ -11,9 +11,9 @@ from json import JSONDecodeError
 import discord
 import tortoise.exceptions
 from discord import AllowedMentions
+from discord.errors import NotFound, HTTPException, Forbidden
 from discord.ext import commands, tasks
 from discord.utils import utcnow
-from discord.errors import NotFound, HTTPException, Forbidden
 
 from cogs.BaseCog import BaseCog
 from utils import Lang, Utils, Questions, Emoji, Configuration, Logging
@@ -1040,9 +1040,17 @@ class AutoResponders(BaseCog):
             parsed_trigger = re.sub(r'\\ ', r'\\s+', parsed_trigger)
             # ignorecase is set by flag. dotall is not optional
             re_tag = re.compile(parsed_trigger, flags=(re.I if not match_case else 0) | re.S)
-            match = re.search(re_tag, message.content)
+
+            try:
+                match = await asyncio.wait_for(Utils.do_re_search(re_tag, message.content), 2)
+            except asyncio.TimeoutError as e:
+                # search did not complete within the timeout
+                Logging.info(f"failing ar tag: {parsed_trigger}")
+                await Utils.handle_exception(f"failing ar tag: {parsed_trigger}", self.bot, e)
+                continue
 
             if match is not None:
+                # Logging.info(f"searched for: {parsed_trigger} and found {match[0] or trigger}")
                 response = data['response']
 
                 # pick from random responses

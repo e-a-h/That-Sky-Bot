@@ -111,6 +111,18 @@ def extract_info(o):
     return info
 
 
+async def do_re_search(pattern: typing.Union[re.Pattern, str], subject: str):
+    """
+    Regex search coro to allow running regex as a task and timeout for poorly formed patterns
+    :param pattern:
+    :param subject:
+    :return:
+    """
+    # Logging.info(f"pattern is {pattern}")
+    match = re.search(pattern, subject)
+    return match
+
+
 def get_embed_and_log_exception(exception_type, bot, exception, event=None, message=None, ctx=None, *args, **kwargs):
     with sentry_sdk.push_scope() as scope:
         embed = Embed(colour=Colour(0xff0000), timestamp=datetime.utcfromtimestamp(time.time()))
