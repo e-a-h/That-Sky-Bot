@@ -388,6 +388,6 @@ if __name__ == '__main__':
         pass
     except Exception as e:
         # Who knows... log this.
-        Logging.error(f"Unhandled exception: {e} - {json.dumps(e)}")
+        Logging.error(f"Unhandled exception: {e}")
     finally:
         Logging.info(f"{TCol.cOkGreen}bot shutdown complete{TCol.cEnd}")
