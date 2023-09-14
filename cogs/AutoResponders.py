@@ -1042,11 +1042,7 @@ class AutoResponders(BaseCog):
             re_tag = re.compile(parsed_trigger, flags=(re.I if not match_case else 0) | re.S)
 
             try:
-                match = await asyncio.wait_for(Utils.do_re_search(
-                    re_tag,
-                    message.content,
-                    message.jump_url,
-                    message.author.id), 2)
+                match = await asyncio.wait_for(Utils.do_re_search(re_tag, message.content), 2)
             except asyncio.TimeoutError as e:
                 # search did not complete within the timeout
                 Logging.info(f"failing ar tag: {parsed_trigger}")

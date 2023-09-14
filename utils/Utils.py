@@ -8,7 +8,6 @@ import typing
 from collections import OrderedDict, namedtuple
 from datetime import datetime
 from json import JSONDecodeError
-from uuid import uuid4
 
 import discord
 import sentry_sdk
@@ -16,7 +15,6 @@ from aiohttp import ClientOSError, ServerDisconnectedError
 from discord import Embed, Colour, ConnectionClosed, NotFound, guild
 from discord.abc import PrivateChannel
 
-import utils.Configuration
 from utils import Logging, Configuration
 
 BOT: typing.Any = None
@@ -113,22 +111,15 @@ def extract_info(o):
     return info
 
 
-async def do_re_search(pattern: typing.Union[re.Pattern, str], subject: str, url, author_id):
+async def do_re_search(pattern: typing.Union[re.Pattern, str], subject: str):
     """
     Regex search coro to allow running regex as a task and timeout for poorly formed patterns
-    :param author_id:
-    :param url:
     :param pattern:
     :param subject:
     :return:
     """
-    uuid = f"AR-Pattern-{uuid4()}"
-    utils.Configuration.set_persistent_var(uuid, [f"{pattern}", subject, url, author_id])
-
     # Logging.info(f"pattern is {pattern}")
     match = re.search(pattern, subject)
-
-    utils.Configuration.del_persistent_var(uuid)
     return match
 
 
