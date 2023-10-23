@@ -226,7 +226,7 @@ class Trivia(BaseCog.BaseCog):
     #       COMMANDS
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'''
 
-    triva_app_cmd_root_group = app_commands.Group(name="trivia", default_permissions=Permissions(ban_members=True), description="config for trivia", guild_ids=[621746949485232154, 872341812541526017])
+    triva_app_cmd_root_group = app_commands.Group(name="trivia", default_permissions=Permissions(ban_members=True), description="config for trivia")
     trivia_editing_group = app_commands.Group(name = "config", parent=triva_app_cmd_root_group, description="all configuration modification")
 
     @MessageCommands.command()
