@@ -1,0 +1,36 @@
+nodes:
+  - id: question
+    type: "Base"
+    v: "3.6.0"
+    graph_start:
+      application_command:
+        setup:
+          - store_trivia_start_input: application_command # if command specifies what trivia to send, then record it.
+      # trivia_time:
+      #   setup:
+      #     - store_trivia_start_input: trivia_time
+    actions:
+      - choose_random_trivia_q  # if invalid or missing, pick valid question
+      - send_trivia_q           # actual send message
+    events:
+      button_click:
+        filters:
+          - clicked_this_menu
+        actions:
+          - tally_trivia_button_response        # record userid for response (removing if only one selection is allowed) and tally all responses that come through
+        transitions:
+          - node_names: closing_remarks
+            schedule_close: node
+            transition_filters:
+              - trivia_is_answered      # check if the number of correct answers is enough
+    close_actions:
+      - close_trivia_q        # clears buttons since trivia over and can update results on message, send extra message saying closed
+
+
+  - id: closing_remarks 
+    # really doesn't do anything other than just force node to close.
+    # Since as the framework currently doesn't handle any transitions when timing out and sometimes the trivia
+    # can end by timeout if no limits to number of people answering so all closing responsibilities fall to close actions of previous node
+    type: "Base"
+    v: "3.6.0"
+    TTL: 0

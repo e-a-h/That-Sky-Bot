@@ -1,5 +1,7 @@
 import time
 
+from discord import Object
+
 from discord.ext.commands import command, Context
 from datetime import datetime
 
@@ -26,6 +28,14 @@ class Basic(BaseCog):
         latency = round(self.bot.latency * 1000, 2)
         edited_message = await message.edit(
             content=f":hourglass: REST API ping is {rest} ms | Websocket ping is {latency} ms :hourglass:")
+        
+    @command()
+    async def sync_app(self, ctx: Context, server_id=None):
+        await self.bot.tree.sync(guild=server_id if server_id is None else Object(server_id))
+        if server_id is None:
+            await ctx.send("global app commands synced. It will take a bit to show up")
+        else:
+            await ctx.send(f"app commands synced for server {server_id}")
 
     @command()
     async def now(self, ctx, *args):

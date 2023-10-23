@@ -1,0 +1,35 @@
+nodes:
+  - id: server_config
+    v: 3.6.0
+    type: "Base"
+    graph_start:
+      message_command:
+        setup:
+          - find_origin_server
+    actions:
+      - show_server_config
+    # events:
+    #   button_click:
+
+  - id: handler_list
+    v: 3.6.0
+    type: "Base"
+    graph_start:
+      message_command:
+    actions:
+      - send_all_menus_overview
+    events:
+      select_menu:
+      #TODO: filters for event ins on this node's message
+        transitions:
+          - node_names: handler_deets
+            transition_filters:
+              - button_is: menu_select
+            transition_actions:
+              - link_menu_display
+  - id: handler_deets
+    v: 3.6.0
+    type: "Base"
+    actions:
+      - send_menu_handler_deets
+

@@ -1,0 +1,47 @@
+nodes:
+  - id: server_trivia_config
+    type: "Base"
+    v: "3.6.0"
+    graph_start:
+      message_command:
+        session_chaining: start
+        setup:
+          - find_origin_server: session
+          - save_cog: session
+    actions:
+      - show_server_trivia_config
+    events:
+      button_click:
+        filters:
+          - clicked_this_menu
+        transitions:
+          - node_names: server_trivia_qs_config
+            transition_filters:
+              - button_is: show_trivia_qs
+            session_chaining: chain
+          - node_names: server_trivia_channels_config
+            transition_filters:
+              - button_is: show_trivia_channels
+            session_chaining: chain
+    close_actions:
+      - remove_message
+
+  - id: server_trivia_qs_config
+    type: "Base"
+    v: "3.6.0"
+    actions:
+      - show_server_qs_config
+    events:
+      button_click:
+        filters:
+          - clicked_this_menu
+          - button_is: [prev_page, next_page]
+        actions:
+          - change_page
+          - show_server_qs_config
+    close_actions:
+      - remove_message
+
+  - id: server_trivia_channels_config
+    type: "Base"
+    v: "3.6.0"

@@ -1,3 +1,6 @@
 [submodule "sky-python-music-sheet-maker"]
 	path = sky-python-music-sheet-maker
 	url = https://github.com/sky-music/sky-python-music-sheet-maker.git
+[submodule "Discordpy-Dialogs"]
+	path = Discordpy-Dialogs
+	url = https://github.com/cXyn-h/Discordpy-Dialogs
