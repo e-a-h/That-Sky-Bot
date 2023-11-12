@@ -105,7 +105,7 @@ requests==2.31.0
     # via -r requirements.in
 scikit-image==0.20.0
     # via image-similarity-measures
-scipy==1.9.1
+scipy==1.10.0
     # via scikit-image
 sentry-sdk==1.30.0
     # via -r requirements.in
