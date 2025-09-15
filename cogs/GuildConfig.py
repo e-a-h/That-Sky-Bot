@@ -1,12 +1,11 @@
 import asyncio
 import re
-from typing import Literal
 
 import discord
-from discord import (Role, TextChannel, AllowedMentions, Forbidden, HTTPException, NotFound, Interaction,
-                    app_commands, Permissions, InteractionResponded, DiscordException)
+from discord import (Role, TextChannel, AllowedMentions, Forbidden, HTTPException, Interaction,
+                     app_commands, Permissions, InteractionResponded)
+from discord.app_commands import Choice
 from discord.ext import commands
-from discord.app_commands import Group
 from tortoise.exceptions import OperationalError
 
 from cogs.BaseCog import BaseCog
@@ -18,13 +17,6 @@ from utils.Utils import interaction_response
 
 class GuildConfig(BaseCog):
     power_task = dict()
-
-    # app command groups
-    guild_command = Group(
-        name='server',
-        description='Server Configuration',
-        guild_only=True,
-        default_permissions=Permissions(ban_members=True))
 
     def __init__(self, bot):
         super().__init__(bot)
@@ -83,16 +75,33 @@ class GuildConfig(BaseCog):
             guild_row.logchannelid = 0
             guild_row.entrychannelid = 0
             guild_row.maintenancechannelid = 0
-            guild_row.rulesreactmessageid = 0
             guild_row.defaultlocale = ''
             await guild_row.save()
         except Exception as e:
             await Utils.handle_exception(f"Failed to clear GuildConfig from server {guild.id}", e)
 
+    #########################
+    # App commands
+    #########################
+
+    guild_command = app_commands.Group(
+        name='server',
+        description='Server Configuration',
+        guild_only=True,
+        default_permissions=Permissions(manage_channels=True))
+
     @guild_command.command(description="View server settings")
-    async def list_settings(self, interaction: Interaction):
+    async def list_settings(self, interaction: Interaction) -> None:
         """
         List the guild settings
+
+        Parameters
+        ----------
+        interaction
+
+        Returns
+        -------
+        None
         """
         my_guild = Utils.GUILD_CONFIGS[interaction.guild.id]
         embed = discord.Embed(
@@ -155,98 +164,72 @@ class GuildConfig(BaseCog):
             channel_description = f"{channel.mention} __{channel.id}__" if channel else f"~~{my_guild.maintenancechannelid}~~"
         embed.add_field(name="Maintenance Channel", value=channel_description)
 
-        rules_id = my_guild.rulesreactmessageid if my_guild.rulesreactmessageid else 'none'
-        embed.add_field(name="Rules React Message ID", value=rules_id)
-
         locale = my_guild.defaultlocale if my_guild.defaultlocale else 'none'
         embed.add_field(name="Default Locale", value=locale)
 
         await interaction_response(interaction).send_message(embed=embed, allowed_mentions=AllowedMentions.none())
 
-    async def set_field(self, interaction: Interaction, field, val):
-        my_guild = Utils.GUILD_CONFIGS[interaction.guild.id]
-        r = interaction_response(interaction)
-        try:
-            setattr(my_guild, field, val.id)
-            await my_guild.save()
-            await GuildConfig.init_guild(interaction.guild.id)
-            await r.send_message(f"Ok! `{field}` is now {val.mention} ({val.id})", allowed_mentions=AllowedMentions.none())
-        except (OperationalError, KeyError, HTTPException, TypeError, ValueError, InteractionResponded) as e:
-            log_msg = f"failed to set guild config `{field}` to {val.name}  ({val.id})"
-            Logging.info(log_msg, exc_info=True)
-            await Utils.handle_exception(log_msg, e)
-            await r.send_message(log_msg, allowed_mentions=AllowedMentions.none())
-
-    @guild_command.command(description="Modify server channel settings")
-    @app_commands.describe(
-        setting="The server channel configuration to change",
-        channel="The channel")
+    @app_commands.choices(setting=[
+        Choice(name='Welcome Channel', value='welcomechannelid'),
+        Choice(name='Rules Channel', value='ruleschannelid'),
+        Choice(name='Log Channel', value='logchannelid'),
+        Choice(name='Entry Channel', value='entrychannelid'),
+        Choice(name='Maintenance Channel', value='maintenancechannelid'),
+    ])
+    @guild_command.command()
     async def set_channel(
             self,
             interaction: Interaction,
-            setting: Literal[
-                'welcomechannelid',
-                'ruleschannelid',
-                'logchannelid',
-                'entrychannelid',
-                'maintenancechannelid'
-            ],
+            setting: Choice[str],
             channel: TextChannel):
         """
         Set one of the base channel settings for Skybot in this guild
+
+        Parameters
+        ----------
+        interaction
+        setting
+            The server channel configuration to change
+        channel
+            The channel to use for this purpose
+        Returns
+        -------
+        None
         """
         await self.set_field(interaction, setting, channel)
 
-    @guild_command.command(description="Modify server role settings")
-    @app_commands.describe(
-        setting="The server role configuration to change",
-        role="The role")
+    @app_commands.choices(setting=[
+        Choice(name='Member Role', value='memberrole'),
+        Choice(name='Nonmember Role', value='nonmemberrole'),
+        Choice(name='Muted Role', value='mutedrole'),
+        Choice(name='Beta Role', value='betarole')
+    ])
+    @guild_command.command()
     async def set_role(
             self,
             interaction: Interaction,
-            setting: Literal[
-                'memberrole',
-                'nonmemberrole',
-                'mutedrole',
-                'betarole'
-            ],
+            setting: Choice[str],
             role: Role):
         """
         Set one of the base role settings for Skybot in this guild
+
+        Parameters
+        ----------
+        interaction
+        setting
+            The server role configuration to change
+        role
+            The role to use for this purpose
+
+        Returns
+        -------
+
         """
         await self.set_field(interaction, setting, role)
 
-    @guild_command.command(description="Set react message ID")
-    @app_commands.describe(msg="The react message")
-    async def react_msg(
-            self,
-            interaction: Interaction,
-            msg: str):
-        """
-        Set the rules react message id
-        """
-        my_guild = Utils.GUILD_CONFIGS[interaction.guild.id]
-        r = interaction_response(interaction)
-
-        my_id = int(msg)
-        my_channel = interaction.guild.get_channel(my_guild.ruleschannelid)
-        try:
-            my_message = await my_channel.fetch_message(my_id)
-        except (NotFound, Forbidden, HTTPException):
-            await r.send_message(f"`{msg}` is not a message ID in the welcome channel")
-            return
-
-        try:
-            my_guild.rulesreactmessageid = my_id
-            await my_guild.save()
-            await GuildConfig.init_guild(interaction.guild.id)
-            await r.send_message(f"Ok! `rulesreactmessageid` is now `{my_id}`")
-        except OperationalError:
-            await r.send_message(f"I failed to save `rulesreactmessageid` value `{my_id}` in db")
-        except DiscordException:
-            Logging.info(f"I failed to send confirmation: `rulesreactmessageid` value set to `{my_id}`")
-        except Exception as e:
-            Logging.info(f"unexpected exception {e} while setting `rulesreactmessageid` value to `{my_id}`")
+    #########################
+    # Chat commands
+    #########################
 
     @commands.command(aliases=["stop"])
     @commands.guild_only()
@@ -460,6 +443,20 @@ class GuildConfig(BaseCog):
 
         # TODO: ping on task completion?
         del self.power_task[ctx.guild.id]
+
+    async def set_field(self, interaction: Interaction, field, val):
+        my_guild = Utils.GUILD_CONFIGS[interaction.guild.id]
+        r = interaction_response(interaction)
+        try:
+            setattr(my_guild, field, val.id)
+            await my_guild.save()
+            await GuildConfig.init_guild(interaction.guild.id)
+            await r.send_message(f"Ok! `{field}` is now {val.mention} ({val.id})", allowed_mentions=AllowedMentions.none())
+        except (OperationalError, KeyError, HTTPException, TypeError, ValueError, InteractionResponded) as e:
+            log_msg = f"failed to set guild config `{field}` to {val.name}  ({val.id})"
+            Logging.info(log_msg, exc_info=True)
+            await Utils.handle_exception(log_msg, e)
+            await r.send_message(log_msg, allowed_mentions=AllowedMentions.none())
 
 
 async def setup(bot):

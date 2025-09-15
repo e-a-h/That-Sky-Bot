@@ -47,6 +47,10 @@ def get_home_guild() -> Optional[Guild]:
     return BOT.get_guild(Configuration.get_var("guild_id"))
 
 
+def get_prefix() -> str:
+    return Configuration.get_var("bot_prefix")
+
+
 def get_chanconf_description(bot, guild_id):
     message = f"guild {guild_id}" + '\n'
     try:
@@ -346,12 +350,13 @@ def get_embed_and_log_exception(
 
 async def handle_exception(exception_type, exception, message=None, ctx=None, *args, **kwargs):
     embed = get_embed_and_log_exception(exception_type, exception, message, ctx, *args, **kwargs)
-    try:
-        await Logging.bot_log(embed=embed)
-    except Exception as ex:
-        Logging.error(
-            f"Failed to log to botlog, either Discord broke or something is seriously wrong!\n{ex}")
-        Logging.error(traceback.format_exc())
+    if embed.fields:
+        try:
+            await Logging.bot_log(embed=embed)
+        except Exception as ex:
+            Logging.error(
+                f"Failed to log to botlog, either Discord broke or something is seriously wrong!\n{ex}")
+            Logging.error(traceback.format_exc())
 
 
 def trim_message(message, limit):
@@ -438,11 +443,12 @@ async def clean(text, guild=None, markdown=True, links=True, emoji=True):
     if markdown:
         text = escape_markdown(text)
     else:
-        text = text.replace("@", "@\u200b")
+        # Break up markdown and mentions with zero-width spaces
+        text = text.replace("@", "@\u200B")
         # noinspection InvisibleCharacter
-        text = text.replace("**", "*​*")
+        text = text.replace("**", "*\u200B*")
         # noinspection InvisibleCharacter
-        text = text.replace("``", "`​`")
+        text = text.replace("``", "`\u200B`")
 
     if emoji:
         for e in set(EMOJI_MATCHER.findall(text)):
@@ -530,7 +536,7 @@ def chunk_list_or_string(input_list, chunk_size):
         yield input_list[i:i + chunk_size]
 
 
-def paginate(input_data, max_lines=20, max_chars=1900, prefix="", suffix=""):
+def paginate(input_data, max_lines=20, max_chars=1900, prefix="", suffix="") -> list[str]:
     """
     splits the given text input into a list of pages to fit in Discord messages.
 

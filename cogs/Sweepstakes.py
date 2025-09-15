@@ -1,5 +1,6 @@
 import asyncio
 import os
+from datetime import datetime
 
 import discord
 from discord import File, Message
@@ -8,7 +9,6 @@ from discord.ext.commands import Context
 
 from cogs.BaseCog import BaseCog
 from utils import Utils, Lang, Questions
-from datetime import datetime
 from utils.Utils import save_to_disk
 
 

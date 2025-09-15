@@ -2,7 +2,6 @@ import asyncio
 import importlib
 import os
 from itertools import islice
-from typing import List
 
 import discord
 from discord import app_commands
@@ -52,17 +51,22 @@ class Reload(BaseCog):
                 await Utils.handle_exception("Reload after_ready exception", e)
                 pass
 
+    ##################
+    # App Commands
+    ##################
+
     @app_commands.command(name="reload")
     @app_commands.describe(module="The cog to reload")
     @app_commands.check(check_is_owner)
     @app_commands.guild_only()
     @app_commands.default_permissions(manage_channels=True)
-    async def reload_cog(self, interaction: discord.Interaction, module: str):
+    async def reload_cog(self, interaction: discord.Interaction, module: str, public: bool = False):
         """Reload the specified module"""
         sender = Sender(interaction)
         cog = module
 
-        await interaction_response(interaction).defer() # thinking...
+        Logging.info(f"\t{self.qualified_name}::reload_cog ephemeral={not public}")
+        await interaction_response(interaction).defer(ephemeral=not public) # thinking...
 
         if cog in self.bot.cogs:
             complete = False
@@ -88,15 +92,15 @@ class Reload(BaseCog):
                 await Logging.bot_log(msg)
             finally:
                 if complete:
-                    await sender.send(msg, ephemeral=True)
+                    await sender.send(msg, ephemeral=not public)
         else:
-            await sender.send(f"{Emoji.get_chat_emoji('NO')} I can't find that cog.", ephemeral=True)
+            await sender.send(f"{Emoji.get_chat_emoji('NO')} I can't find that cog.", ephemeral=not public)
 
     @reload_cog.autocomplete('module')
     async def module_autocomplete(
             self,
             interaction: discord.Interaction,
-            current: str) -> List[app_commands.Choice[str]]:
+            current: str) -> list[app_commands.Choice[str]]:
 
         if not check_is_owner(interaction):
             return []
@@ -111,6 +115,10 @@ class Reload(BaseCog):
         # convert matched list into list of choices
         ret = [app_commands.Choice(name=c, value=c) for c in some_cogs]
         return ret
+
+    ##################
+    # Chat Commands
+    ##################
 
     @commands.command()
     async def reload(self, ctx, *, cog: str):

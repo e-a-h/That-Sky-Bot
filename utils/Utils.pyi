@@ -1,8 +1,8 @@
 import typing
-from typing import Optional, Union, Any
+from typing import Optional, Union
 
 import discord
-from discord import Message, TextChannel, Embed, Member, Guild, InteractionResponse, Interaction, Role
+from discord import Message, TextChannel, Embed, Guild, InteractionResponse, Interaction, Role
 from discord.ext.commands import Context
 
 from sky import Skybot
@@ -127,3 +127,6 @@ def save_to_disk(filename, data, ext="json", fields=None) -> None: ...
 
 
 def pages_to_embed(content: str, embed: discord.Embed, field_name: str = "Contents"): ...
+
+
+def get_prefix() -> str: ...

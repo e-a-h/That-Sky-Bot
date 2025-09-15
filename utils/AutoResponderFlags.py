@@ -1,4 +1,5 @@
 from enum import IntFlag
+
 from utils import Utils
 from utils.Constants import DISCORD_INDENT
 

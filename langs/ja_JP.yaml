@@ -7,6 +7,7 @@ common:
   you_chose_codeblock: LOCALIZE_ME
   you_chose_bold: LOCALIZE_ME
   expect_integer: LOCALIZE_ME
+  interaction_timeout: LOCALIZE_ME
 questions:
   text_only: LOCALIZE_ME
   confirm_prompt: LOCALIZE_ME
@@ -146,10 +147,13 @@ dropbox:
   msg_blank: LOCALIZE_ME
   attachment_fail: LOCALIZE_ME
   msg_receipt: LOCALIZE_ME
+  msg_receipt_ephemeral: LOCALIZE_ME
+  msg_followup_instructions: LOCALIZE_ME
   receipt_set_true: LOCALIZE_ME
   receipt_set_false: LOCALIZE_ME
   receipt_attachment_singular: LOCALIZE_ME
   receipt_attachment_plural: LOCALIZE_ME
+  dm_unable: LOCALIZE_ME
 autoresponder:
   mod_action_header: LOCALIZE_ME
   mod_action_warning: LOCALIZE_ME
@@ -260,6 +264,7 @@ custom_commands:
   deletetrigger_trigger_updated: LOCALIZE_ME
   reply_trigger_updated: LOCALIZE_ME
   autocomplete_trigger_updated: LOCALIZE_ME
+  ephemeral_trigger_updated: LOCALIZE_ME
 word_counter:
   list_words: LOCALIZE_ME
   no_words: LOCALIZE_ME

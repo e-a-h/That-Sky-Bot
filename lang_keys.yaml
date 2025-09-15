@@ -7,6 +7,7 @@ common:
   you_chose_codeblock:
   you_chose_bold:
   expect_integer:
+  interaction_timeout:
 questions:
   text_only:
   confirm_prompt:
@@ -146,10 +147,13 @@ dropbox:
   msg_blank:
   attachment_fail:
   msg_receipt:
+  msg_receipt_ephemeral:
+  msg_followup_instructions:
   receipt_set_true:
   receipt_set_false:
   receipt_attachment_singular:
   receipt_attachment_plural:
+  dm_unable:
 autoresponder:
   mod_action_header:
   mod_action_warning:
@@ -260,6 +264,7 @@ custom_commands:
   deletetrigger_trigger_updated:
   reply_trigger_updated:
   autocomplete_trigger_updated:
+  ephemeral_trigger_updated:
 word_counter:
   list_words:
   no_words:

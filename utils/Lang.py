@@ -1,11 +1,11 @@
+import operator
 import typing
+from functools import reduce  # forward compatibility for Python 3
 
 import yaml
-import operator
-
 from discord import Interaction
 from discord.ext.commands import Context
-from functools import reduce  # forward compatibility for Python 3
+
 from utils import Logging, Configuration, Utils
 from utils.Database import Localization, Guild
 
@@ -145,6 +145,7 @@ def get_locale_string(key, ctx='', **arg_dict) -> str:
         obj = get_by_path(locale_lang, key_list)
 
         # keys were found. Now check locale for value:
+        # TODO: add emoji to format dict
         if isinstance(obj, str):
             try:
                 output.append(obj.format(**arg_dict))

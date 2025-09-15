@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import IntEnum
 
+import discord
 from tortoise import Tortoise
 from tortoise.models import Model
 from tortoise.fields import \
@@ -247,12 +248,20 @@ class CountWord(AbstractBaseModel, DeprecatedServerIdMixIn):
         table = 'countword'
 
 
+class CustomCommandContext(IntEnum):
+    all = 0
+    chat = 1
+    app = 2
+
+
 class CustomCommand(AbstractBaseModel, DeprecatedServerIdMixIn):
     trigger = CharField(max_length=20)
     response = CharField(max_length=2000)
     deletetrigger = BooleanField(default=False)
     reply = BooleanField(default=False)
     autocomplete = BooleanField(default=False)
+    ephemeral = BooleanField(default=False)
+    allowedcontext = IntEnumField(CustomCommandContext, default=CustomCommandContext.all)
     elevated = SmallIntField(default=0)
 
     def __str__(self):
@@ -277,6 +286,52 @@ class DropboxChannel(AbstractBaseModel, DeprecatedServerIdMixIn):
         table = 'dropboxchannel'
 
 
+class DropboxView(AbstractBaseModel):
+    guild = ForeignKeyField(f'{app}.Guild', related_name='dropbox_views', index=True)
+    channelid = BigIntField(unique=True)
+
+    targets: ReverseRelation["DropboxTarget"]
+
+    def __str__(self):
+        return f"dropboxview for channel {self.channelid}"
+
+    class Meta:
+        table = 'dropboxview'
+
+
+class DropboxThreadMode(IntEnum):
+    none = 0
+    auto = 1
+    always = 2
+
+
+class DropboxTarget(AbstractBaseModel):
+    channelid = BigIntField(default=0)
+    dropboxview = ForeignKeyField(f'{app}.DropboxView', related_name='targets', index=True)
+    button_label = CharField(max_length=100, unique=True, default="Send a Report")
+    button_emoji = CharField(max_length=100, default="\N{ENVELOPE}")
+    button_style = SmallIntField(default=1)
+    modal_title = CharField(max_length=100, default="Send to Skybot")
+    modal_label = CharField(max_length=100, default="Send a report to Skybot")
+    modal_placeholder = CharField(max_length=100, default="Enter your report here...")
+    thread_mode = IntEnumField(DropboxThreadMode, default=DropboxThreadMode.none)
+
+    def __str__(self):
+        return (
+            f"\tdeliver to <#{self.channelid}>\n"
+            f"\tbutton label: {self.button_label}\n"
+            f"\tbutton emoji: {self.button_emoji}\n"
+            f"\tbutton style: {discord.ButtonStyle(self.button_style).name}\n"
+            f"\tmodal title: {self.modal_title}\n"
+            f"\tmodal label: {self.modal_label}\n"
+            f"\tmodal placeholder: {self.modal_placeholder}\n"
+            f"\tthread mode: {DropboxThreadMode(self.thread_mode).name}\n")
+
+    class Meta:
+        unique_together = ('dropboxview', 'button_label')
+        table = 'dropboxtarget'
+
+
 class Guild(AbstractBaseModel):
     serverid = BigIntField(unique=True)
     memberrole = BigIntField(default=0)
@@ -288,7 +343,6 @@ class Guild(AbstractBaseModel):
     logchannelid = BigIntField(default=0)
     entrychannelid = BigIntField(default=0)
     maintenancechannelid = BigIntField(default=0)
-    rulesreactmessageid = BigIntField(default=0)
     defaultlocale = CharField(max_length=10, default="en_US")
 
     admin_roles: ReverseRelation["AdminRole"]
@@ -301,6 +355,7 @@ class Guild(AbstractBaseModel):
     mischief_roles: ReverseRelation["MischiefRole"]
     mod_roles: ReverseRelation["ModRole"]
     trusted_roles: ReverseRelation["TrustedRole"]
+    dropbox_views: ReverseRelation["DropboxView"]
 
     def __str__(self):
         return self.serverid

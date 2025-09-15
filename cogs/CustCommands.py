@@ -1,18 +1,20 @@
 import asyncio
+import re
 from itertools import islice
-from typing import Union, Literal, List, Optional
+from typing import Union, Literal, Optional, Dict
 
 import discord
 from discord import Permissions, User, AllowedMentions, Guild
 from discord import app_commands
-from discord.app_commands import Group, Range, MissingPermissions, AppCommandError
+from discord.app_commands import Group, Range, MissingPermissions, AppCommandError, Choice
 from discord.ext import commands
 from discord.ext.commands import Context, CommandError
 from discord.interactions import Interaction
+from tortoise.exceptions import IntegrityError
 
 from cogs.BaseCog import BaseCog
 from utils import Configuration, Emoji, Lang, Utils, Questions, Logging
-from utils.Database import CustomCommand
+from utils.Database import CustomCommand, CustomCommandContext
 from utils.Helper import Sender, ConfirmView
 from utils.Utils import interaction_response, trim_message
 
@@ -23,7 +25,7 @@ class CustCommands(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        self.commands = dict()
+        self.commands: Dict[int, Dict[str, CustomCommand]] = dict()
 
     async def cog_check(self, ctx):
         Logging.info(f"{self.__class__.__name__} cog check")
@@ -92,26 +94,36 @@ class CustCommands(BaseCog):
         -------
         None
         """
-        cleaned_topic = await Utils.clean(topic)
+        # cleaned_topic = await Utils.clean(topic)
         for trigger in self.commands[interaction.guild.id]:
-            if cleaned_topic == trigger:
+            if topic == trigger:
                 command: CustomCommand = self.commands[interaction.guild.id][trigger]
+                if command.allowedcontext not in [CustomCommandContext.all, CustomCommandContext.app]:
+                    await interaction_response(interaction).send_message(
+                        f"The command `{command.trigger}` may only be used in "
+                        f"`app command` contexts\n"
+                        f"(hint, try `{Configuration.get_var('bot_prefix')}{trigger}`)",
+                        ephemeral=True)
+                    return
                 if command.elevated > 0:
                     # TODO: map elevated value to permission level
+                    # for now, greater than zero means "moderator"
                     if not interaction.permissions.ban_members:
                         raise MissingPermissions([""])
                 command_content = command.response.replace("@", "@\u200b").format(author=interaction.user.mention)
-                ephemeral = False
-                if command.reply:
-                    ephemeral = True
-                if to:
-                    command_content = f"{to.mention}, {interaction.user.mention} asked me to enlighten you about {trigger}:\n{command_content}"
+                ephemeral = command.ephemeral
 
-                allowed_mentions = AllowedMentions(everyone=False, roles=False, users=False)
+                # don't bother with @ when message is ephemeral
+                if to and not ephemeral:
+                    command_content = f"{to.mention}, {interaction.user.mention} asked me to enlighten you about `{trigger}`:\n{command_content}"
+
+                allowed_mentions = AllowedMentions(everyone=False, roles=False, users=True)
                 await interaction_response(interaction).send_message(
                     command_content,
                     ephemeral=ephemeral,
                     allowed_mentions=allowed_mentions)
+                return
+        await interaction_response(interaction).send_message(f"I don't know anything about that", ephemeral=True)
 
     config_group = Group(
         name='custom_command',
@@ -127,6 +139,8 @@ class CustCommands(BaseCog):
     @config_group.command(name='add')
     async def add_command(self, interaction: Interaction, trigger: Range[str, 1, trigger_max_length], response: str) -> None:
         """Add a custom command"""
+        await interaction_response(interaction).defer()
+
         cleaned_trigger = await Utils.clean(trigger.lower())
         command = await CustomCommand.get_or_none(serverid=interaction.guild.id, trigger=cleaned_trigger)
         if command is None:
@@ -138,14 +152,15 @@ class CustCommands(BaseCog):
 
         # Command exists. Ask for confirmation to overwrite
         view = ConfirmView(interaction.user)
-        await interaction_response(interaction).send_message(
+        await interaction.followup.send(
             Lang.get_locale_string('custom_commands/override_confirmation', interaction),
             view=view)
 
         await view.wait()
 
         if view.value is None:
-            await interaction.followup.send("You didn't respond in time. Command update canceled.")
+            await interaction.followup.send(
+                Lang.get_locale_string('common/interaction_timeout', interaction, description="Add command"))
         elif view.value:
             try:
                 await self.do_update(interaction.guild, command, cleaned_trigger, response)
@@ -163,15 +178,18 @@ class CustCommands(BaseCog):
     @config_group.command(name='remove')
     async def remove_command(self, interaction: Interaction, trigger: Range[str, 1, trigger_max_length]) -> None:
         """Remove a custom command"""
+        await interaction_response(interaction).defer(ephemeral=True)
+
         my_trigger, my_command = await self.match_trigger(interaction.guild, trigger)
         msg = (f"Are you sure you want to remove the command `{my_command.trigger}`? The command response is:\n"
                f"```{trim_message(my_command.response, 300)}```")
         view = ConfirmView(interaction.user)
-        await interaction_response(interaction).send_message(msg, view=view)
+        await interaction.followup.send(msg, view=view)
         await view.wait()
 
         if view.value is None:
-            await interaction.followup.send("You didn't respond in time. Command update canceled.")
+            await interaction.followup.send(
+                Lang.get_locale_string('common/interaction_timeout', interaction, description="Remove command"))
         elif view.value:
             try:
                 await self.do_remove_command(interaction, trigger)
@@ -183,15 +201,18 @@ class CustCommands(BaseCog):
     @config_group.command(name='edit')
     async def edit_command(self, interaction: Interaction, trigger: Range[str, 1, trigger_max_length], response: str) -> None:
         """Edit a custom command"""
+        await interaction_response(interaction).defer()
+
         my_trigger, my_command = await self.match_trigger(interaction.guild, trigger)
         msg = (f"Are you sure you want to edit the command `{my_command.trigger}`? This current response will be lost:\n"
                f"```{trim_message(my_command.response, 1000)}```\n")
         view = ConfirmView(interaction.user)
-        await interaction_response(interaction).send_message(msg, view=view)
+        await interaction.followup.send(msg, view=view)
         await view.wait()
 
         if view.value is None:
-            await interaction.followup.send("You didn't respond in time. Command update canceled.")
+            await interaction.followup.send(
+                Lang.get_locale_string('common/interaction_timeout', interaction, description="Edit command"))
         elif view.value:
             try:
                 await self.do_update(interaction.guild, my_command, trigger, response)
@@ -231,29 +252,76 @@ class CustCommands(BaseCog):
             self,
             interaction: Interaction,
             trigger: Range[str, 1, trigger_max_length],
-            flag: Literal["delete", "reply", "autocomplete"],
+            flag: Literal["delete", "reply", "autocomplete", "ephemeral"],
             value: Literal["On", "Off"]) -> None:
         """Set/unset a flag for a custom command"""
         value = True if value == "On" else False
         await self.do_set_flag(interaction, trigger, flag, value)
 
+    @config_group.command(name='setcontext', description="Restrict a command to a context")
+    @app_commands.describe(
+        trigger="The command trigger",
+        context='The allowed context for this command')
+    @app_commands.choices(context=[
+        Choice(name='All', value=CustomCommandContext.all.value),
+        Choice(name='Chat Command', value=CustomCommandContext.chat.value),
+        Choice(name='App Command', value=CustomCommandContext.app.value),
+    ])
+    async def set_command_context(
+            self,
+            interaction: Interaction,
+            trigger: Range[str, 1, trigger_max_length],
+            context: Choice[int]) -> None:
+        """Set the allowed context for a custom command"""
+        guild_commands = self.commands[interaction.guild.id]
+        if trigger in guild_commands:
+            my_command = guild_commands[trigger]
+            if my_command.allowedcontext == context.value:
+                await interaction_response(interaction).send_message(
+                    f"Command `{trigger}` is already limited to `{context.name}` contexts. *No change made.*",
+                    ephemeral=True)
+                return
+            my_command.allowedcontext = context.value
+            try:
+                await my_command.save()
+            except IntegrityError as e:
+                Logging.info(f"Failed to update custom command: {e}", exc_info=True)
+                raise CommandError("Failed to update custom command")
+            await interaction_response(interaction).send_message(
+                f"Command `{trigger}` can now be used in `{context.name}` contexts",
+                ephemeral=False)
+        else:
+            await interaction_response(interaction).send_message(
+                f"I don't know about that command",
+                ephemeral=True)
+
+
     @do_command.autocomplete('topic')
     @edit_command.autocomplete('trigger')
     @remove_command.autocomplete('trigger')
     @set_command_flag.autocomplete('trigger')
-    async def platform_autocomplete(
+    @set_command_context.autocomplete('trigger')
+    async def trigger_autocomplete(
             self,
             interaction: discord.Interaction,
-            current: str) -> List[app_commands.Choice[str]]:
+            current: str) -> list[app_commands.Choice[str]]:
 
-        # TODO: hide/show from autocomplete
-        # TODO: show hidden commands to mods\
         if interaction.guild is None:
             raise AppCommandError("Command must be used in a server")
 
-        is_elevated = interaction.permissions.ban_members
+        def can_autocomplete(command) -> bool:
+            nonlocal interaction
+            # Mods can see all commands
+            if interaction.permissions.ban_members:
+                return True
+            # Members can only see commands in allowed contexts
+            if command.allowedcontext not in [CustomCommandContext.all, CustomCommandContext.app]:
+                return False
+            # and only when autocomplete is enabled
+            return command.autocomplete
+
         guild_commands = self.commands[interaction.guild.id]
-        autocomplete_commands = [key for key, command in guild_commands.items() if command.autocomplete or is_elevated]
+        autocomplete_commands = [key for key, command in guild_commands.items() if can_autocomplete(command)]
 
         # generator for all command names:
         all_matching_commands = (i for i in autocomplete_commands if current.lower() in i.lower())
@@ -275,7 +343,15 @@ class CustCommands(BaseCog):
         if ctx.invoked_subcommand is None:
             await self.send_command_list(ctx)
 
-    @custom_command.command(aliases=["set_delete", "unset_delete", "set_reply", "unset_reply"])
+    @custom_command.command(aliases=[
+        "set_delete",
+        "unset_delete",
+        "set_reply",
+        "unset_reply",
+        "set_autocomplete",
+        "unset_autocomplete",
+        "set_ephemeral",
+        "unset_ephemeral",])
     @commands.guild_only()
     async def command_flag(self, ctx: commands.Context, trigger: str):
         """
@@ -293,19 +369,14 @@ class CustCommands(BaseCog):
         trigger = await Utils.clean(trigger)
         flag_val = False
 
-        flag = 'not set'
+        flag = re.sub("(un)?set_", "", ctx.invoked_with)
+
         # Coerce flag based on command alias
         if ctx.invoked_with.startswith('unset'):
             flag_val = False
 
         if ctx.invoked_with.startswith('set'):
             flag_val = True
-
-        if ctx.invoked_with.endswith('delete'):
-            flag = 'deletetrigger'
-
-        if ctx.invoked_with.endswith('reply'):
-            flag = 'reply'
 
         await self.do_set_flag(ctx, trigger, flag, flag_val)
 
@@ -448,31 +519,63 @@ class CustCommands(BaseCog):
         embed = discord.Embed(
             color=0x663399,
             title=Lang.get_locale_string("custom_commands/list_commands", ctx, server_name=ctx.guild.name))
+
         value = ""
         sender = Sender(ctx)
         if len(self.commands[ctx.guild.id].keys()) > 0:
             for trigger in self.commands[ctx.guild.id].keys():
-                if len(value) + len(trigger) > 1000:
+                this_command: CustomCommand = self.commands[ctx.guild.id][trigger]
+
+                context_icon = '⛔️'
+                if this_command.allowedcontext == CustomCommandContext.all:
+                    context_icon = '🌍'
+                elif this_command.allowedcontext == CustomCommandContext.chat:
+                    context_icon = '💬'
+                elif this_command.allowedcontext == CustomCommandContext.app:
+                    context_icon = '📱'
+
+                new_entry = trigger
+                flag_str = ""
+                flag_str += f"{'👻' if this_command.deletetrigger else ''}"
+                flag_str += f"{'⤴️' if this_command.reply else ''}"
+                flag_str += f"{'👁️' if this_command.autocomplete else ''}"
+                flag_str += f"{'🫥' if this_command.ephemeral else ''}"
+                flag_str = f"`{context_icon}{flag_str}`" if flag_str else ''
+                new_entry = f"{new_entry} {flag_str}"
+
+                if len(value) + len(new_entry) > 1000:
                     embed.add_field(name="\u200b", value=value)
                     value = ""
-                value = f"{value}{trigger}"
-                if self.commands[ctx.guild.id][trigger].deletetrigger:
-                    value = f"{value} (delete trigger)"
-                value = f"{value}\n"
+                value += new_entry
+                value += "\n"
             embed.add_field(name="\u200b", value=value)
+
+            fields_description = [
+                'delete trigger: `👻`',
+                'reply: `⤴️`',
+                'autocomplete: `👁`',
+                'ephemeral: `🫥`',
+                'context: /📱 !💬 *🌍'
+            ]
+            embed.add_field(name="__**Flags**__", value="\n".join(fields_description), inline=False)
+
             await sender.send(embed=embed)
         else:
             await sender.send(Lang.get_locale_string("custom_commands/no_commands", ctx))
 
     async def do_set_flag(self, ctx: Union[Context, Interaction], trigger: str, flag: str, flag_val: bool) -> None:
+        Logging.info(f"Setting flag {flag} to {flag_val} for trigger `{trigger}`")
         if len(trigger) > CustCommands.trigger_max_length:
             emoji = 'WHAT'
             lang_key = 'trigger_too_long'
             tokens = dict()
         elif trigger in self.commands[ctx.guild.id]:
             try:
-                setattr(self.commands[ctx.guild.id][trigger], flag, flag_val)
-                await self.commands[ctx.guild.id][trigger].save()
+                if flag == "delete":
+                    flag = "deletetrigger"
+                if hasattr(self.commands[ctx.guild.id][trigger], flag):
+                    setattr(self.commands[ctx.guild.id][trigger], flag, flag_val)
+                    await self.commands[ctx.guild.id][trigger].save()
             except Exception as e:
                 await Utils.handle_exception("Custom Commands set flag exception", e)
                 raise commands.CommandError("Custom Commands set flag exception")

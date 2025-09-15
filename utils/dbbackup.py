@@ -1,7 +1,8 @@
 import os
+import pipes
 import shutil
 import time
-import pipes
+
 from utils import tortoise_settings as ts, Logging
 from utils.Logging import TCol
 

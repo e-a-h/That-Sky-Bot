@@ -1,9 +1,9 @@
 import os
 import re
 import sys
+import typing
 from datetime import datetime
 
-import typing
 from discord import File
 from discord.ext import commands
 from discord.ext.commands import command

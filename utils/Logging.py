@@ -1,8 +1,8 @@
 import functools
-import typing
 import logging
 import os
 import sys
+import typing
 from enum import Enum
 from logging.handlers import TimedRotatingFileHandler
 
@@ -68,20 +68,20 @@ def color_log(log_func):
 
 
 @color_log
-def debug(message, **kwargs):
+def debug(message, *style, **kwargs):
     LOGGER.debug(message, **kwargs)
 
 
 @color_log
-def info(message, **kwargs):
+def info(message, *style, **kwargs):
     LOGGER.info(message, **kwargs)
 
 
 @color_log
-def warn(message, **kwargs):
+def warn(message, *style, **kwargs):
     LOGGER.warning(message, **kwargs)
 
 
 @color_log
-def error(message, **kwargs):
+def error(message, *style, **kwargs):
     LOGGER.error(message, **kwargs)

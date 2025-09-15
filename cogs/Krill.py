@@ -5,15 +5,15 @@ from functools import reduce
 from random import randint, random, choice
 
 import discord
-from tortoise.exceptions import DoesNotExist
 from discord import utils, NotFound
 from discord.ext import commands
 from discord.ext.commands import command, UserConverter, BucketType
+from tortoise.exceptions import DoesNotExist
 
 from cogs.BaseCog import BaseCog
 from utils import Configuration, Utils, Lang, Emoji, Logging, Questions
-from utils.Database import KrillChannel, KrillConfig, OreoMap, OreoLetters, KrillByLines
 from utils.Constants import CHANNEL_ID_MATCHER, EMOJI_MATCHER, DISCORD_INDENT
+from utils.Database import KrillChannel, KrillConfig, OreoMap, OreoLetters, KrillByLines
 
 
 def can_krill(ctx):

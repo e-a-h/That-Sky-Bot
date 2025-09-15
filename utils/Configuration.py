@@ -1,7 +1,7 @@
 import asyncio
+import json
 from collections import deque
 from dataclasses import dataclass
-import json
 
 from utils import Logging, Utils
 

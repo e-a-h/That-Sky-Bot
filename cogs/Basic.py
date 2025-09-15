@@ -1,15 +1,15 @@
 import time
-import typing
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 import discord
-from discord import app_commands, InteractionResponse, Interaction
+from discord import app_commands, Interaction
 from discord.ext.commands import Context, Greedy, is_owner, guild_only, command
 
 from cogs.BaseCog import BaseCog
 from utils import Utils, Logging
+from utils.Helper import Sender
 from utils.Logging import TCol
 from utils.Utils import interaction_response
 
@@ -97,28 +97,23 @@ class Basic(BaseCog):
             interaction: Interaction,
             operation: Optional[SyncValues],
             guild: str = None) -> None:
-        ctx = await Context.from_interaction(interaction)
-
         if not await self.bot.is_owner(interaction.user):
             # Permissions prevent most from seeing the command, but owner is required
-            await interaction_response(interaction).send_message(f"you're not <@{self.bot.owner_id}>,  you can't do that!")
+            await interaction_response(interaction).send_message(f"you're not <@{self.bot.owner_id}>,  you can't do that!", ephemeral=True)
             return
 
         guilds = []
-        if ctx.valid:
-            if guild:
-                for candidate_guild in self.bot.guilds:
-                    if candidate_guild.name == guild:
-                        guilds.append(candidate_guild.id)
-            await self.do_sync(ctx, guilds=guilds, spec=operation.value if operation else "")
-        else:
-            await interaction_response(interaction).send_message("can't sync from here")
+        if guild:
+            for candidate_guild in self.bot.guilds:
+                if candidate_guild.name == guild:
+                    guilds.append(candidate_guild.id)
+        await self.do_sync(interaction, guilds=guilds, spec=operation.value if operation else "")
 
     @sync_app_commands.autocomplete('guild')
     async def guild_autocomplete(
             self,
             interaction: discord.Interaction,
-            current: str) -> typing.List[app_commands.Choice[str]]:
+            current: str) -> list[app_commands.Choice[str]]:
         guilds = [guild for guild in self.bot.guilds]
         ret = [
             app_commands.Choice(name=guild.name, value=guild.name)
@@ -153,7 +148,8 @@ class Basic(BaseCog):
         # Logging.info("spec: "+repr(spec))
         await self.do_sync(ctx, validated_guilds, spec.value if spec else '')
 
-    async def do_sync(self, ctx, guilds: typing.List[int] = None, spec: str = "") -> None:
+    async def do_sync(self, ctx: Union[Context, Interaction], guilds: list[int] = None, spec: str = "") -> None:
+        sender = Sender(ctx)
         if not guilds:
             if spec == SyncValues.Current.value:
                 synced = await self.bot.tree.sync(guild=ctx.guild)
@@ -167,9 +163,9 @@ class Basic(BaseCog):
             else:
                 synced = await self.bot.tree.sync()
 
-            await ctx.send(
-                f"Synced {len(synced)} commands {'globally' if spec is None else 'to the current guild.'}"
-            )
+            await sender.send(
+                f"Synced {len(synced)} commands {'globally' if spec is None else 'to the current guild.'}",
+                ephemeral=True)
             return
 
         ret = 0
@@ -185,7 +181,7 @@ class Basic(BaseCog):
             else:
                 ret += 1
 
-        await ctx.send(f"Synced the tree to {ret}/{len(guilds)}.")
+        await sender.send(f"Synced the tree to {ret}/{len(guilds)}.", ephemeral=True)
 
     ####
     # app command groups

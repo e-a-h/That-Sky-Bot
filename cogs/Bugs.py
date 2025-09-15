@@ -5,7 +5,7 @@ from asyncio import CancelledError
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, Literal, Union, List
+from typing import Optional, Literal, Union
 
 import discord
 from discord import (Forbidden, Embed, NotFound, HTTPException, TextChannel, AllowedMentions, app_commands,
@@ -454,7 +454,7 @@ class Bugs(BaseCog):
     async def platform_autocomplete(
             self,
             interaction: discord.Interaction,
-            current: str) -> List[app_commands.Choice[str]]:
+            current: str) -> list[app_commands.Choice[str]]:
         platforms = await BugReportingPlatform.all()
         platform_set = set()
 
@@ -472,7 +472,7 @@ class Bugs(BaseCog):
     async def branch_autocomplete(
             self,
             interaction: discord.Interaction,
-            current: str) -> List[app_commands.Choice[str]]:
+            current: str) -> list[app_commands.Choice[str]]:
         branches = await BugReportingPlatform.all()
         branch_set = set()
 

@@ -1,30 +1,32 @@
-import re
-import json
 import asyncio
 import collections
+import json
+import re
 from collections.abc import ItemsView
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Union, Literal, List
 
 import discord
-from discord.ext.commands import Context, ChannelNotFound, CommandError, BadArgument
-from discord.utils import utcnow
 from discord import AllowedMentions, Message, TextChannel
-from discord.ext import commands, tasks
 from discord.errors import NotFound, HTTPException, Forbidden
-
-from tortoise.exceptions import (MultipleObjectsReturned, DoesNotExist, IntegrityError,
-                                 TransactionManagementError, OperationalError, IncompleteInstanceError)
+from discord.ext import commands, tasks
+from discord.ext.commands import (Context, ChannelNotFound,
+                                  CommandError, BadArgument)
+from discord.utils import utcnow
+from tortoise.exceptions import (
+    MultipleObjectsReturned, DoesNotExist, IntegrityError,
+    TransactionManagementError, OperationalError, IncompleteInstanceError)
 from tortoise.query_utils import Prefetch
 
 from cogs.BaseCog import BaseCog
+from utils import Lang, Utils, Questions, Emoji, Configuration, Logging
 from utils.AutoResponderEvent import ArEvent, ArEventFactory
 from utils.AutoResponderFlags import ArFlags
 from utils.AutoResponderRule import ArRule
-from utils import Lang, Utils, Questions, Emoji, Configuration, Logging
+from utils.Database import (AutoResponder, AutoResponderChannel, AutoResponse,
+                            AutoResponderChannelType, AutoResponseType)
 from utils.Logging import TCol
-from utils.Database import AutoResponder, AutoResponderChannel, AutoResponse, AutoResponderChannelType, AutoResponseType
 
 
 @dataclass
@@ -68,12 +70,12 @@ class AutoResponders(BaseCog):
 
     def __init__(self, bot):
         super().__init__(bot)
-        self.awaiting_delete = dict()
-        self.triggers = dict()
-        self.mod_messages = dict()
-        self.mod_action_expiry = dict()
-        self.ar_list = dict()
-        self.ar_list_messages = dict()
+        self.awaiting_delete = {}
+        self.triggers = {}
+        self.mod_messages = {}
+        self.mod_action_expiry = {}
+        self.ar_list = {}
+        self.ar_list_messages = {}
         self.loaded = False
 
     async def cog_load(self):
@@ -96,11 +98,11 @@ class AutoResponders(BaseCog):
         self.clean_old_autoresponders.cancel()
 
     async def init_guild(self, guild):
-        self.awaiting_delete[guild.id] = dict()
-        self.triggers[guild.id] = dict()
-        self.mod_messages[guild.id] = dict()
+        self.awaiting_delete[guild.id] = {}
+        self.triggers[guild.id] = {}
+        self.mod_messages[guild.id] = {}
         self.ar_list[guild.id] = []
-        self.ar_list_messages[guild.id] = dict()
+        self.ar_list_messages[guild.id] = {}
         self.mod_action_expiry[guild.id] = Configuration.get_var(
             f'auto_action_expiry_seconds_{guild.id}',
             AutoResponders.action_expiry_default
@@ -122,7 +124,8 @@ class AutoResponders(BaseCog):
             del Configuration.MASTER_CONFIG[f'auto_action_expiry_seconds_{guild.id}']
             Configuration.save()
         except Exception:
-            Logging.error(f"Could not save config when removing auto_action_expiry_seconds_{guild.id}")
+            Logging.error(f"Could not save config when removing "
+                          f"auto_action_expiry_seconds_{guild.id}")
         await AutoResponder.filter(serverid=guild.id).delete()
 
     @staticmethod
@@ -137,7 +140,7 @@ class AutoResponders(BaseCog):
         return await AutoResponder.get_or_none(serverid=guild_id, trigger=trigger)
 
     @staticmethod
-    def validate_replies(reply_list: list) -> Optional[list[str]]:
+    def validate_replies(reply_list: List) -> Optional[list[str]]:
         output = []
         for reply in reply_list:
             if reply is not None and reply != "":
@@ -155,14 +158,14 @@ class AutoResponders(BaseCog):
     async def reload_mod_actions(self, ctx: Optional[Context] = None):
         guilds = self.bot.guilds if ctx is None else [ctx.guild]
         for guild in guilds:
-            self.mod_messages[guild.id] = dict()
+            self.mod_messages[guild.id] = {}
             saved_mod_messages = Configuration.get_persistent_var(f"mod_messages_{guild.id}")
             if saved_mod_messages:
                 for channel_id, actions in saved_mod_messages.items():
                     # Convert json str keys to int
                     channel_id = int(channel_id)
                     if channel_id not in self.mod_messages[guild.id]:
-                        self.mod_messages[guild.id][channel_id] = dict()
+                        self.mod_messages[guild.id][channel_id] = {}
                     for message_id, action_dict in actions.items():
                         message_id = int(message_id)
                         self.mod_messages[guild.id][channel_id][message_id] = action_dict
@@ -174,10 +177,12 @@ class AutoResponders(BaseCog):
                 for message_id, action in self.mod_action_items_view(dict(messages)):
                     now = datetime.now().timestamp()
                     if (now - action['event_time']) > self.mod_action_expiry[guild_id]:
-                        #  expire very old mod action messages --- remove reacts and add "expired" react
+                        #  expire very old mod action messages
+                        #  remove reacts and add "expired" react
                         try:
-                            del self.mod_messages[guild_id][channel_id][message_id]
-                            Configuration.set_persistent_var(f"mod_messages_{guild_id}", self.mod_messages[guild_id])
+                            del channels[channel_id][message_id]
+                            Configuration.set_persistent_var(
+                                f"mod_messages_{guild_id}", channels)
 
                             guild = self.bot.get_guild(guild_id)
                             channel = guild.get_channel(channel_id)
@@ -197,7 +202,6 @@ class AutoResponders(BaseCog):
                             await edited_message.add_reaction(Emoji.get_emoji("SNAIL"))
                         except Exception:
                             pass
-                        pass
 
     async def reload_triggers(self, ctx: Optional[Context] = None):
         guilds = self.bot.guilds if ctx is None else [ctx.guild]
@@ -205,12 +209,13 @@ class AutoResponders(BaseCog):
         ############################################################
         # TODO: remove below section after db migration is confirmed
         migrated = False
-        Logging.info(f"====== Migrating Autoresopnders ======", TCol.Underline, TCol.Header)
+        Logging.info(
+            "====== Migrating Autoresopnders ======", TCol.Underline, TCol.Header)
         ############################################################
 
         for guild in guilds:
             # Empty the triggers
-            self.triggers[guild.id] = dict()
+            self.triggers[guild.id] = {}
 
             # Fetch from database
             for ar_row in await AutoResponder.filter(serverid=guild.id).order_by('id').prefetch_related(
@@ -261,12 +266,15 @@ class AutoResponders(BaseCog):
                             type=AutoResponderChannelType.listen,
                             autoresponder=ar_row
                         )
-                        ar_row.listenchannelid = 0
-                        await ar_row.save()
-                        Logging.info(f"migrated listen channel {my_id} for ar_id {ar_row.id}", TCol.Green)
-                        migrated = True
+                        if row and created:
+                            ar_row.listenchannelid = 0
+                            await ar_row.save()
+                            Logging.info(f"migrated listen channel {my_id} "
+                                         f"for ar_id {ar_row.id}", TCol.Green)
+                            migrated = True
                     except (IntegrityError, TransactionManagementError):
-                        Logging.info(f"migration failed for ar listen channel {my_id} for ar_id {ar_row.id}", TCol.Fail)
+                        Logging.info(f"migration failed for ar listen channel {my_id} "
+                                     f"for ar_id {ar_row.id}", TCol.Fail)
 
                 if ar_row.responsechannelid:
                     Logging.info("migrate response channel...")
@@ -278,12 +286,15 @@ class AutoResponders(BaseCog):
                             type=AutoResponderChannelType.response,
                             autoresponder=ar_row
                         )
-                        ar_row.responsechannelid = 0
-                        await ar_row.save()
-                        Logging.info(f"migrated response channel {my_id} for ar_id {ar_row.id}", TCol.Green)
-                        migrated = True
+                        if row and created:
+                            ar_row.responsechannelid = 0
+                            await ar_row.save()
+                            Logging.info(f"migrated response channel {my_id} "
+                                         f"for ar_id {ar_row.id}", TCol.Green)
+                            migrated = True
                     except (IntegrityError, TransactionManagementError):
-                        Logging.info(f"migration failed for ar response channel {my_id} for ar_id {ar_row.id}", TCol.Fail)
+                        Logging.info(f"migration failed for ar response channel {my_id} "
+                                     f"for ar_id {ar_row.id}", TCol.Fail)
 
                 if ar_row.logchannelid:
                     Logging.info("migrate log channel...")
@@ -295,12 +306,15 @@ class AutoResponders(BaseCog):
                             type=AutoResponderChannelType.log,
                             autoresponder=ar_row
                         )
-                        ar_row.logchannelid = 0
-                        await ar_row.save()
-                        Logging.info(f"migrated log channel {my_id} for ar_id {ar_row.id}", TCol.Green)
-                        migrated = True
+                        if row and created:
+                            ar_row.logchannelid = 0
+                            await ar_row.save()
+                            Logging.info(f"migrated log channel {my_id} "
+                                         f"for ar_id {ar_row.id}", TCol.Green)
+                            migrated = True
                     except (IntegrityError, TransactionManagementError):
-                        Logging.info(f"migration failed for ar log channel {my_id} for ar_id {ar_row.id}", TCol.Fail)
+                        Logging.info(f"migration failed for ar log channel {my_id} "
+                                     f"for ar_id {ar_row.id}", TCol.Fail)
 
                 #
                 #
@@ -318,11 +332,17 @@ class AutoResponders(BaseCog):
         # TODO: remove below section after db migration is confirmed
         #
         if migrated:
-            Logging.info(f"====== Autoresopnder Migration Complete ======", TCol.Underline, TCol.Green)
-            Logging.info(f"Reloading:")
+            Logging.info(
+                "====== Autoresopnder Migration Complete ======",
+                TCol.Underline,
+                TCol.Green)
+            Logging.info("Reloading:")
             await self.reload_triggers(ctx)
         else:
-            Logging.info(f"====== NO Autoresopnder Migration Done ======", TCol.Underline, TCol.Warning)
+            Logging.info(
+                "====== NO Autoresopnder Migration Done ======",
+                TCol.Underline,
+                TCol.Warning)
         #
         # TODO: remove above section after db migration is confirmed
         ############################################################
@@ -353,7 +373,8 @@ class AutoResponders(BaseCog):
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=0x663399,
-            title=Lang.get_locale_string("autoresponder/list", ctx, server_name=ctx.guild.name))
+            title=Lang.get_locale_string(
+                "autoresponder/list", ctx, server_name=ctx.guild.name))
 
         if len(self.triggers[ctx.guild.id].keys()) > 0:
             guild_triggers = self.triggers[ctx.guild.id]
@@ -374,7 +395,10 @@ class AutoResponders(BaseCog):
                 # one more page to attach
                 self.ar_list[ctx.guild.id].append(list_page)
 
-            embed.add_field(name="page", value=f"1 of {len(self.ar_list[ctx.guild.id])}", inline=False)
+            embed.add_field(
+                name="page",
+                value=f"1 of {len(self.ar_list[ctx.guild.id])}",
+                inline=False)
             list_message = await ctx.send(embed=embed,
                                           content='\n'.join(self.ar_list[ctx.guild.id][0]),
                                           allowed_mentions=AllowedMentions.none())
@@ -422,7 +446,7 @@ class AutoResponders(BaseCog):
                 raise
 
         options = []
-        trigger_str_by_id = dict()
+        trigger_str_by_id = {}
         options.append(f"{Lang.get_locale_string('autoresponder/available_triggers', ctx)}")
         prompt_messages = []
 
@@ -433,14 +457,16 @@ class AutoResponders(BaseCog):
                     await item.delete()
                     await asyncio.sleep(0.1)
                 except Exception as e:
-                    await Utils.handle_exception("Autoresponder choose_trigger clean_dialog exception", e)
+                    await Utils.handle_exception(
+                        "Autoresponder choose_trigger clean_dialog exception", e)
                     pass
 
         for trigger_string, data in AutoResponders.trigger_items_view(self.triggers[ctx.guild.id]):
             available_triggers = '\n'.join(options)
             option = f"{data.id} ) {data.short_description()}"
             if len(f"{available_triggers}\n{option}") > 1000:
-                prompt_messages.append(await ctx.send(available_triggers))  # send current options, save message
+                # send current options, save message
+                prompt_messages.append(await ctx.send(available_triggers))
                 options = ["**...**"]  # reinitialize w/ "..." continued indicator
             options.append(option)
             trigger_str_by_id[data.id] = trigger_string
@@ -467,7 +493,12 @@ class AutoResponders(BaseCog):
         except (ValueError, asyncio.TimeoutError):
             await clean_dialog()
             key_dump = ', '.join(str(x) for x in trigger_str_by_id)
-            await self.nope(ctx, Lang.get_locale_string("autoresponder/expect_integer", ctx, keys=key_dump))
+            await self.nope(
+                ctx,
+                Lang.get_locale_string(
+                    "autoresponder/expect_integer",
+                    ctx,
+                    keys=key_dump))
             raise
 
     async def validate_trigger(self, ctx: Context, trigger):
@@ -478,7 +509,8 @@ class AutoResponders(BaseCog):
             msg = Lang.get_locale_string('autoresponder/trigger_too_long', ctx)
             await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {msg}")
         elif trigger in self.triggers[ctx.guild.id]:
-            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} Trigger exists already. Duplicates not allowed.")
+            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} Trigger exists already. "
+                           f"Duplicates not allowed.")
         else:
             p1 = re.compile(r"(\[|, )'")
             p2 = re.compile(r"'(, |])")
@@ -528,7 +560,7 @@ class AutoResponders(BaseCog):
         ----------
         ctx
         trigger: str
-            Optionally name the trigger to select. If trigger is omitted, bot dialog will request it.
+            Optionally name the trigger to select. If trigger is omitted, dialog will request it.
         """
         try:
             trigger = await self.choose_trigger(ctx, trigger)
@@ -548,7 +580,7 @@ class AutoResponders(BaseCog):
         ----------
         ctx
         trigger: str
-            Optionally name the trigger to select. If trigger is omitted, bot dialog will request it.
+            Optionally name the trigger to select. If trigger is omitted, dialog will request it.
         return_embeds: bool
             If set, suppress message sending, and return list of embeds instead
         """
@@ -576,52 +608,56 @@ class AutoResponders(BaseCog):
                 timestamp=ctx.message.created_at,
                 color=embed_color,
                 title=f"**{input_label}** responses")
+
             if len(input_deque) == 0:
                 return None
-            else:
-                i = 1
-                j = 1
-                while input_deque:
-                    response = input_deque.popleft()
-                    wrap = "" if response.active else "~~"
-                    label = j if response.active else f"{j} [DISABLED]"
-                    response_str = await Utils.clean(str(response))
-                    while len(response_str) > 1000:
-                        output = response_str[:1000]
-                        response_str = response_str[1000:]
-                        my_embed.add_field(
-                            name=label if i == 1 else f"{label} (part {i})",
-                            value=f"{wrap}{output}{wrap}",
-                            inline=False)
-                        i += 1
+
+            i = 1
+            j = 1
+            while input_deque:
+                response = input_deque.popleft()
+                wrap = "" if response.active else "~~"
+                label = j if response.active else f"{j} [DISABLED]"
+                response_str = await Utils.clean(str(response))
+                while len(response_str) > 1000:
+                    output = response_str[:1000]
+                    response_str = response_str[1000:]
                     my_embed.add_field(
                         name=label if i == 1 else f"{label} (part {i})",
-                        value=f"{wrap}{response_str}{wrap}",
+                        value=f"{wrap}{output}{wrap}",
                         inline=False)
-                    j += 1
+                    i += 1
+                my_embed.add_field(
+                    name=label if i == 1 else f"{label} (part {i})",
+                    value=f"{wrap}{response_str}{wrap}",
+                    inline=False)
+                j += 1
             return my_embed
 
         embeds.append(
             await describe(
                 "public",
                 0xc8ff00,
-                collections.deque(self.triggers[ctx.guild.id][trigger].responses[str(AutoResponseType.public)])))
+                collections.deque(
+                    self.triggers[ctx.guild.id][trigger].responses[str(AutoResponseType.public)])))
         embeds.append(
             await describe(
                 "mod",
                 0x5ed900,
-                collections.deque(self.triggers[ctx.guild.id][trigger].responses[str(AutoResponseType.mod)])))
+                collections.deque(
+                    self.triggers[ctx.guild.id][trigger].responses[str(AutoResponseType.mod)])))
         embeds.append(
             await describe(
                 "log",
                 0x00954a,
-                collections.deque(self.triggers[ctx.guild.id][trigger].responses[str(AutoResponseType.log)])))
+                collections.deque(
+                    self.triggers[ctx.guild.id][trigger].responses[str(AutoResponseType.log)])))
 
         embeds = [x for x in embeds if x is not None]
         if return_embeds:
             return embeds
-        else:
-            await ctx.send(embeds=embeds)
+        await ctx.send(embeds=embeds)
+        return None
 
     @autor.group(name='settings', aliases=['set'], invoke_without_command=True)
     @commands.guild_only()
@@ -640,7 +676,8 @@ class AutoResponders(BaseCog):
         cold_ping_time = Configuration.get_var(
             f'autoresponder_max_mentionable_age_{ctx.guild.id}',
             AutoResponders.cold_ping_default_threshold)
-        a, b, c, ignore_description = await ArRule.get_global_ignore_channels(self.bot, ctx.guild.id)
+        a, b, c, ignore_description = await ArRule.get_global_ignore_channels(
+            self.bot, ctx.guild.id)
 
         embed.add_field(
             name="Cold Ping Threshold",
@@ -682,9 +719,10 @@ class AutoResponders(BaseCog):
             Configuration.save()
             self.mod_action_expiry[ctx.guild.id] = expiry_seconds
             await ctx.send(f"{Emoji.get_chat_emoji('YES')} "
-                           f"Configuration saved. Autoresponder mod action messages are now valid for {exp}")
+                           f"Configuration saved. "
+                           f"Autoresponder mod action messages are now valid for {exp}")
         except Exception:
-            await ctx.send(f"Failed while saving configuration. check the logs...")
+            await ctx.send("Failed while saving configuration. check the logs...")
 
     @ar_conf_set.command(aliases=['cold_ping_threshold'])
     async def ping_time(self, ctx: Context, max_age: int):
@@ -698,17 +736,19 @@ class AutoResponders(BaseCog):
         """
         max_age = int(max_age)
         if max_age < 0:
-            await ctx.send(f"Sorry, I can't wait less than zero time, or else I'd have to ping everyone in advance")
+            await ctx.send("Sorry, I can't wait less than zero time, "
+                           "or else I'd have to ping everyone in advance")
             return
 
         Configuration.MASTER_CONFIG[f'autoresponder_max_mentionable_age_{ctx.guild.id}'] = max_age
         Configuration.save()
 
         if max_age == 0:
-            await ctx.send(f"Well now **nobody** gets pings. That's not fair to ME!")
+            await ctx.send("Well now **nobody** gets pings. That's not fair to ME!")
         else:
             await ctx.send(f"{Emoji.get_chat_emoji('YES')} "
-                           f"Okay, messages older than {Utils.to_pretty_time(max_age)} won't get cold pings")
+                           f"Okay, messages older than {Utils.to_pretty_time(max_age)} "
+                           f"won't get cold pings")
 
     @autor.command()
     @commands.guild_only()
@@ -760,7 +800,9 @@ class AutoResponders(BaseCog):
 
         validated_replies = set(AutoResponders.validate_replies(replies))
         if validated_replies is None:
-            await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {Lang.get_locale_string('autoresponder/empty_reply', ctx)}")
+            await ctx.send(
+                f"{Emoji.get_chat_emoji('WHAT')} "
+                f"{Lang.get_locale_string('autoresponder/empty_reply', ctx)}")
             return
 
         ar_row = await self.get_db_trigger(ctx.guild.id, trigger)
@@ -792,7 +834,7 @@ class AutoResponders(BaseCog):
         ----------
         ctx
         trigger
-            Optionally name the trigger to select. If trigger is omitted, bot dialog will request it.
+            Optionally name the trigger to select. If trigger is omitted, dialog will request it.
         """
         try:
             trigger = await self.choose_trigger(ctx, trigger)
@@ -814,7 +856,8 @@ class AutoResponders(BaseCog):
             await ctx.send(f"{Emoji.get_chat_emoji('YES')} {msg}")
             await self.reload_triggers(ctx)
         except MultipleObjectsReturned:
-            await ctx.send(f"Something wrong in the database... too many matches to trigger ```{trigger}```")
+            await ctx.send(
+                f"Something wrong in the database... too many matches to trigger ```{trigger}```")
         except DoesNotExist:
             await ctx.send(f"I didn't find a matching AutoResponder with trigger ```{trigger}```")
         except Exception as e:
@@ -901,16 +944,21 @@ class AutoResponders(BaseCog):
             response_type_count = len(my_responses)
 
             if response_type_count == 0:
-                await ctx.send(f"There are no **{response_type}** responses configured. Can't remove what's not there.")
+                await ctx.send(
+                    f"There are no **{response_type}** responses configured. "
+                    f"Can't remove what's not there.")
                 return
 
             if response_type_count == 1:
                 if my_type == AutoResponseType.public:
                     # public response is not optional, so a single response can not be removed
-                    await ctx.send("AutoResponder must have at least one public response. Edit the existing response "
-                                   "or add a new one before removing this one.")
+                    await ctx.send(
+                        "AutoResponder must have at least one public response. "
+                        "Edit the existing response "
+                        "or add a new one before removing this one.")
                     return
-                elif not response:
+
+                if not response:
                     # log and mod responses are optional, so a single response can be removed
                     response = my_responses[0]
 
@@ -956,7 +1004,9 @@ class AutoResponders(BaseCog):
                      ArCommandMode.Enable,
                      ArCommandMode.Disable) and
                 not isinstance(response, AutoResponse)):
-            await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} Failed to find a response that matches `{response}`")
+            await ctx.send(
+                f"{Emoji.get_chat_emoji('WARNING')} Failed to find a response that matches "
+                f"`{response}`")
             return
 
         # TODO: multi-response handling
@@ -965,24 +1015,33 @@ class AutoResponders(BaseCog):
         if mode == ArCommandMode.Add:
             for existing_response in my_responses:
                 if str(existing_response) == str(response):
-                    await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} matched an existing response. nothing to do")
+                    await ctx.send(
+                        f"{Emoji.get_chat_emoji('WARNING')} matched an existing response. "
+                        f"nothing to do")
                     return
             await AutoResponse.create(autoresponder=my_rule.ar_row, type=my_type, response=response)
-            await ctx.send(f"{Emoji.get_chat_emoji('YES')} Added `{escaped_response}` to ar rule {my_rule.id}")
+            await ctx.send(
+                f"{Emoji.get_chat_emoji('YES')} "
+                f"Added `{escaped_response}` to ar rule {my_rule.id}")
         elif mode == ArCommandMode.Remove:
             # Remove response row
             await response.delete()
-            await ctx.send(f"{Emoji.get_chat_emoji('NO')} Removed `{escaped_response}` from ar rule {my_rule.id}")
+            await ctx.send(
+                f"{Emoji.get_chat_emoji('NO')} "
+                f"Removed `{escaped_response}` from ar rule {my_rule.id}")
         elif mode == ArCommandMode.Edit:
             # Edit response row
-            await ctx.send(f"Editing this {response_type} response in ar rule {my_rule.id}: ```{escaped_response}```")
-            new_response = await Questions.ask_text(self.bot,
-                                                    ctx.channel,
-                                                    ctx.author,
-                                                    "What would you like the new response to be?",
-                                                    locale=ctx,
-                                                    delete_after=False,
-                                                    escape=False)
+            await ctx.send(
+                f"Editing this {response_type} response in ar rule {my_rule.id}: "
+                f"```{escaped_response}```")
+            new_response = await Questions.ask_text(
+                self.bot,
+                ctx.channel,
+                ctx.author,
+                "What would you like the new response to be?",
+                locale=ctx,
+                delete_after=False,
+                escape=False)
             try:
                 response.response = new_response
                 await response.save()
@@ -992,18 +1051,22 @@ class AutoResponders(BaseCog):
                 raise CommandError
         elif mode == ArCommandMode.Enable:
             if response.active:
-                await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} The selected response is already enabled")
+                await ctx.send(
+                    f"{Emoji.get_chat_emoji('WARNING')} The selected response is already enabled")
                 return
             response.active = True
             await response.save()
-            await ctx.send(f"{Emoji.get_chat_emoji('YES')} Enabled the response:\n```{escaped_response}```")
+            await ctx.send(
+                f"{Emoji.get_chat_emoji('YES')} Enabled the response:\n```{escaped_response}```")
         elif mode == ArCommandMode.Disable:
             if not response.active:
-                await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} The selected response is already disabled")
+                await ctx.send(
+                    f"{Emoji.get_chat_emoji('WARNING')} The selected response is already disabled")
                 return
             response.active = False
             await response.save()
-            await ctx.send(f"{Emoji.get_chat_emoji('NO')} Disabled the response:\n```{escaped_response}```")
+            await ctx.send(
+                f"{Emoji.get_chat_emoji('NO')} Disabled the response:\n```{escaped_response}```")
         await self.reload_triggers(ctx)
 
     @autor.command(aliases=["edit", "trigger", "st"])
@@ -1027,12 +1090,13 @@ class AutoResponders(BaseCog):
         # trigger = await Utils.clean(trigger, links=False)
         if new_trigger is None:
             try:
-                new_trigger = await Questions.ask_text(self.bot,
-                                                       ctx.channel,
-                                                       ctx.author,
-                                                       Lang.get_locale_string("autoresponder/prompt_trigger", ctx),
-                                                       escape=False,
-                                                       locale=ctx)
+                new_trigger = await Questions.ask_text(
+                    self.bot,
+                    ctx.channel,
+                    ctx.author,
+                    Lang.get_locale_string("autoresponder/prompt_trigger", ctx),
+                    escape=False,
+                    locale=ctx)
             except asyncio.TimeoutError:
                 # empty trigger emits message when validated below. pass exception
                 pass
@@ -1063,7 +1127,8 @@ class AutoResponders(BaseCog):
         trigger: str
             Trigger text
         chance:
-            Probability of triggering autoresponder, expressed as a percentage with up to 2 decimal places, e.g. 35.15
+            Probability of triggering autoresponder,
+            expressed as a percentage with up to 2 decimal places, e.g. 35.15
         """
         try:
             trigger = await self.choose_trigger(ctx, trigger)
@@ -1094,9 +1159,10 @@ class AutoResponders(BaseCog):
         except Exception as e:
             await Utils.handle_exception("autoresponder set_chance exception", e)
         await ctx.send(
-            Lang.get_locale_string('autoresponder/chance_set', ctx,
-                                   chance=chance/100,
-                                   trigger=self.triggers[ctx.guild.id][trigger].short_description('')))
+            Lang.get_locale_string(
+                'autoresponder/chance_set', ctx,
+                chance=chance / 100,
+                trigger=self.triggers[ctx.guild.id][trigger].short_description('')))
         await self.reload_triggers(ctx)
 
     @autor.command(aliases=['ignore'])
@@ -1105,7 +1171,8 @@ class AutoResponders(BaseCog):
                             ctx: Context,
                             mode: ArCommandMode.GlobalIgnoreCommandModes,
                             *, channels: str = ''):
-        """List, add, or remove channels to the global ignore list. ALL autoresponders ignore messages in channels on
+        """List, add, or remove channels to the global ignore list.
+        ALL autoresponders ignore messages in channels on
         the global ignore list.
 
         Parameters
@@ -1140,8 +1207,9 @@ class AutoResponders(BaseCog):
                     channel = await conv.convert(ctx, channel_input)
                     my_channels.append(channel)
                 except ChannelNotFound:
-                    feedback.append(f"{Emoji.get_chat_emoji('WARNING')} "
-                                    f"I'm sorry, I couldn't find a channel that matches `{channel_input}`.")
+                    feedback.append(
+                        f"{Emoji.get_chat_emoji('WARNING')} "
+                        f"I'm sorry, I couldn't find a channel that matches `{channel_input}`.")
             return my_channels
 
         converted_channels = await clean_and_convert_channel_input(channels)
@@ -1164,12 +1232,14 @@ class AutoResponders(BaseCog):
         channel_ids = [c.id for c in converted_channels if converted_channels]
 
         if not channel_ids:
-            feedback.append(f"{Emoji.get_chat_emoji('WARNING')} There are no channels to {mode}. Try again")
+            feedback.append(
+                f"{Emoji.get_chat_emoji('WARNING')} "
+                f"There are no channels to {mode}. Try again")
             await ctx.send('\n'.join(feedback))
             return
 
         can_add = []
-        can_remove: List[AutoResponderChannel] = []
+        can_remove: list[AutoResponderChannel] = []
         cannot_add = []
         cannot_remove = []
 
@@ -1180,7 +1250,8 @@ class AutoResponders(BaseCog):
                 cannot_add.append(row.channelid)
 
         for channel_id in channel_ids:
-            # if an input id is not in existing list of rows, then it can be added and can not be removed
+            # if an input id is not in existing list of rows,
+            # then it can be added and can not be removed
             if channel_id not in global_ignore_channel_ids:
                 can_add.append(channel_id)
                 cannot_remove.append(channel_id)
@@ -1198,21 +1269,27 @@ class AutoResponders(BaseCog):
                 except (IntegrityError, IncompleteInstanceError):
                     feedback.append(f"{Emoji.get_chat_emoji('WARNING')} "
                                     f"Failed to add {channel_id} to global ignore list.")
-                feedback.append(f"{Emoji.get_chat_emoji('YES')} "
-                                f"All AutoResponders will now ignore {self.bot.get_channel(channel_id).mention}.")
+                feedback.append(
+                    f"{Emoji.get_chat_emoji('YES')} "
+                    f"All AutoResponders will now ignore "
+                    f"{self.bot.get_channel(channel_id).mention}.")
         elif mode == ArCommandMode.Remove:
             for channel_id in cannot_remove:
                 # Did not find existing global ignore channel
-                feedback.append(f"{Emoji.get_chat_emoji('WARNING')} "
-                                f"The channel {self.bot.get_channel(channel_id).mention} is not ignored, "
-                                f"so it can't be removed.")
+                feedback.append(
+                    f"{Emoji.get_chat_emoji('WARNING')} "
+                    f"The channel {self.bot.get_channel(channel_id).mention} is not ignored, "
+                    f"so it can't be removed.")
             for row in can_remove:
                 try:
                     await row.delete()
                 except OperationalError:
-                    feedback.append(f"{Emoji.get_chat_emoji('WARNING')} "
-                                    f"Failed to remove {row.channelid} from global ignore list.")
-                feedback.append(f"AutoResponders no longer ignore {self.bot.get_channel(row.channelid).mention}.")
+                    feedback.append(
+                        f"{Emoji.get_chat_emoji('WARNING')} "
+                        f"Failed to remove {row.channelid} from global ignore list.")
+                feedback.append(
+                    f"AutoResponders no longer ignore "
+                    f"{self.bot.get_channel(row.channelid).mention}.")
         if feedback:
             await ctx.send('\n'.join(feedback))
 
@@ -1287,11 +1364,13 @@ class AutoResponders(BaseCog):
             try:
                 lang_key = f"autoresponder/prompt_channel_{mode}_{channel_type}"
 
-                if mode == ArCommandMode.Remove and channel_type_enum == AutoResponderChannelType.response:
+                if (mode == ArCommandMode.Remove and
+                        channel_type_enum == AutoResponderChannelType.response):
                     # more than one response channel is set. how did we get here?
-                    await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} "
-                                   f"Error condition! Too many response channels set. You should probably remove "
-                                   f"channels until you see one or zero response channels")
+                    await ctx.send(
+                        f"{Emoji.get_chat_emoji('WARNING')} Error condition! "
+                        f"Too many response channels set. You should probably remove "
+                        f"channels until you see one or zero response channels")
 
                 channel_input = await Questions.ask_text(
                     self.bot,
@@ -1317,14 +1396,16 @@ class AutoResponders(BaseCog):
                             if int(channel_input) > len(channel_groups[channel_type]):
                                 await ctx.send(
                                     f"{Emoji.get_chat_emoji('WARNING')} "
-                                    f"I'm sorry, but `{channel_input}` isn't in my list of {channel_type} channels, "
+                                    f"I'm sorry, but `{channel_input}` "
+                                    f"isn't in my list of {channel_type} channels, "
                                     f"and isn't an index from the list above")
                                 return
                             chosen_channel_id = channel_groups[channel_type][chosen_index]
                             channel = self.bot.get_channel(chosen_channel_id)
                     except (ValueError, IndexError, TypeError):
-                        await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} "
-                                       f"I'm sorry, I couldn't find a channel that matches `{channel_input}`")
+                        await ctx.send(
+                            f"{Emoji.get_chat_emoji('WARNING')} "
+                            f"I'm sorry, I couldn't find a channel that matches `{channel_input}`")
                         return
                 channel_id = channel.id
             except asyncio.TimeoutError:
@@ -1350,11 +1431,14 @@ class AutoResponders(BaseCog):
                         channel_desc=Utils.get_channel_description(self.bot, channel_id),
                         trigger=self.triggers[ctx.guild.id][trigger].short_description('')))
                 else:
-                    await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} "
-                                   f"channel {channel.mention} is not a {channel_type} channel for ar id {ar_row.id}")
+                    await ctx.send(
+                        f"{Emoji.get_chat_emoji('WARNING')} "
+                        f"channel {channel.mention} "
+                        f"is not a {channel_type} channel for ar id {ar_row.id}")
             except OperationalError:
-                await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} Failed to remove channel {channel.mention} "
-                               f"from `{channel_type}` channels matching `{trigger}`")
+                await ctx.send(
+                    f"{Emoji.get_chat_emoji('WARNING')} Failed to remove channel {channel.mention} "
+                    f"from `{channel_type}` channels matching `{trigger}`")
         elif mode == ArCommandMode.Add:
             if channel_type_enum == AutoResponderChannelType.response:
                 try:
@@ -1365,20 +1449,25 @@ class AutoResponders(BaseCog):
                     await row.save()
                 except DoesNotExist:
                     await AutoResponderChannel.create(
-                        type=AutoResponderChannelType.response, autoresponder=ar_row, channelid=channel_id)
+                        type=AutoResponderChannelType.response,
+                        autoresponder=ar_row,
+                        channelid=channel_id)
                 except MultipleObjectsReturned:
                     multiple_rows = await AutoResponderChannel.filter(
                         type=AutoResponderChannelType.response, autoresponder=ar_row)
                     for row in multiple_rows:
                         await row.delete()
-                    await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} "
-                                   f"I found too many response rows, so I deleted all of them. Start again! "
-                                   f"{Emoji.get_chat_emoji('WARNING')}")
+                    await ctx.send(
+                        f"{Emoji.get_chat_emoji('WARNING')} "
+                        f"I found too many response rows, so I deleted all of them. Start again! "
+                        f"{Emoji.get_chat_emoji('WARNING')}")
             else:
                 # TODO: if channel_type_enum == AutoResponderChannelType.ignore
                 #  and count of listen channels > 0
-                #  prompt that this will unset "listen" channels, confirm, then unset listen channels
-                #  prompt: setting an ignore channel means that listen channel(s) will be unset. Proceed? [y/n]
+                #  prompt that this will unset "listen" channels, confirm,
+                #  then unset listen channels
+                #  prompt: setting an ignore channel means that
+                #  listen channel(s) will be unset. Proceed? [y/n]
                 try:
                     new_row, created = await AutoResponderChannel.get_or_create(
                         channelid=channel_id,
@@ -1403,14 +1492,15 @@ class AutoResponders(BaseCog):
 
     @autor.command(aliases=["sf"])
     @commands.guild_only()
-    async def set_flag(self, ctx: Context, trigger: str = None, flag_index: int = None, value: bool = None):
+    async def set_flag(
+            self, ctx: Context, trigger: str = None, flag_index: int = None, value: bool = None):
         """Set an on/off option for a trigger/response
 
         Parameters
         ----------
         ctx
         trigger: str
-            Optionally name the trigger to select. If trigger is omitted, bot dialog will request it.
+            Optionally name the trigger to select. If trigger is omitted, dialog will request it.
         flag_index: int
             Flag number
         value: bool
@@ -1454,8 +1544,8 @@ class AutoResponders(BaseCog):
                         ctx,
                         subject=str(my_ar_flag)),
                     [
-                        Questions.Option(f"YES", 'On', handler=choose, args=[True]),
-                        Questions.Option(f"NO", 'Off', handler=choose, args=[False])
+                        Questions.Option("YES", 'On', handler=choose, args=[True]),
+                        Questions.Option("NO", 'Off', handler=choose, args=[False])
                     ],
                     delete_after=True, show_embed=True, locale=ctx)
 
@@ -1473,19 +1563,26 @@ class AutoResponders(BaseCog):
             warnings = []
             if ArFlags.MOD_ACTION in modified_flags:
                 if not ar_rule.response_channels:
-                    warnings.append(Lang.get_locale_string('autoresponder/mod_action_warning', ctx))
+                    warnings.append(
+                        Lang.get_locale_string('autoresponder/mod_action_warning', ctx))
                 if ArFlags.DM_RESPONSE in modified_flags:
-                    warnings.append(f"`dm_response` is not effective because `mod_action` is set")
+                    warnings.append("`dm_response` is not effective because `mod_action` is set")
             else:
                 # mod action is not set
                 if ArFlags.DELETE_WHEN_TRIGGER_DELETED in modified_flags:
-                    warnings.append(f"`delete_when_trigger_deleted` is not effective because `mod_action` is not set")
+                    warnings.append(
+                        "`delete_when_trigger_deleted` is not effective "
+                        "because `mod_action` is not set")
                 if ArFlags.DELETE_ON_MOD_RESPOND in modified_flags:
-                    warnings.append(f"`delete_on_mod_respond` is not effective because `mod_action` is not set")
+                    warnings.append(
+                        "`delete_on_mod_respond` is not effective "
+                        "because `mod_action` is not set")
 
             warnings = [f"{Emoji.get_chat_emoji('WARNING')} {x}" for x in warnings]
             output += warnings
-            output.append(modified_flags.get_flags_description(f"{Emoji.get_chat_emoji('YES')} ar {ar_row.id}"))
+            output.append(
+                modified_flags.get_flags_description(
+                    f"{Emoji.get_chat_emoji('YES')} ar {ar_row.id}"))
             await ctx.send("\n".join(output))
             await self.reload_triggers(ctx)
         except asyncio.TimeoutError:
@@ -1507,7 +1604,8 @@ class AutoResponders(BaseCog):
 
         prefix = Configuration.get_var("bot_prefix")
         ctx = await self.bot.get_context(message)
-        is_mod = message.author.guild_permissions.mute_members or await Utils.permission_manage_bot(ctx)
+        is_mod = (message.author.guild_permissions.mute_members or
+                  await Utils.permission_manage_bot(ctx))
         command_context = message.content.startswith(prefix, 0) and is_mod
 
         if guild.id not in self.triggers or command_context:
@@ -1544,8 +1642,15 @@ class AutoResponders(BaseCog):
                         message.id,
                         sent.id)
 
-    def future_delete(self, ar_id: int, guild_id: int, channel_id: int, message_id: int, response_id: int):
-        """Track watch for message delete on specific messages, so bot can remove own responses to those messages
+    def future_delete(
+            self,
+            ar_id: int,
+            guild_id: int,
+            channel_id: int,
+            message_id: int,
+            response_id: int):
+        """Track watch for message delete on specific messages,
+        so bot can remove own responses to those messages
 
         Parameters
         ----------
@@ -1572,9 +1677,9 @@ class AutoResponders(BaseCog):
             return
 
         if guild_id not in self.awaiting_delete:
-            self.awaiting_delete[guild_id] = dict()
+            self.awaiting_delete[guild_id] = {}
         if channel_id not in self.awaiting_delete[guild_id]:
-            self.awaiting_delete[guild_id][channel_id] = dict()
+            self.awaiting_delete[guild_id][channel_id] = {}
         if message_id not in self.awaiting_delete[guild_id][channel_id]:
             self.awaiting_delete[guild_id][channel_id][message_id] = []
         # message_id is key to a list, so many responses can be removed if necessary
@@ -1585,7 +1690,9 @@ class AutoResponders(BaseCog):
         gid = payload.guild_id
         cid = payload.channel_id
         mid = payload.message_id
-        if gid in self.awaiting_delete and cid in self.awaiting_delete[gid] and mid in self.awaiting_delete[gid][cid]:
+        if (gid in self.awaiting_delete and
+                cid in self.awaiting_delete[gid] and
+                mid in self.awaiting_delete[gid][cid]):
             delete_ids = self.awaiting_delete[gid][cid][mid]
             del self.awaiting_delete[gid][cid][mid]
             try:
@@ -1608,12 +1715,14 @@ class AutoResponders(BaseCog):
             member = my_guild.get_member(event.user_id)
             user_is_bot = event.user_id == self.bot.user.id
             # TODO: change to role-based?
-            has_permission = member.guild_permissions.mute_members or await self.bot.member_is_admin(event.user_id)
+            has_permission = (member.guild_permissions.mute_members or
+                              await self.bot.member_is_admin(event.user_id))
             if user_is_bot or not has_permission:
                 return
 
             if event.message_id in self.ar_list_messages[channel.guild.id]:
-                await self.update_list_message(self.ar_list_messages[channel.guild.id][event.message_id], event)
+                await self.update_list_message(
+                    self.ar_list_messages[channel.guild.id][event.message_id], event)
                 return
 
             if event.message_id in self.mod_messages[channel.guild.id][channel.id]:
@@ -1651,10 +1760,16 @@ class AutoResponders(BaseCog):
             step = 1 if direction > 0 else -1
             next_page = (my_pager.active_page + step) % len(my_ar_list)
             embed = my_pager.message.embeds[0]
-            embed.set_field_at(-1, name="page", value=f"{next_page+1} of {len(self.ar_list[guild_id])}", inline=False)
+            embed.set_field_at(
+                -1,
+                name="page",
+                value=f"{next_page+1} of {len(self.ar_list[guild_id])}",
+                inline=False)
             page = next_page
             await my_pager.message.remove_reaction(event.emoji, self.bot.get_user(event.user_id))
-            edited_message = await my_pager.message.edit(content='\n'.join(my_ar_list[next_page]), embed=embed)
+            edited_message = await my_pager.message.edit(
+                content='\n'.join(my_ar_list[next_page]),
+                embed=embed)
             my_pager.message = edited_message
         except Exception as e:
             await Utils.handle_exception('AR Pager Failed', e)
@@ -1676,7 +1791,7 @@ class AutoResponders(BaseCog):
 
         # init dict where necessary
         if ar_event.mod_action_channel_id not in self.mod_messages[gid]:
-            self.mod_messages[gid][ar_event.mod_action_channel_id] = dict()
+            self.mod_messages[gid][ar_event.mod_action_channel_id] = {}
 
         self.mod_messages[gid][ar_event.mod_action_channel_id][mod_action_msg.id] = ar_event.as_dict()
         Configuration.set_persistent_var(f"mod_messages_{gid}", self.mod_messages[gid])
@@ -1719,16 +1834,17 @@ class AutoResponders(BaseCog):
         my_embed.set_field_at(-1, name="Handled by", value=member.mention, inline=True)
 
         if trigger_message is None:
-            my_embed.add_field(name="Deleted", value=":snail: message removed before action was taken.")
+            my_embed.add_field(
+                name="Deleted",
+                value=":snail: message removed before action was taken.")
 
         my_embed.add_field(name="Action Used", value=emoji, inline=True)
         my_embed.add_field(name="Reaction Time", value=time_d, inline=True)
         await message.edit(embed=my_embed)
 
         if str(emoji) == str(Emoji.get_emoji("CANDLE")):
-            # do nothing
+            # do nothing but metrics
             m.auto_responder_mod_manual.inc()
-            pass
         if str(emoji) == str(Emoji.get_emoji("WARNING")):
             # send auto-response in the triggering channel
             m.auto_responder_mod_auto.inc()

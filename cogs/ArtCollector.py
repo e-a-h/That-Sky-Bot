@@ -5,11 +5,10 @@ import discord
 from discord import NotFound, HTTPException
 from discord.ext import commands
 
-from utils import Lang, Utils, Emoji, Logging
-from utils.Database import ArtChannel
-
 from cogs.BaseCog import BaseCog
+from utils import Lang, Utils, Emoji, Logging
 from utils.Constants import CHANNEL_ID_MATCHER
+from utils.Database import ArtChannel
 
 
 class ArtCollector(BaseCog):

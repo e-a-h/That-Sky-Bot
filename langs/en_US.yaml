@@ -7,6 +7,7 @@ common:
   you_chose_codeblock: You chose ```{value}```
   you_chose_bold: You chose **{value}**
   expect_integer: I was hoping for one of these values ```{keys}```
+  interaction_timeout: You didn't respond in time. `{description}` canceled.
 questions:
   text_only: I can't accept files yet. That step comes later. Just use your words
   confirm_prompt: Are you sure {backticks}{message}{backticks} is correct?
@@ -280,15 +281,22 @@ dropbox:
   override_confirmation: The channel {source} already delivers messages to {old_target}; do you want to change the target to {new_target}?
   set_delay_success: Confirmation messages in dropbox channel {channel} will be deleted after {time}
   set_delay_fail: Failed to set dropbox delete delay time in {channel}
-  msg_delivered: "{author} Your message was delivered"
-  msg_not_delivered: "{author} Your message was **not** delivered. Please try again, or contact a moderator"
+  msg_delivered: "{author} Your message was delivered."
+  msg_not_delivered: "{author} Your message was **not** delivered. Please try again, or contact a moderator."
   msg_blank: I didn't find any text content in the original message
   attachment_fail: Attachment from {author} failed. Censored or deleted by member?
   msg_receipt: "Here's a copy of the message you sent in {channel}:"
+  msg_receipt_ephemeral: "Here's a copy of the message I delivered for you:"
+  msg_followup_instructions: "If you would like to send additional information, screenshots, or files, press the button and I will prompt you by DM for more."
   receipt_set_true: receipt set. authors will be DMed a copy of their message in {channel}.
   receipt_set_false: receipt set. authors won't be DMed for their messages in {channel}.
   receipt_attachment_singular: "{number} attached file: {attachments}"
   receipt_attachment_plural: "{number} attached files: {attachments}"
+  dm_unable: |
+    ⚠️ **DM failed. Please open DMs and try again.** ⚠️
+    
+    Go to Server dropdown menu > Select Privacy Settings > Toggle on `Direct Messages`
+    [More information about blocking DMs](https://support.discord.com/hc/en-us/articles/217916488-Blocking-Privacy-Settings)
 autoresponder:
   mod_action_header: Moderator actions
   mod_action_warning: |
@@ -430,6 +438,8 @@ custom_commands:
     Command `{trigger}` reply to command author: `{value}`
   autocomplete_trigger_updated: |
     Command `{trigger}` in autocomplete list: `{value}`
+  ephemeral_trigger_updated: |
+    Command `{trigger}` sends ephemeral response (only when used in slash-command): `{value}`
 word_counter:
   list_words: Words being counted for metrics in the {server_name} server
   no_words: There are no words currently being counted.

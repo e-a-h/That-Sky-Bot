@@ -1,26 +1,71 @@
+"""A module defining the ArRule dataclass, which encapsulates the logic and properties associated with
+an AutoResponder rule.
+
+This module includes methods for matching message content against predefined patterns, retrieving responses,
+and managing additional metadata such as response probabilities, guild-specific settings, and channel
+configurations. Additionally, it encompasses utility functions for fetching rule-related data from the
+database and constructing rule objects from database rows.
+"""
 import json
 import random
 import re
-from json import JSONDecodeError
-
 from dataclasses import dataclass
+from json import JSONDecodeError
 from typing import Optional
 
-from contrib.pydantic import pydantic_model_creator
 from discord import Message
+from tortoise.contrib.pydantic import pydantic_model_creator
+from tortoise.exceptions import NoValuesFetched, OperationalError, IntegrityError, TransactionManagementError, \
+    MultipleObjectsReturned, DoesNotExist
 
 from utils import Logging, Utils
 from utils.AutoResponderFlags import ArFlags
 from utils.Constants import URL_MATCHER, DISCORD_INDENT
 from utils.Database import AutoResponder, AutoResponderChannelType, AutoResponseType, AutoResponse, AutoResponderChannel
-from tortoise.exceptions import NoValuesFetched, OperationalError, IntegrityError, TransactionManagementError, \
-    MultipleObjectsReturned, DoesNotExist
-
 from utils.Logging import TCol
 
 
 @dataclass
 class ArRule:
+    """
+    Represents an AutoResponder rule used in a guild.
+
+    This class encapsulates the configuration for auto-response mechanisms,
+    handling patterns to match, responses, and operational flags. It is structured
+    to process incoming messages, determine if a pattern matches, and provide
+    appropriate responses based on its configuration.
+
+    Attributes
+    ----------
+    id : int
+        Unique identifier for the AutoResponder rule.
+    match_list : list of str
+        List of string patterns to match against messages.
+    response : list of str
+        List of response messages or patterns triggered by this rule.
+    responses : dict of str to a list of AutoResponse
+        Mapping of response type strings to a list of active AutoResponse objects.
+    flags : ArFlags
+        Flags representing settings and configurations for specific rule behavior.
+    chance : float
+        Probability (between 0 and 1) that a response will be given when a match is found.
+    guild_id : int
+        The guild ID associated with this rule.
+    listen_channels : list of int
+        List of channel IDs where this rule listens for messages.
+    response_channels : list of int
+        List of channel IDs where the rule sends responses.
+    log_channels : list of int
+        List of channel IDs where log messages are sent.
+    ignored_channels : list of int
+        List of channel IDs that this rule will ignore.
+    mod_channels : list of int
+        List of channel IDs where special moderator responses are sent.
+    ar_row : AutoResponder
+        Database row object associated with this rule.
+    verbose : bool
+        Indicates if verbose logging is enabled (default is False).
+    """
     id: int
     match_list: list[str]
     response: list[str]
@@ -37,6 +82,21 @@ class ArRule:
     verbose: bool = False
 
     def find_match(self, message: Message):
+        """
+        Determine if the given message matches the rule's pattern list. Each term in the pattern list
+        is checked, and all patterns in the rule's list must match to trigger the rule.
+
+        Parameters
+        ----------
+        message : Message
+            The message to be checked.
+
+        Returns
+        -------
+        list of str
+            A list of matched substrings within the content of the message. If any pattern fails to match,
+            the function returns False.
+        """
         matched = []
         words = self.get_match_list()
         match_case = ArFlags.MATCH_CASE in self.flags
@@ -63,6 +123,31 @@ class ArRule:
         return matched
 
     def get_match_list(self) -> list:
+        """
+        Generates a list of match patterns based on given triggers, flags, and match lists.
+
+        This method constructs a list of regular expression patterns to match words or
+        phrases based on the object's `match_list`, `flags`, and additional parameters.
+        It supports handling full word matches, multi-word synonyms, and adding word
+        boundaries or escape sequences as required. The constructed patterns are intended
+        to facilitate flexible matching of messages.
+
+        Returns
+        -------
+        list of str
+            A list of regex pattern strings that can be used for matching based on the
+            object's configuration.
+
+        Notes
+        -----
+        - When the `FULL_MATCH` flag is enabled, word boundaries are added to match exact
+          words (e.g., 'word' will not match 'words' or 'sword').
+        - Multi-synonym matching within sublists is processed such that one word from
+          the sublist must match (e.g., ['cat', 'dog'] will produce '(cat|dog)').
+        - Escaped spaces are replaced with whitespace character classes to support
+          multiline matching.
+        - Logging is performed if verbosity is enabled in the object configuration.
+        """
         words = []
         full_match = ArFlags.FULL_MATCH in self.flags
 
@@ -126,8 +211,9 @@ class ArRule:
         Returns
         -------
         str
-            Trigger string is returned if it's shorter than output limit.
-            If trigger is longer than output limit, returns the front and back of the trigger, joined with ellipsis
+            Trigger string is returned if it's shorter than the output limit.
+            If the trigger is longer than the output limit,returns the front and back of the trigger,
+            joined with ellipsis
         """
         output_limit = 30
         ellipsis_str = ' ... '
@@ -166,8 +252,9 @@ class ArRule:
 
     @staticmethod
     async def get_global_ignore_channels(bot, guild_id):
-        """Get list of db rows representing AutoResponder global ignores for this guild, list of corresponding channels
-        and a descriptive string that includes channel mentions
+        """
+        Get a list of db rows representing AutoResponder global ignores for this guild,
+        a list of corresponding channels, and a descriptive string that includes channel mentions
 
         Parameters
         ----------
@@ -207,7 +294,7 @@ class ArRule:
 
     @staticmethod
     async def from_db_row(ar_row: AutoResponder):
-        """Generate AR data object
+        """Load the rule from the database and parse the configuration
 
         Parameters
         ----------
@@ -280,7 +367,9 @@ class ArRule:
                 continue
             try:
                 await AutoResponse.create(autoresponder=ar_row, response=phrase, type=AutoResponseType.public)
-                Logging.info(f"migrate response phrase `{phrase}` for ar_id {ar_row.id} to response table", TCol.Green)
+                Logging.info(
+                    f"migrate response phrase `{phrase}` "
+                    f"for ar_id {ar_row.id} to response table", TCol.Green)
                 migrated = True
             except (OperationalError, IntegrityError, TransactionManagementError):
                 Logging.info(f"Failed to create response `{phrase}` for ar id {ar_row.id}", TCol.Fail)

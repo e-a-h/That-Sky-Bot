@@ -19,7 +19,7 @@ BACKUPS = {
     "WRENCH": "🔧",
     "YES": "✅",
     "CANDLE": "🕯",
-    "WARNING": "⚠",
+    "WARNING": "\N{WARNING SIGN}\N{VARIATION SELECTOR-16}",
     "WHAT": "☹",
     "ART": "🖼️",
     "BRUSH": "🖌️",
@@ -28,6 +28,7 @@ BACKUPS = {
     "SNAIL": "🐌",
     "LEFT": "⬅️",
     "RIGHT": "➡️",
+    "PEA POD": "\U0001fadb",
     "NUMBER_0": "0\u20e3",
     "NUMBER_1": "1\u20e3",
     "NUMBER_2": "2\u20e3",
@@ -38,7 +39,7 @@ BACKUPS = {
     "NUMBER_7": "7\u20e3",
     "NUMBER_8": "8\u20e3",
     "NUMBER_9": "9\u20e3",
-    "QUESTION_MARK": "❓"
+    "QUESTION_MARK": "❓",
 }
 
 
@@ -52,9 +53,7 @@ def get_chat_emoji(name):
 
 
 def is_emoji_defined(name):
-    if name not in EMOJI and name not in BACKUPS:
-        return False
-    return True
+    return name in EMOJI or name in BACKUPS
 
 
 def get_emoji(name):

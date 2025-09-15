@@ -2,7 +2,6 @@ import asyncio
 import os
 import sys
 import time
-import traceback
 from asyncio import CancelledError
 from io import BytesIO
 from typing import Union
@@ -281,10 +280,12 @@ class Music(BaseCog):
 
         success_msg = "A new music sheet is now in progress. Check your DMs!"
         if user.id in self.in_progress:
+            await interaction_response(interaction).defer(ephemeral=True)
+
             # ask if user wants to start over
             view = ConfirmView(interaction.user, timeout=10.0)
             question = Lang.get_locale_string("music/start_over", interaction, user=user.mention)
-            await interaction_response(interaction).send_message(question, view=view, ephemeral=True)
+            await interaction.followup.send(question, view=view, ephemeral=True)
             await view.wait()
 
             if view.value is None:

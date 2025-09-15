@@ -5,13 +5,11 @@ import string
 from collections import OrderedDict
 from datetime import datetime
 from itertools import islice
-from math import ceil
 from random import random, choice
 from time import time
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import discord
-import numpy
 import tortoise
 from discord import AllowedMentions, Forbidden, HTTPException, app_commands, Interaction, Member, Role, Guild, NotFound, \
     Permissions
@@ -193,10 +191,11 @@ class Mischief(BaseCog):
         # END MIGRATE
         ###############
 
-        async for row in guild_row.mischief_roles.all():
-            # TODO: remove defunct roles from db ?
-            self.mischief_map[guild.id][row.alias.lower()] = guild.get_role(row.roleid) # puts None for missing role
-            # TODO: event listener for role delete
+        if guild_row is not None:
+            async for row in guild_row.mischief_roles.all():
+                # TODO: remove defunct roles from db ?
+                self.mischief_map[guild.id][row.alias.lower()] = guild.get_role(row.roleid) # puts None for missing role
+                # TODO: event listener for role delete
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
@@ -216,7 +215,7 @@ class Mischief(BaseCog):
                     continue
 
                 if str(guild.id) not in self.name_cooldown:
-                    return
+                    continue
 
                 updated = False
                 my_names: dict[str, dict] = dict(self.name_cooldown[str(guild.id)])
@@ -401,31 +400,31 @@ class Mischief(BaseCog):
         """
 
     @mischief_config.command(name='removewishingrole')
-    async def remove_wishing_role(self, interaction: Interaction, alias: Range[str, 1, wish_max_length]) -> None:
+    async def remove_wishing_role(self, interaction: Interaction, wishing_role: Range[str, 1, wish_max_length]) -> None:
         """
         Remove a wishing role
 
         Parameters
         ----------
         interaction
-        alias
-            The alias for the role to remove
+        wishing_role
+            The wishing role to remove
 
         Returns
         -------
         None
         """
-        if alias not in self.mischief_map[interaction.guild.id]:
-            raise CommandError(f"alias {alias} does not exist")
+        if wishing_role not in self.mischief_map[interaction.guild.id]:
+            raise CommandError(f"alias {wishing_role} does not exist")
 
         guild_row = await self.bot.get_guild_db_config(interaction.guild.id)
-        delete_row = await MischiefRole.get_or_none(guild=guild_row, alias=alias)
+        delete_row = await MischiefRole.get_or_none(guild=guild_row, alias=wishing_role)
         sender = Sender(interaction)
         message = ""
         delete_role_id = None
 
         if delete_row is None:
-            message += f"\n`{alias}` was not a Mischief role isn't in my database. This might have worked anyway!"
+            message += f"\n`{wishing_role}` was not a Mischief role isn't in my database. This might have worked anyway!"
         else:
             try:
                 delete_role_id = delete_row.roleid
@@ -437,17 +436,27 @@ class Mischief(BaseCog):
                 return
         try:
             # remove role from tracking dicts
-            del self.mischief_map[interaction.guild.id][alias]
+            del self.mischief_map[interaction.guild.id][wishing_role]
             if delete_role_id is not None:
                 del self.role_counts[interaction.guild.id][delete_role_id]
 
-            await sender.send(f"`{alias}` is no longer a Mischief role!{message}", ephemeral=True)
+            await sender.send(f"`{wishing_role}` is no longer a Mischief role!{message}", ephemeral=True)
         except KeyError:
             await sender.send(f"guild is not configured for this mischief role{message}", ephemeral=True)
 
     @mischief_config.command(name='listmischiefnames')
     async def list_mischief_names(self, interaction: Interaction) -> None:
-        """List all mischief names"""
+        """
+        List all mischief names
+
+        Parameters
+        ----------
+        interaction
+
+        Returns
+        -------
+        None
+        """
         embed = discord.Embed(title="Mischief Names", color=0xFFBD1C)
         for i in list(string.ascii_lowercase):
             pass
@@ -615,11 +624,11 @@ class Mischief(BaseCog):
     async def mischief_name_autocomplete(
             self,
             interaction: Interaction,
-            current: str) -> List[app_commands.Choice[str]]:
-        """autocomplete mischief names"""
+            current: str) -> list[app_commands.Choice[str]]:
+        """Autocomplete for mischief names"""
         names = sorted(self.mischief_names[interaction.guild.id])
         # generator for all cog names:
-        pattern = re.compile(".*".join([letter for letter in current]), re.I)
+        pattern = re.compile(".*".join([re.escape(letter) for letter in current]), re.I)
         all_names = (name for name in names if pattern.search(name) is not None)
         # islice to limit to 25 options (discord API limit)
         some_names = list(islice(all_names, 25))
@@ -627,12 +636,12 @@ class Mischief(BaseCog):
         ret = [app_commands.Choice(name=i, value=i) for i in some_names]
         return ret
 
-    @remove_wishing_role.autocomplete("alias")
+    @remove_wishing_role.autocomplete('wishing_role')
     @i_wish_i_was_a.autocomplete('something')
     async def wish_autocomplete(
             self,
             interaction: Interaction,
-            current: str) -> List[app_commands.Choice[str]]:
+            current: str) -> list[app_commands.Choice[str]]:
         """Autocomplete for wishing roles"""
         me = OrderedDict([(Mischief.me_again, Mischief.me_again_display)])
         them = OrderedDict(sorted(self.mischief_map[interaction.guild.id].items()))

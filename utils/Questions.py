@@ -2,15 +2,12 @@ import asyncio
 import inspect
 import re
 import typing
-
-from discord import Embed, Reaction
-from utils import Emoji, Utils, Configuration, Lang
 from dataclasses import dataclass
 
+from discord import Embed, Reaction
+
+from utils import Emoji, Utils, Configuration, Lang
 from utils.Constants import URL_MATCHER
-
-
-# Option = namedtuple("Option", "emoji text handler args", defaults=(None, None, None, None))
 
 
 @dataclass

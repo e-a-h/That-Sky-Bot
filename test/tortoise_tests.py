@@ -110,7 +110,6 @@ async def run():
             logchannelid=13,
             entrychannelid=14,
             maintenancechannelid=15,
-            rulesreactmessageid=21,
             defaultlocale="en_US"
         )
         my_other_guild, created = await Guild.get_or_create(
@@ -124,7 +123,6 @@ async def run():
             logchannelid=44,
             entrychannelid=55,
             maintenancechannelid=66,
-            rulesreactmessageid=888888,
             defaultlocale="en_US"
         )
     except (tortoise.exceptions.IntegrityError, tortoise.exceptions.TransactionManagementError) as e:
@@ -145,7 +143,6 @@ async def run():
             logchannelid=44,
             entrychannelid=55,
             maintenancechannelid=66,
-            rulesreactmessageid=888888,
             defaultlocale="en_US"
         )
     except tortoise.exceptions.IntegrityError as e:

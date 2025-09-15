@@ -1,8 +1,6 @@
 import traceback
-from inspect import stack
 
 from discord import app_commands, InteractionResponded
-
 from discord.interactions import Interaction
 
 from utils import Logging
