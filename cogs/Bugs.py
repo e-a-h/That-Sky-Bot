@@ -55,7 +55,7 @@ class CommandMode:
 
 
 class UserCanceledError(CancelledError):
-    """Report canceled by user"""
+    """Report canceled by the user"""
 
 
 class Bugs(BaseCog):
@@ -66,8 +66,8 @@ class Bugs(BaseCog):
         super().__init__(bot)
         self.ready_task = None
         self.bug_messages = set()
-        self.in_progress = dict()
-        self.sweeps = dict()
+        self.in_progress = {}
+        self.sweeps = {}
         self.blocking = set()
         self.maintenance_message = None
         self.maint_check_count = 0
@@ -209,8 +209,7 @@ class Bugs(BaseCog):
             Logging.info(f"\t{work_item.uuid} run_bug_report canceled. "
                          f"channel {work_item.channel.id}, user {get_member_log_name(work_item.user)}")
             raise e
-        else:
-            Logging.info(f"{work_item.uuid} runner completed without exceptions")
+        Logging.info(f"{work_item.uuid} runner completed without exceptions")
 
     async def sweep_trash(self, user, ctx):
         await asyncio.sleep(Configuration.get_var("bug_trash_sweep_minutes") * 60)
@@ -228,7 +227,6 @@ class Bugs(BaseCog):
             except Exception as e:
                 # ignore task cancel failures
                 Logging.info(f"can't cancel task because {repr(e)}")
-                pass
 
         my_sweep = self.sweeps.pop(uid, None)
         if my_sweep is not None:
@@ -251,8 +249,11 @@ class Bugs(BaseCog):
                     if channel is not None:
                         if cid not in reported:
                             await self.remove_bug_info_msg(channel)
-                            shutdown_message = await channel.send(Lang.get_locale_string("bugs/shutdown_message"))
-                            Configuration.set_persistent_var(f"{guild_id}_{platform}_{branch}_shutdown", shutdown_message.id)
+                            shutdown_message = await channel.send(
+                                Lang.get_locale_string("bugs/shutdown_message"))
+                            Configuration.set_persistent_var(
+                                f"{guild_id}_{platform}_{branch}_shutdown",
+                                shutdown_message.id)
                             Logging.info(f"\tsent shutdown message in #{channel.name}")
                             reported.add(cid)
                     else:
@@ -261,7 +262,8 @@ class Bugs(BaseCog):
                 except Exception as e:
                     Logging.info(f"attempt {i+1} failed to sent shutdown message in #{cid}: {e}")
             else:
-                msg = f"\tFailed sending shutdown message to <#{cid}> in server {guild_id} for {platform}_{branch}"
+                msg = (f"\tFailed sending shutdown message to <#{cid}> in server "
+                       f"{guild_id} for {platform}_{branch}")
                 Logging.info(msg, TCol.Fail)
                 await Utils.guild_log(guild_id, msg)
 
@@ -284,15 +286,18 @@ class Bugs(BaseCog):
         while not ctx and tries < max_tries:
             tries += 1
             try:
-                last_message = await channel.send('preparing bug reporting...')
-                ctx = await self.bot.get_context(last_message)
+                if not last_message:
+                    last_message = await channel.send('preparing bug reporting...')
+                if not ctx:
+                    ctx = await self.bot.get_context(last_message)
                 await self.remove_bug_info_msg(channel)
-                message = await channel.send(
-                    Lang.get_locale_string(
-                        "bugs/bug_info",
-                        ctx,
-                        bug_emoji=Emoji.get_emoji('BUG')))
-                self.bug_messages.add(message.id)
+                if not message:
+                    message = await channel.send(
+                        Lang.get_locale_string(
+                            "bugs/bug_info",
+                            ctx,
+                            bug_emoji=Emoji.get_emoji('BUG')))
+                    self.bug_messages.add(message.id)
                 await message.add_reaction(Emoji.get_emoji('BUG'))
                 Configuration.set_persistent_var(f"{channel.guild.id}_{channel.id}_bug_message", message.id)
             except Exception as e:
@@ -604,7 +609,7 @@ class Bugs(BaseCog):
                 await ctx.send(Lang.get_locale_string('bugs/reset_success', uid=uid))
             except Exception as e:
                 await ctx.send(Lang.get_locale_string('bugs/reset_fail', uid=uid))
-        self.in_progress = dict()
+        self.in_progress = {}
         await ctx.send(Lang.get_locale_string('bugs/dead_bugs_cleaned',
                                               ctx,
                                               active_keys=len(active_keys),
@@ -689,14 +694,14 @@ class Bugs(BaseCog):
     ####################
 
     async def send_bug_platform_list(self, ctx: Union[Context, Interaction]):
-        platforms = dict()
+        platforms = {}
 
         for row in await BugReportingPlatform.all():
             if row.branch in platforms:
                 if row.platform in platforms[row.branch]:
                     await Utils.guild_log(ctx.guild.id, f"duplicate platform in db: {row.platform}/{row.branch}")
             if row.branch not in platforms:
-                platforms[row.branch] = list()
+                platforms[row.branch] = []
             platforms[row.branch].append(row.platform)
 
         embed = Embed(
@@ -718,7 +723,7 @@ class Bugs(BaseCog):
             title='Bug Reporting Channels')
         guild_row = await self.bot.get_guild_db_config(ctx.guild.id)
         guild_channels = []
-        non_guild_channels = dict()
+        non_guild_channels = {}
         for row in await BugReportingPlatform.all().prefetch_related("bug_channels"):
             for channel_row in row.bug_channels:
                 channel = self.bot.get_channel(channel_row.channelid)
@@ -1020,17 +1025,17 @@ class Bugs(BaseCog):
                                             platform_version=platform_version, branch=branch, app_version=app_version,
                                             app_build=app_build, title=title, steps=steps, expected=expected,
                                             actual=actual, additional=additional_text,
-                                            reported_at=int(utcnow().timestamp()))
+                                            reported_at=int(datetime.now(timezone.utc).timestamp()))
                 for url in attachment_links:
                     await Attachments.create(report=br, url=url)
 
-                # send report
+                # send the [report
                 channel_name = f"{platform}_{branch}".lower()
 
                 report_id_saved = False
                 attachment_id_saved = False
-                user_reported_channels = list()
-                all_reported_channels = list()
+                user_reported_channels = []
+                all_reported_channels = []
                 selected_platform = await BugReportingPlatform.get(platform=platform, branch=branch)
 
                 for row in await BugReportingChannel.filter(platform=selected_platform):

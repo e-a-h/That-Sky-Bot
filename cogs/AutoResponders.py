@@ -64,6 +64,27 @@ class ArChannelType:
 
 
 class AutoResponders(BaseCog):
+    """Discord cog for configuring and managing auto-responses to messages.
+
+    Auto-responders monitor messages in a guild (server) for specific trigger phrases
+    and generate automated responses based on configured rules. Each auto-responder
+    has the following capabilities:
+
+    - Match messages containing specific text or phrases
+    - Send responses in a specific channel or directly in the triggering channel
+    - Log matches to a log channel
+    - Notify moderators about matches
+    - Allow moderators to take actions on matched messages
+    - Various configuration flags to control behavior
+
+    Responses can be public messages, mod-only messages, or log entries. Response
+    messages can include tokens that are replaced with context-specific values like
+    the trigger author or channel.
+
+    Auto-responders can be added, removed, enabled/disabled, and configured through
+    commands. Moderators can choose specific channels for responses and logs.
+    """
+
     trigger_length_max = 300
     action_expiry_default = 86400
     cold_ping_default_threshold = 600
@@ -76,7 +97,6 @@ class AutoResponders(BaseCog):
         self.mod_action_expiry = {}
         self.ar_list = {}
         self.ar_list_messages = {}
-        self.loaded = False
 
     async def cog_load(self):
         Logging.info(f"\t{self.qualified_name}::cog_load")
@@ -114,6 +134,7 @@ class AutoResponders(BaseCog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
+        del self.awaiting_delete[guild.id]
         del self.triggers[guild.id]
         del self.mod_messages[guild.id]
         del self.ar_list[guild.id]
@@ -162,7 +183,7 @@ class AutoResponders(BaseCog):
             saved_mod_messages = Configuration.get_persistent_var(f"mod_messages_{guild.id}")
             if saved_mod_messages:
                 for channel_id, actions in saved_mod_messages.items():
-                    # Convert json str keys to int
+                    # Convert JSON str keys to int
                     channel_id = int(channel_id)
                     if channel_id not in self.mod_messages[guild.id]:
                         self.mod_messages[guild.id][channel_id] = {}
@@ -326,7 +347,6 @@ class AutoResponders(BaseCog):
                     continue
 
                 self.triggers[guild.id][ar_row.trigger] = await ArRule.from_db_row(ar_row)
-        self.loaded = True
 
         ############################################################
         # TODO: remove below section after db migration is confirmed
@@ -1629,8 +1649,8 @@ class AutoResponders(BaseCog):
             else:
                 sent = await my_event.send_public_response()
 
-                # Responding in other channels is usually for mods and logs
-                # so do only allow future delete if response is sent in the triggering channel
+                # Responding in other channels is usually for mods and logs,
+                # so only allow future delete if the response is sent in the triggering channel
                 delete_in_future = rule.flag_is_set(ArFlags.DELETE_WHEN_TRIGGER_DELETED)
                 response_in_trigger_channel = my_event.response_channel == message.channel
 
@@ -1649,8 +1669,9 @@ class AutoResponders(BaseCog):
             channel_id: int,
             message_id: int,
             response_id: int):
-        """Track watch for message delete on specific messages,
-        so bot can remove own responses to those messages
+        """
+        Watch for deletion of specific messages,
+        so the bot can remove its own responses to those messages
 
         Parameters
         ----------

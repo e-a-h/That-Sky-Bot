@@ -16,6 +16,15 @@ PERSISTENT_AIO_QUEUE: asyncio.Queue
 
 @dataclass()
 class PersistentAction:
+    """
+    Class representing an action to be performed on persistent storage.
+
+    Attributes:
+        delete (bool): Flag indicating if this is a delete operation. Defaults to False.
+        key (str): The key to operate on in persistent storage. Defaults to None.
+        value (str): The value to store (for non-delete operations). Defaults to None.
+        tolerate_missing (bool): Whether to ignore missing keys on delete. Defaults to False.
+    """
     delete: bool = False
     key: str = None
     value: str = None
@@ -75,7 +84,27 @@ def del_persistent_var(key, tolerate_missing=False):
 
 
 def do_persistent_action(action: PersistentAction):
-    if action.delete and action.key:
+    """
+    Performs a persistent action based on the provided `PersistentAction` object.
+
+    This function processes changes to persistent storage such as saving, creating,
+    or deleting entries.
+
+    Parameters
+    ----------
+    action : PersistentAction
+        A `PersistentAction` instance that includes the key to operate on, the
+        value to save (if applicable), whether to delete the key, and whether
+        to tolerate (log) or alert when missing keys are encountered during
+        delete operations.
+    """
+    if not action.key:
+        Utils.get_embed_and_log_exception(
+            "do_persistent_action: no key provided",
+            KeyError("no key provided"))
+        return
+
+    if action.delete:
         # DELETE
         try:
             del PERSISTENT[action.key]
@@ -83,13 +112,13 @@ def do_persistent_action(action: PersistentAction):
             Utils.save_to_disk("persistent", PERSISTENT)
         except KeyError as e:
             if action.tolerate_missing:
-                Logging.info(f'skipping delete for `{action.key}`')
+                Logging.debug(f'skipping delete for `{action.key}`')
                 return
-            Logging.info(f'NOT skipping delete for `{action.key}`')
+            Logging.error(f'NOT skipping delete for `{action.key}`')
             Utils.get_embed_and_log_exception(f"cannot delete nonexistent persistent var `{action.key}`", e)
         except Exception as e:
             Utils.get_embed_and_log_exception(f"---delete persistent var failed--- key `{action.key}`", e)
-    elif not action.delete and action.key:
+    elif not action.delete:
         # SAVE/CREATE
         PERSISTENT[action.key] = action.value
         # Logging.info("save persistent")

@@ -11,7 +11,7 @@ from discord.ui import DynamicItem, Button
 from utils import Logging
 from utils.Emoji import get_chat_emoji
 from utils.Logging import TCol
-from utils.Utils import interaction_response
+from utils.Utils import interaction_response as ir, get_member_log_name
 
 
 @dataclass
@@ -22,10 +22,10 @@ class UserActionItem:
     data: Any
     expires_at: datetime
     created_at: datetime = datetime.now(timezone.utc)
-    cancel_callback: Callable[[Interaction, UserActionItem], Awaitable[None]] = None
-    interrupt_callback: Callable[[Interaction, UserActionItem], Awaitable[None]] = None
-    expiry_callback: Callable[[UserActionItem], Awaitable[None]] = None
-    finally_callback: Callable[[Optional[Interaction], UserActionItem], Awaitable[None]] = None
+    cancel_callback: Callable[[Interaction, "UserActionItem"], Awaitable[None]] = None
+    interrupt_callback: Callable[[Interaction, "UserActionItem"], Awaitable[bool]] = None
+    expiry_callback: Callable[["UserActionItem"], Awaitable[None]] = None
+    finally_callback: Callable[[Optional[Interaction], "UserActionItem"], Awaitable[None]] = None
 
 
 # shared register for DM-actions. Key is user_id,
@@ -106,17 +106,17 @@ async def register_user_action(
         # interrupt callback exists
         interrupt = await item.interrupt_callback(interaction, get_user_action(user))
         if interrupt:
-            # user opted to interrupt existing action
+            # user opted to interrupt the existing action
             if item.finally_callback is not None:
-                Logging.debug(f"UserAction INTERRUPT/FINALLY: {user.id}")
+                Logging.debug(f"UserAction INTERRUPT/FINALLY: {get_member_log_name(user)}")
                 await item.finally_callback(interaction, item)
-            pass
         else:
+            Logging.debug(f"UserAction is blocking. User opted no interrupt: {get_member_log_name(user)}")
             # user opted not to start a new action
             return False
     else:
         # existing action has no interrupt, allow passive cancellation
-        pass
+        Logging.debug(f"No UserAction blocking. Creating new for: {get_member_log_name(user)}")
     user_action_register[user.id] = UserActionItem(
         user=user,
         cog_name=cog_name,
@@ -131,7 +131,7 @@ async def register_user_action(
     return True
 
 
-def get_user_action(user: User) -> UserActionItem:
+def get_user_action(user: User) -> Optional[UserActionItem]:
     return user_action_register[user.id] if user.id in user_action_register else None
 
 
@@ -146,7 +146,7 @@ class StopUserActionButton(
             emoji: str = get_chat_emoji("PEA POD"),
             style: ButtonStyle = ButtonStyle.primary) -> None:
         """
-        A Generic "stop" button for gating and stopping a user-based actions
+        A Generic "stop" button for gating and stopping a user-based action
         Parameters
         ----------
         user
@@ -158,7 +158,6 @@ class StopUserActionButton(
                 label=label,
                 emoji=emoji,
                 custom_id=f'stopaction:{user.id}'))
-        """setup button"""
         self.user = user
 
     # This is called when the button is clicked and the custom_id matches the template.
@@ -166,7 +165,14 @@ class StopUserActionButton(
     async def from_custom_id(cls, interaction: Interaction, item: Button, match: re.Match[str], /):
         user_id = int(match['id'])
         user = interaction.client.get_user(user_id)
-
+        if user is None:
+            # Fallback to API fetch if the user isn't cached
+            try:
+                user = await interaction.client.fetch_user(user_id)
+            except Exception as e:
+                Logging.debug(f"StopUserActionButton.from_custom_id fetch_user failed for {user_id}: {e}")
+                # return None and let discord.py ignore it.
+                return None
         return cls(user)
 
     async def interaction_check(self, interaction: Interaction) -> bool:
@@ -174,22 +180,40 @@ class StopUserActionButton(
         return self.user.id == interaction.user.id
 
     async def callback(self, interaction: Interaction) -> None:
+        # Disable the button
         self.item.disabled = True
         new_view = discord.ui.View()
         new_view.add_item(self)
-        await interaction_response(interaction).edit_message(view=new_view)
+
+        # Acknowledge the interaction ASAP to prevent "Unknown interaction"
+        try:
+            if not ir(interaction).is_done():
+                await ir(interaction).defer()  # quick ACK, no UI change yet
+        except Exception as e:
+            Logging.debug(f"StopUserActionButton.defer failed for {self.user.id}: {e}")
+
+        # Edit the message using the REST endpoint (not the interaction token)
+        try:
+            await interaction.message.edit(view=new_view)
+        except discord.NotFound:
+            Logging.debug(f"StopUserActionButton: message not found for {self.user.id}; possibly deleted.")
+        except Exception as e:
+            Logging.error(f"StopUserActionButton: message edit failed for {self.user.id}: {e}")
+
         my_action = get_user_action(self.user)
         if my_action:
-            if my_action.cancel_callback:
-                # cancel callback exists, fire it now.
-                Logging.debug(f"StopUserActionButton press: {self.user.id}")
-                await my_action.cancel_callback(interaction, get_user_action(self.user) or interaction)
-            if my_action.finally_callback is not None:
-                Logging.debug(f"UserAction FINALLY {self.user.id}")
-                await my_action.finally_callback(interaction, my_action)
+            # If there's a running action, invoke its cancel and finally callbacks
+            try:
+                if my_action.cancel_callback:
+                    Logging.debug(f"StopUserActionButton press: {self.user.id}")
+                    await my_action.cancel_callback(interaction, my_action)
+            finally:
+                if my_action.finally_callback is not None:
+                    Logging.debug(f"UserAction FINALLY {self.user.id}")
+                    await my_action.finally_callback(interaction, my_action)
+            Logging.debug(f"removing {self.user.id} from user_action_register")
+            user_action_register.pop(self.user.id, None)
         else:
-            # cancel callback does not exist, allow passive cancellation
+            # No running action; acknowledge with a small follow-up (we already deferred)
             await interaction.followup.send(get_chat_emoji("PEA POD"))
             return
-        Logging.debug(f"removing {self.user.id} from user_action_register")
-        del user_action_register[self.user.id]

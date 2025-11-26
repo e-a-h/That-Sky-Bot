@@ -105,20 +105,29 @@ class Skybot(Bot):
         """
         Executed once the bot is ready.
         """
+        global running
         Logging.info('on_ready start', TCol.Underline, TCol.Warning)
+
         Logging.BOT_LOG_CHANNEL = self.get_channel(Configuration.get_var("log_channel"))
         Emoji.initialize(self)
-
-        Logging.info(f"{self.my_name} on_ready complete", TCol.Underline, TCol.Warning)
         if not self.check_expirations.is_running():
             self.check_expirations.start()
 
-        await Logging.bot_log(
-            f"{Configuration.get_var('bot_name', 'this bot')} startup complete")
+        if running:
+            Logging.info(
+                f"{Configuration.get_var('bot_name', 'this bot')} gateway reconnected")
+        else:
+            await Logging.bot_log(
+                f"{Configuration.get_var('bot_name', 'this bot')} startup complete")
+
+        running = True
+        Logging.info(f"{self.my_name} on_ready complete", TCol.Underline, TCol.Warning)
 
     async def close(self):
         Logging.info("Shutting down?")
         if not self.shutting_down:
+            await Logging.bot_log(
+                f"{Configuration.get_var('bot_name', 'this bot')} shutting down...")
             Logging.info("Shutting down...")
             self.shutting_down = True
             self.check_expirations.cancel()
@@ -218,7 +227,7 @@ class Skybot(Bot):
             await conn.execute_query(query)
             await asyncio.sleep(3600)
 
-    async def member_is_admin(self, member_id):
+    async def member_is_admin(self, member_id: int):
         """
         Determine if a member has administrative privileges.
 
@@ -228,7 +237,7 @@ class Skybot(Bot):
 
         Parameters
         ----------
-        member_id : str
+        member_id : int
             The unique identifier of the member whose admin status is being checked.
 
         Returns
@@ -399,7 +408,6 @@ async def main():
     # start_monitoring(seconds_frozen=10, test_interval=100)
 
     global running
-    running = True
     Logging.init()
     Logging.info(f"Launching {Configuration.get_var('bot_name', 'this bot')}!")
     my_token = Configuration.get_var("token")
@@ -421,6 +429,8 @@ async def main():
     loop = asyncio.get_running_loop()
     await run_db_migrations()
 
+    # A queue to handle changes to persistent storage
+    # asynchronously and prevent collisions
     Configuration.PERSISTENT_AIO_QUEUE = asyncio.Queue()
     persistent_data_task = asyncio.create_task(
         queue_worker("Persistent Queue",

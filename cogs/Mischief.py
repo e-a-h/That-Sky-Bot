@@ -703,6 +703,24 @@ wish cooldown is {self.cooldown_time} seconds
         Configuration.set_persistent_var("role_mischief_cooldown", float(seconds))
         await ctx.invoke(self.name_mischief)
 
+    @name_mischief.command()
+    @commands.guild_only()
+    @commands.check(Utils.can_mod_official)
+    async def haunted_role(self, ctx, haunted_role: Optional[discord.Role] ):
+        if haunted_role is None:
+            # try to get haunted role from persistent storage
+            haunted_role_id = Configuration.get_persistent_var(f"haunted_role_{ctx.guild.id}")
+            if haunted_role_id is not None:
+                haunted_role = ctx.guild.get_role(haunted_role_id)
+            await ctx.send(
+                f"haunted role is {haunted_role.mention if haunted_role else 'not set'}",
+                allowed_mentions=AllowedMentions.none())
+            return
+        Configuration.set_persistent_var(f"haunted_role_{ctx.guild.id}", haunted_role.id)
+        await ctx.send(
+            f"haunted role is now {haunted_role.mention}",
+            allowed_mentions=AllowedMentions.none())
+
     @commands.group(name="mischief", invoke_without_command=True)
     @commands.cooldown(1, 60, BucketType.member)
     @commands.max_concurrency(3, wait=True)
@@ -1006,10 +1024,14 @@ wish cooldown is {self.cooldown_time} seconds
                     str(my_member.id) not in self.name_cooldown[str(message.guild.id)]:
                 roll = random()
                 if roll < self.name_mischief_chance:
-                    # Add haunted role
-                    haunted_role = discord.utils.get(message.guild.roles, name="haunted")
-                    role_added = await Mischief.do_add_roles(my_member, haunted_role)
+                    # Add the haunted role to the member who spoke
+                    haunted_role = message.guild.get_role(
+                        Configuration.get_persistent_var(f"haunted_role_{message.guild.id}"))
+                    if haunted_role is None:
+                        Logging.error(f"guild {message.guild.id} has no haunted role")
+                        return
 
+                    role_added = await Mischief.do_add_roles(my_member, haunted_role)
                     # TODO: more name mishchief - name transform flags:
                     #  - all lowercase
                     #  - all uppercase
