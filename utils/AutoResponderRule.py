@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from json import JSONDecodeError
 from typing import Optional
 
-from discord import Message
+from discord import Message, TextChannel
 from tortoise.contrib.pydantic import pydantic_model_creator
 from tortoise.exceptions import NoValuesFetched, OperationalError, IntegrityError, TransactionManagementError, \
     MultipleObjectsReturned, DoesNotExist
@@ -67,7 +67,7 @@ class ArRule:
         Indicates if verbose logging is enabled (default is False).
     """
     id: int
-    match_list: list[str]
+    match_list: Optional[list[str]]
     response: list[str]
     responses: dict[str, list[AutoResponse]]
     flags: ArFlags
@@ -106,7 +106,7 @@ class ArRule:
                 Logging.info(f"\n\tpattern:\n\t\t{word}")
 
             re_tag = re.compile(word, flags=(re.I if not match_case else 0) | re.S)
-            needle = re.search(re_tag, message.content)
+            needle = re_tag.search(str(message.content))
 
             if needle is None:
                 # each word in list(words) must match. The list may contain a single pattern, or many.
@@ -181,7 +181,7 @@ class ArRule:
             # full_match with a string trigger means the entire message must match
             words = [rf"^{re.escape(self.ar_row.trigger)}$"]
         else:
-            words = [re.escape(self.ar_row.trigger)]
+            words = [str(re.escape(self.ar_row.trigger))]
 
         for i, word in enumerate(list(words)):
             # replace escaped spaces with whitespace character class for multiline matching
@@ -242,16 +242,20 @@ class ArRule:
                 flags_desc += f"\n{DISCORD_INDENT} {x}: {my_mentions}"
         return f"__**[{self.id}]**__ {self.short_description()}\n{flags_desc}"
 
-    def flag_is_set(self, flag: int):
+    def flag_is_set(self, flag: ArFlags):
         return flag in self.flags
 
     # TODO: integrity check with rule enforcement that can't be met by db constraints. e.g.:
-    #  only one response channel per autor (constraint would work)
+    #  only one response channel per autoresponder (constraint would work)
     #  if listen channels are set, disallow ignore channels?
     #  if ignore channels are set, disallow listen channels?
+    #  or simply report when there is a conflict and defer to global ignore list
+
+    # TODO: remove get_global_ignore_channels and replace by loading ignore channels into memory
+    #  refreshing when updated, or periodically
 
     @staticmethod
-    async def get_global_ignore_channels(bot, guild_id):
+    async def get_global_ignore_channels(bot, guild_id) -> tuple[list[AutoResponderChannel], list[TextChannel], list[int], str]:
         """
         Get a list of db rows representing AutoResponder global ignores for this guild,
         a list of corresponding channels, and a descriptive string that includes channel mentions
@@ -266,7 +270,7 @@ class ArRule:
         tuple
             Db rows, Channels, Channel IDs, Description
         """
-        # Channels are unique but ARC has no guild field, so filter by guild.get_channel
+        # Channels are unique, but ARC has no guild field, so filter by guild.get_channel
         rows = await AutoResponderChannel.filter(
             autoresponder=None,
             type=AutoResponderChannelType.ignore)
@@ -284,7 +288,7 @@ class ArRule:
         return filtered_rows, channels, channel_ids, description
 
     @staticmethod
-    async def fetch_rule(guild_id, autoresponder_id):
+    async def fetch_rule(guild_id, autoresponder_id) -> 'ArRule':  # TODO: change return hint to typing.Self when py 3.11
         try:
             row = await AutoResponder.get(id=autoresponder_id, serverid=guild_id)
         except (MultipleObjectsReturned, DoesNotExist):
@@ -293,7 +297,7 @@ class ArRule:
         return await ArRule.from_db_row(row)
 
     @staticmethod
-    async def from_db_row(ar_row: AutoResponder):
+    async def from_db_row(ar_row: AutoResponder) -> 'ArRule':  # TODO: change return hint to typing.Self when py 3.11
         """Load the rule from the database and parse the configuration
 
         Parameters
@@ -401,7 +405,7 @@ class ArRule:
             # not json. do not raise exception
             match_list = None
 
-        chance = ar_row.chance / 10000  # chance is 0-10,000. make it look more like a percentage
+        chance = ar_row.chance / 10000  # ar_row.chance is 0-10,000. make it look more like a percentage
 
         listen_channels = []
         response_channels = []
@@ -409,18 +413,15 @@ class ArRule:
         ignored_channels = []
         mod_channels = []
 
-        to_try = [
-            (listen_channels, AutoResponderChannelType.listen),
-            (response_channels, AutoResponderChannelType.response),
-            (log_channels, AutoResponderChannelType.log),
-            (ignored_channels, AutoResponderChannelType.ignore),
-            (mod_channels, AutoResponderChannelType.mod),
-        ]
         for c in await ar_row.channels:
-            for arr, c_type in to_try:
-                if c.type == c_type:
-                    arr.append(c.channelid)
-                    break
+            if c.type == AutoResponderChannelType.listen:
+                listen_channels.append(c.channelid)
+            elif c.type == AutoResponderChannelType.response:
+                response_channels.append(c.channelid)
+            elif c.type == AutoResponderChannelType.ignore:
+                ignored_channels.append(c.channelid)
+            elif c.type == AutoResponderChannelType.mod:
+                mod_channels.append(c.channelid)
 
         #########################################
         # TODO: remove when migration is complete

@@ -1,6 +1,6 @@
-from typing import Union
+from typing import Optional, Union, Any
 
-from discord import Embed, InteractionResponded, ui, ButtonStyle, User
+from discord import Embed, InteractionMessage, InteractionResponded, Member, ui, ButtonStyle, User
 from discord.ext.commands import Context
 from discord.interactions import Interaction
 
@@ -12,21 +12,35 @@ class Sender:
     def __init__(self, ctx: Union[Context, Interaction]):
         self.ctx = ctx
 
-    async def send(self, message: str = None, *, embed: Embed = None, ephemeral: bool = None, **kwargs):
+    async def send(
+            self,
+            message: str = "",
+            *,
+            embed: Optional[Embed] = None,
+            ephemeral: bool = False,
+            **kwargs):
         """Send a message"""
-        if isinstance(self.ctx, Context):
+        ctx = self.ctx
+
+        my_args: dict[str, Any] = {"content": message}
+        if embed is not None:
+            my_args["embed"] = embed
+
+        if isinstance(ctx, Context):
+            # don't send ephemeral option in a message context
             if 'ephemeral' in kwargs:
                 del kwargs['ephemeral']
-            await self.ctx.send(message, embed=embed, **kwargs)
-        elif isinstance(self.ctx, Interaction):
+            await ctx.send(**my_args, **kwargs)
+        elif isinstance(ctx, Interaction):
+            my_args['ephemeral'] = ephemeral
             try:
-                if interaction_response(self.ctx).is_done():
-                    await self.ctx.followup.send(message, embed=embed, ephemeral=ephemeral)
+                if interaction_response(ctx).is_done():
+                    await ctx.followup.send(**my_args)
                 else:
-                    await interaction_response(self.ctx).send_message(message, embed=embed, ephemeral=ephemeral, **kwargs)
+                    await interaction_response(ctx).send_message(**my_args, **kwargs)
             except InteractionResponded as e:
                 Logging.info(f"Sender InteractionResponded error {e}")
-                await self.ctx.followup.send(message, embed=embed, ephemeral=ephemeral)
+                await ctx.followup.send(**my_args)
         else:
             Logging.info(f"Sender must be either Context or Interaction. Found {repr(self.ctx)}")
             raise TypeError("Sender must be either Context or Interaction.")
@@ -35,7 +49,7 @@ class Sender:
 class ConfirmView(ui.View):
     def __init__(
             self,
-            user: User,
+            user: Union[User, Member],
             confirm_label: str = "Confirm",
             cancel_label: str = "Cancel",
             confirmed_label: str = "Confirmed",
@@ -44,7 +58,7 @@ class ConfirmView(ui.View):
         super().__init__(timeout=timeout)
         self.value = None
         self.user = user
-        self.original_message = None
+        self.original_message: Optional[InteractionMessage] = None
 
         # Add custom buttons
         self.confirm_button = self.ConfirmViewButton(

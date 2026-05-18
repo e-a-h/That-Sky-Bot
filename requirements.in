@@ -1,7 +1,7 @@
 aerich
 asyncmy
 cryptography
-discord.py
+discord-py
 image-similarity-measures
 prometheus_client
 pytz

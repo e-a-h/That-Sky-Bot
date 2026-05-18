@@ -12,14 +12,14 @@ import os
 import signal
 import sys
 from typing import Optional
-from asyncio import shield
+from asyncio import shield, iscoroutinefunction
 
 import sentry_sdk
 from aerich import Command
 from aiohttp import ClientOSError, ServerDisconnectedError
-from discord import ConnectionClosed, Intents, AllowedMentions
+from discord import ConnectionClosed, Intents, AllowedMentions, Member, ClientUser
 from discord.ext import commands, tasks
-from discord.ext.commands import Bot
+from discord.ext.commands import Bot, DefaultHelpCommand
 from prometheus_client import CollectorRegistry
 from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 from tortoise import Tortoise
@@ -62,6 +62,7 @@ class Skybot(Bot):
         self.db_keepalive = None
         self.my_name = type(self).__name__
         self.loaded = False
+        self.help_command: DefaultHelpCommand
         sys.path.append(
             os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          "sky-python-music-sheet-maker",
@@ -137,8 +138,12 @@ class Skybot(Bot):
                     f"{TCol.Warning.value}Shutting down{TCol.End.value} cog "
                     f"{TCol.Cyan.value}{cog}{TCol.End.value}")
                 c = self.get_cog(cog)
-                if hasattr(c, "shutdown"):
-                    await c.shutdown()
+                try:
+                    call_shutdown = getattr(c, "shutdown")
+                    if iscoroutinefunction(call_shutdown):
+                        await call_shutdown()
+                except AttributeError:
+                    pass
                 Logging.info(
                     f"{TCol.Warning.value}unloading{TCol.End.value} cog "
                     f"{TCol.Cyan.value}{cog}{TCol.End.value}")
@@ -154,14 +159,17 @@ class Skybot(Bot):
         return await super().close()
 
     async def on_command_error(self, ctx: commands.Context, error):
-        signature = self.help_command.get_command_signature(ctx.command)
+        if ctx and ctx.command is not None and hasattr(self.help_command, "get_command_signature"):
+            signature = self.help_command.get_command_signature(ctx.command)
+        else:
+            signature = "[unknown command signature]"
 
         if isinstance(error, commands.BotMissingPermissions):
             await ctx.send(str(error))
         elif isinstance(error, commands.CheckFailure):
             pass
         elif isinstance(error, commands.CommandOnCooldown):
-            if ctx.command.name in ['krill']:
+            if ctx.command and ctx.command.name in ['krill']:
                 # commands in this list have custom cooldown handler
                 return
             await ctx.send(str(error))
@@ -171,18 +179,20 @@ class Skybot(Bot):
                 f" Try again later")
         elif isinstance(error, commands.MissingRequiredArgument):
             self.help_command.context = ctx
+            param_name = ctx.current_parameter.name if ctx.current_parameter else "[unknown parameter]"
             await ctx.send(
                 f"""
 {Emoji.get_chat_emoji('NO')} You are missing a required command argument:
- `{ctx.current_parameter.name}`
+ `{param_name}`
 {Emoji.get_chat_emoji('WRENCH')} Command usage: `{signature}`
                 """)
         elif isinstance(error, commands.BadArgument):
             self.help_command.context = ctx
+            param_name = ctx.current_parameter.name if ctx.current_parameter else "[unknown parameter]"
             await ctx.send(
                 f"""
 {Emoji.get_chat_emoji('NO')} Failed to parse the
- ``{ctx.current_parameter.name}`` parameter: ``{error}``
+ ``{param_name}`` parameter: ``{error}``
 {Emoji.get_chat_emoji('WRENCH')} Command usage: `{signature}`
                 """)
         elif isinstance(error, commands.BadLiteralArgument):
@@ -205,7 +215,7 @@ class Skybot(Bot):
                 ctx=ctx)
             # notify caller
             e = Emoji.get_chat_emoji('BUG')
-            if ctx.channel.permissions_for(ctx.me).send_messages:
+            if isinstance(ctx.me, ClientUser) or isinstance(ctx.me, Member) and ctx.channel.permissions_for(ctx.me).send_messages:
                 await ctx.send(f"{e} Something went wrong while executing that command {e}")
 
     async def keep_db_alive(self):
@@ -245,7 +255,8 @@ class Skybot(Bot):
         bool
             True if the member is an administrator; False otherwise.
         """
-        is_owner = await self.is_owner(self.get_user(member_id))
+        my_user = self.get_user(member_id)
+        is_owner = await self.is_owner(my_user) if my_user else False
         is_db_admin = await BotAdmin.get_or_none(userid=member_id) is not None
         in_admins = member_id in Configuration.get_var("ADMINS", [])
         # Logging.debug(f"owner: {'yes' if is_owner else 'no'}")
@@ -473,12 +484,13 @@ async def main():
             loop.add_signal_handler(
                 getattr(signal, signal_name),
                 lambda: asyncio.ensure_future(this_bot.close()))
-    except NotImplementedError:
+    except (NotImplementedError, AttributeError):
         pass
 
     try:
-        async with this_bot:
-            await this_bot.start(my_token)
+        if this_bot:
+            async with this_bot:
+                await this_bot.start(my_token)
     except KeyboardInterrupt:
         pass
     finally:

@@ -75,14 +75,14 @@ def get_defaulted_locale(ctx: typing.Union[Context, Interaction, str]):
     locale = 'en_US'
     if isinstance(ctx, Interaction) or isinstance(ctx, Context):
         if isinstance(ctx, Interaction):
-            interaction = typing.cast(Interaction, ctx)
-            cid = interaction.channel.id
+            cid = ctx.channel_id
         else:
             # TODO: move guild/channel checks to LangConfig, store in dict,
             #  update there on guild events and config changes
             cid = ctx.channel.id
 
-        if ctx.guild is None:
+        guild = ctx.guild
+        if guild is None:
             # DM - default the language
             locale = Configuration.get_var('broadcast_locale', 'en_US')
             if locale == ALL_LOCALES:
@@ -90,13 +90,13 @@ def get_defaulted_locale(ctx: typing.Union[Context, Interaction, str]):
             return [locale]
 
         # TODO: create lookup table so we don't hit database every time
-        #  github issue #91
+        #  GitHub issue #91
         # Bot default is English
-        gid = ctx.guild.id
+        gid = guild.id
         if gid in GUILD_LOCALES:
             # server locale overrides bot default
             locale = GUILD_LOCALES[gid]
-        if cid in CHANNEL_LOCALES:
+        if cid and cid in CHANNEL_LOCALES:
             # channel locale overrides server
             locale = CHANNEL_LOCALES[cid]
     elif isinstance(ctx, str):
@@ -118,7 +118,7 @@ def get_defaulted_locale(ctx: typing.Union[Context, Interaction, str]):
     return [locale]
 
 
-def get_locale_string(key, ctx='', **arg_dict) -> str:
+def get_locale_string(key, ctx: typing.Union[Context, Interaction, str]='', **arg_dict) -> str:
     global LANG, locales_loaded
     locale = get_defaulted_locale(ctx)
 
@@ -129,7 +129,7 @@ def get_locale_string(key, ctx='', **arg_dict) -> str:
         load_locales()
 
     output = []
-    # locale is a list or tuple. may be a single item or multiple
+    # locale is a list or tuple. It may be a single item or multiple
     for item in locale:
         locale_lang = LANG[item]
         key_list = key.split("/")

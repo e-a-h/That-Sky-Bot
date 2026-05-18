@@ -1,10 +1,11 @@
 import asyncio
 import inspect
 import re
-import typing
+from typing import Union, Callable, List, Optional
 from dataclasses import dataclass
 
-from discord import Embed, Reaction
+from discord import Embed, Reaction, Interaction
+from discord.ext.commands import Context
 
 from utils import Emoji, Utils, Configuration, Lang
 from utils.Constants import URL_MATCHER
@@ -12,10 +13,10 @@ from utils.Constants import URL_MATCHER
 
 @dataclass
 class Option:
-    emoji: str = None
-    text: str = None
-    handler: typing.Callable = None
-    args: typing.Union[str, list] = None
+    emoji: str = ""
+    text: str = ""
+    handler: Optional[Callable] = None
+    args: Optional[Union[str, list]] = None
 
 
 def timeout_format(total_seconds: int) -> str:
@@ -29,7 +30,7 @@ def timeout_format(total_seconds: int) -> str:
     return ", ".join(output)
 
 
-async def ask(bot, channel, author, text, options, timeout=60, show_embed=False, delete_after=False, locale="en_US"):
+async def ask(bot, channel, author, text, options, timeout=60, show_embed=False, delete_after=False, locale: Union[str, Context, Interaction]= "en_US"):
     description = '\n'.join(f"{Emoji.get_chat_emoji(option.emoji)} {option.text or ''}" for option in options)
     embed = Embed(color=0x68a910, description=description)
     message = await channel.send(text, embed=embed if show_embed else None)
@@ -103,7 +104,7 @@ async def ask_text(
         txt = re.sub(r'\n\s*\n', '\n\n', txt)
         return txt
 
-    my_messages: typing.List = []
+    my_messages: List = []
 
     async def clean_dialog():
         nonlocal delete_after
@@ -180,6 +181,8 @@ async def ask_attachements(
     def ready():
         nonlocal done
         done = True
+
+    final_attachments = []
 
     async def restart_attachments():
         nonlocal final_attachments

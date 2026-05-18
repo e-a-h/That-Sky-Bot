@@ -6,7 +6,7 @@ import typing
 from enum import Enum
 from logging.handlers import TimedRotatingFileHandler
 
-from discord import TextChannel
+from discord import TextChannel, Embed
 
 BOT_LOG_CHANNEL: typing.Union[TextChannel, None] = None
 
@@ -48,9 +48,13 @@ def init():
     LOGGER.addHandler(handler)
 
 
-async def bot_log(message=None, embed=None):
+async def bot_log(message: typing.Optional[str]=None, embed: typing.Optional[Embed]=None):
     if BOT_LOG_CHANNEL is not None:
-        return await BOT_LOG_CHANNEL.send(content=message, embed=embed)
+        if embed:
+            return await BOT_LOG_CHANNEL.send(content=message, embed=embed)
+        else:
+            return await BOT_LOG_CHANNEL.send(message)
+    return None
 
 
 def log_format(subject:str, *styles:TCol)->str:

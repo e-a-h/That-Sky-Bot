@@ -4,64 +4,65 @@
 #
 #    pip-compile requirements.in
 #
-aerich==0.8.1
+aerich==0.9.2
     # via -r requirements.in
-aiohappyeyeballs==2.4.4
+aiohappyeyeballs==2.6.1
     # via aiohttp
-aiohttp==3.11.11
+aiohttp==3.13.5
     # via discord-py
-aiosignal==1.3.2
+aiosignal==1.4.0
     # via aiohttp
-aiosqlite==0.20.0
+aiosqlite==0.22.1
     # via tortoise-orm
-annotated-types==0.7.0
-    # via pydantic
-anyio==4.8.0
-    # via asyncclick
+anyio==4.12.1
+    # via
+    #   aerich
+    #   asyncclick
+    #   tortoise-orm
 async-timeout==5.0.1
     # via aiohttp
 asyncclick==8.1.8.0
     # via aerich
-asyncmy==0.2.10
+asyncmy==0.2.11
     # via -r requirements.in
-attrs==24.3.0
+attrs==26.1.0
     # via aiohttp
-certifi==2024.12.14
+certifi==2026.2.25
     # via
     #   requests
     #   sentry-sdk
-cffi==1.17.1
+cffi==2.0.0
     # via cryptography
-charset-normalizer==3.4.1
+charset-normalizer==3.4.7
     # via requests
-cryptography==44.0.0
+cryptography==46.0.7
     # via -r requirements.in
 dictdiffer==0.9.0
     # via aerich
-discord-py==2.4.0
+discord-py==2.7.1
     # via -r requirements.in
-exceptiongroup==1.2.2
+exceptiongroup==1.3.1
     # via anyio
-frozenlist==1.5.0
+frozenlist==1.8.0
     # via
     #   aiohttp
     #   aiosignal
 hanging-threads==2.0.7
     # via -r requirements.in
-idna==3.10
+idna==3.11
     # via
     #   anyio
     #   requests
     #   yarl
 image-similarity-measures==0.3.6
     # via -r requirements.in
-imageio==2.37.0
+imageio==2.37.2
     # via scikit-image
 iso8601==2.1.0
     # via tortoise-orm
-lazy-loader==0.4
+lazy-loader==0.5
     # via scikit-image
-multidict==6.1.0
+multidict==6.7.1
     # via
     #   aiohttp
     #   yarl
@@ -78,66 +79,61 @@ numpy==1.24.4
     #   tifffile
 opencv-python==4.11.0.86
     # via image-similarity-measures
-packaging==24.2
+packaging==26.1
     # via
     #   lazy-loader
     #   scikit-image
 phasepack==1.5
     # via image-similarity-measures
-pillow==11.1.0
+pillow==11.3.0
     # via
     #   imageio
     #   scikit-image
-prometheus-client==0.21.1
+prometheus-client==0.25.0
     # via -r requirements.in
-propcache==0.2.1
+propcache==0.4.1
     # via
     #   aiohttp
     #   yarl
-pycparser==2.22
+pycparser==2.23
     # via cffi
-pydantic==2.10.5
-    # via aerich
-pydantic-core==2.27.2
-    # via pydantic
-pypika-tortoise==0.3.2
+pypika-tortoise==0.6.5
     # via tortoise-orm
-pytz==2024.2
+pytz==2026.1.post1
     # via
     #   -r requirements.in
     #   tortoise-orm
 pywavelets==1.6.0
     # via scikit-image
-pyyaml==6.0.2
+pyyaml==6.0.3
     # via -r requirements.in
-requests==2.32.3
+requests==2.32.5
     # via -r requirements.in
 scikit-image==0.20.0
     # via image-similarity-measures
 scipy==1.9.1
     # via scikit-image
-sentry-sdk==2.20.0
+sentry-sdk==2.58.0
     # via -r requirements.in
-sniffio==1.3.1
-    # via anyio
 tifffile==2024.8.30
     # via scikit-image
-tortoise-orm==0.23.0
+tortoise-orm==0.25.4
     # via
     #   -r requirements.in
     #   aerich
-typing-extensions==4.12.2
+typing-extensions==4.15.0
     # via
-    #   aiosqlite
+    #   aiosignal
     #   anyio
+    #   cryptography
+    #   exceptiongroup
     #   multidict
-    #   pydantic
-    #   pydantic-core
-urllib3==2.3.0
+    #   tortoise-orm
+urllib3==2.6.3
     # via
     #   requests
     #   sentry-sdk
-yarl==1.18.3
+yarl==1.22.0
     # via aiohttp
 
 # The following packages are considered to be unsafe in a requirements file:

@@ -1,8 +1,9 @@
 import random
-from typing import Optional
+from typing import Optional, Union, Literal
 
 import discord
-from discord import Message, HTTPException, NotFound, Forbidden, TextChannel
+from discord import CategoryChannel, DMChannel, ForumChannel, Message, HTTPException, NotFound, Forbidden, TextChannel, Thread
+from discord.abc import PrivateChannel, Messageable
 
 from sky import Skybot
 from utils import Utils, Logging, Emoji
@@ -26,7 +27,9 @@ class ArEvent:
                  ar_id: int,
                  response_channel_id: int = 0,
                  response_id: int = 0,
-                 trigger_message: Optional[Message] = None):
+                 *,
+                 trigger_message: Optional[Message] = None,
+                 rule: Optional[ArRule] = None):
         """Model representing data collected when an auto-responder match is triggered
 
         Parameters
@@ -58,22 +61,22 @@ class ArEvent:
         self.matched = matched
         self.content = content
         self.autoresponder_id = ar_id
-        self.response_id = response_id
         self.response_channel_id = response_channel_id
+        self.response_id = response_id
         self.trigger_message = trigger_message
-        self.rule: Optional[ArRule] = None
-        self.response_channel = None
+        self.rule = rule
         self.mod_action_channel_id = None
 
         # TODO: store public response here and use for future_delete
 
         if self.trigger_message is None:
             trigger_channel = self.bot.get_channel(channel_id)
-            self.trigger_message = trigger_channel.get_partial_message(message_id)
-
-    @staticmethod
-    def from_dict(bot, data: dict):
-        return ArEvent(bot, **data)
+            if (trigger_channel and
+                    not isinstance(trigger_channel, ForumChannel) and
+                    not isinstance(trigger_channel, CategoryChannel) and
+                    not isinstance(trigger_channel, PrivateChannel)):
+                self.trigger_message = trigger_channel.get_partial_message(message_id)
+        # trigger_message may not be set
 
     @staticmethod
     async def from_message(bot,
@@ -97,7 +100,7 @@ class ArEvent:
         event_time = message.created_at.timestamp()
         my_event = ArEvent(
             bot,
-            message.guild.id,
+            message.guild.id if message.guild else 0,
             message.channel.id,
             message.id,
             message.author.id,
@@ -108,7 +111,7 @@ class ArEvent:
             trigger_message=message
         )
         my_event.rule = rule
-        await my_event.populate_response_channel()
+        await my_event.get_response_channel()
 
         # Increment metrics after response channel is confirmed
         m = my_event.bot.metrics
@@ -123,17 +126,22 @@ class ArEvent:
 
         await my_event.send_mod_response()
 
-        if my_event.rule.flag_is_set(ArFlags.DELETE):
+        if my_event.rule and my_event.rule.flag_is_set(ArFlags.DELETE):
             try:
-                await my_event.trigger_message.delete()
+                if my_event.trigger_message:
+                    await my_event.trigger_message.delete()
             except NotFound:
-                # Message deleted by another bot
+                # Maybe trigger_message was deleted by bot (e.g. censored) or by user
                 pass
             except (Forbidden, HTTPException) as e:
                 # maybe discord error.
-                await Utils.handle_exception("ar failed to delete", bot, e)
+                await Utils.handle_exception("ar failed to delete", e)
 
         return my_event
+
+    @staticmethod
+    def from_dict(bot, data: dict):
+        return ArEvent(bot, **data)
 
     def as_dict(self) -> dict:
         return {
@@ -149,7 +157,9 @@ class ArEvent:
             'response_channel_id': self.response_channel_id
         }
 
-    def get_channel_ids(self, channel_type: AutoResponderChannelType) -> [int]:
+    def get_channel_ids(self, channel_type: AutoResponderChannelType) -> list[int]:
+        if not self.rule:
+            return []
         if channel_type == AutoResponderChannelType.listen:
             return self.rule.listen_channels
         if channel_type == AutoResponderChannelType.response:
@@ -160,90 +170,136 @@ class ArEvent:
             return self.rule.ignored_channels
         if channel_type == AutoResponderChannelType.mod:
             return self.rule.mod_channels
+        # catch-all should not be reachable normally because all types are handled
+        Logging.error(f"get_channel_ids: unknown channel type {channel_type}")
+        return []
 
-    async def populate_response_channel(self):
-        # find configured mod action channel
+    async def get_response_channel(self) -> Optional[Union[TextChannel, Thread, DMChannel]]:
+        # find optionally configured mod action channel
         try:
             self.mod_action_channel_id = self.get_channel_ids(AutoResponderChannelType.response)[0]
         except (KeyError, IndexError):
             pass
 
         # Choose where to publicly respond
-        if self.rule.flag_is_set(ArFlags.DM_RESPONSE):
+        rule = await self.get_rule()
+        response_channel = None
+        self.response_channel_id = 0
+
+        if rule.flag_is_set(ArFlags.DM_RESPONSE):
             try:
-                self.response_channel = await self.bot.get_user(self.author_id).create_dm()
-                self.response_channel_id = self.response_channel.id
-            except Forbidden:
-                # DMs are closed. Respond in self.response_channel_id if one is set. log DM failure
+                user = self.bot.get_user(self.author_id)
+                if user:
+                    response_channel = await user.create_dm()
+                    self.response_channel_id = response_channel.id
+                else:
+                    await Utils.guild_log(self.guild_id, f"AR Failed to find user `{self.author_id}` to DM")
+            except (Forbidden, HTTPException):
+                # DMs are closed or communication failed. Respond in self.response_channel_id if one is set. log DM failure
                 # log DM failure and do not proceed
                 await Utils.guild_log(
                     self.guild_id,
-                    f"AR Failed to DM. Matched:{self.matched} {self.trigger_message.jump_url}"
+                    f"AR Failed to DM. Matched:{self.matched} "
+                    f"{self.trigger_message.jump_url if self.trigger_message else '[no message jump link]'}"
                     f"```{self.content}```")
-                return
         else:
-            # TODO: if not mod action, not DM, try "response" channel first
-            if not self.rule.flag_is_set(ArFlags.MOD_ACTION):
+            if not rule.flag_is_set(ArFlags.MOD_ACTION):
                 try:
                     self.response_channel_id = self.get_channel_ids(AutoResponderChannelType.response)[0]
-                    self.response_channel = self.bot.get_channel(self.response_channel_id)
+                    this_channel = self.bot.get_channel(self.response_channel_id)
+                    if isinstance(this_channel, (TextChannel, Thread, DMChannel)):
+                        response_channel = this_channel
                 except IndexError:
                     pass
-            if not self.response_channel:
-                # DM channel is not configured. Respond in triggering channel
-                self.response_channel = self.trigger_message.channel
-                self.response_channel_id = self.trigger_message.channel.id
+            if not response_channel:
+                if self.trigger_message:
+                    this_channel = self.trigger_message.channel
+                    if isinstance(this_channel, (TextChannel, Thread)):
+                        # DM channel is not configured. Respond in the triggering channel
+                        response_channel = this_channel
+                        self.response_channel_id = this_channel.id
+                else:
+                    await Utils.guild_log(
+                        self.guild_id,
+                        f"No response channel set and no triggering message for AR event\n"
+                        f"```{self.as_dict()}```")
+        return response_channel
 
-    async def fetch_trigger_message(self):
+    async def fetch_trigger_message(self) -> discord.Message:
         if not isinstance(self.trigger_message, discord.Message):
             channel = self.bot.get_channel(self.channel_id)
             try:
-                self.trigger_message = await channel.fetch_message(self.message_id)
+                if (channel and
+                        not isinstance(channel, ForumChannel) and
+                        not isinstance(channel, CategoryChannel) and
+                        not isinstance(channel, PrivateChannel)):
+                    self.trigger_message = await channel.fetch_message(self.message_id)
+                else:
+                    raise ValueError(f"Invalid channel type for AR event: {type(channel)}")
             except NotFound:
-                Logging.info(f"fetch not found: {self.trigger_message.jump_url}")
-                return
+                Logging.info(f"fetch not found: "
+                             f"{self.trigger_message.jump_url if self.trigger_message else '[no message jump link]'}")
+                raise
             except Forbidden:
-                Logging.info(f"not allowed to fetch message {self.trigger_message.jump_url}")
-                return
+                Logging.info(f"not allowed to fetch message "
+                             f"{self.trigger_message.jump_url if self.trigger_message else '[no message jump link]'}")
+                raise
             except HTTPException:
                 await Utils.guild_log(
                     self.guild_id, f"AutoresponderEvent failed to find trigger message {self.message_id}")
+                raise
         return self.trigger_message
 
-    async def get_my_rule(self) -> ArRule:
+    async def get_rule(self) -> ArRule:
         if not self.rule:
             self.rule = await ArRule.fetch_rule(self.guild_id, self.autoresponder_id)
+        if not isinstance(self.rule, ArRule):
+            Logging.error(f"Invalid rule type for event {self.autoresponder_id}: {type(self.rule)}")
+            raise TypeError(f"Expected ArRule, got {type(self.rule)}")
         return self.rule
 
     async def get_formatted_responses(self, response_type: AutoResponseType) -> list[str]:
-        await self.get_my_rule()
-        responses = self.rule.get_raw_responses(response_type)
+        rule = await self.get_rule()
+        responses = rule.get_raw_responses(response_type)
         output = []
         for response in responses:
             output.append(await self.format_response(str(response)))
         return output
 
     async def get_formatted_response(self, response_type: AutoResponseType) -> Optional[str]:
-        await self.get_my_rule()
-        response = self.rule.get_random_response(response_type)
+        rule = await self.get_rule()
+        response = rule.get_random_response(response_type)
         if response:
             return await self.format_response(str(response))
         return None
 
     async def format_response(self, raw_response: str) -> str:
+        if (self.trigger_message and
+                self.trigger_message.channel and
+                isinstance(self.trigger_message.channel, TextChannel)):
+            channel_mention = self.trigger_message.channel.mention
+        else:
+            channel_mention = "[unknown channel]"
+
         return str(raw_response).replace("@", "@\u200b").format(
-            link=self.trigger_message.jump_url,
-            author=self.get_author().mention,
-            channel=self.trigger_message.channel.mention,
+            link=self.trigger_message.jump_url if self.trigger_message else '[missing link]',
+            author=self.get_author_mention(),
+            channel=channel_mention,
             trigger_message=await Utils.clean(self.content),
             matched=self.matched)
 
-    def get_author(self) -> discord.Member:
+    def get_author_mention(self) -> str:
         guild = self.bot.get_guild(self.guild_id)
-        return guild.get_member(self.author_id)
+        if not guild:
+            return "[Unknown Author]"
+        author = guild.get_member(self.author_id)
+        if not author:
+            return "[Unknown Author]"
+        return author.mention
 
-    def has_mod_action(self):
-        if not self.rule.flag_is_set(ArFlags.MOD_ACTION):
+    async def has_mod_action(self):
+        rule = await self.get_rule()
+        if rule.flag_is_set(ArFlags.MOD_ACTION):
             return False
         if not self.mod_action_channel_id:
             return False
@@ -256,17 +312,25 @@ class ArEvent:
         -------
         response_message: Message|None
         """
+        rule = await self.get_rule()
         roll = random.random()
-        if force or self.rule.chance == 1 or roll < self.rule.chance:
+        if force or rule.chance == 1 or roll < rule.chance:
             response_str = await self.get_formatted_response(AutoResponseType.public)
             if not response_str:
                 return None
             try:
-                reply_set = self.rule.flag_is_set(ArFlags.USE_REPLY)
-                channel_valid = self.response_channel.id == self.trigger_message.id
-                public_response = await self.response_channel.send(
-                    response_str,
-                    reference=self.trigger_message if reply_set and channel_valid else None)
+                response_channel = await self.get_response_channel()
+                if response_channel is None:
+                    return None
+
+                reply_set = rule.flag_is_set(ArFlags.USE_REPLY)
+                trigger_message = await self.fetch_trigger_message()
+                channel_valid = response_channel.id == trigger_message.id
+                my_message = self.trigger_message
+                my_args = {}
+                if reply_set and channel_valid:
+                    my_args["reference"] = my_message
+                public_response = await response_channel.send(response_str, **my_args)
             except Forbidden:
                 await self.log_failure_message(response_str)
                 return None
@@ -281,10 +345,19 @@ class ArEvent:
         response_str: str
             The body of the message that failed to send
         """
-        if self.response_channel.type == discord.ChannelType.private:
-            context_msg = f"DM response failed"
-        else:
-            context_msg = f"Response in channel {self.trigger_message.channel.mention} failed"
+        channel_mention = "[unknown channel]"
+        response_channel = await self.get_response_channel()
+        if response_channel:
+            if isinstance(response_channel, DMChannel):
+                recipient = response_channel.recipient
+                if recipient is not None:
+                    channel_mention = f"DM to {recipient.mention}"
+                else:
+                    channel_mention = f"DM channel id {response_channel.id}"
+            else:
+                channel_mention = response_channel.mention
+
+        context_msg = f"Response in channel {channel_mention} failed"
 
         content_cleaned = await Utils.clean(self.content)
         # truncate messages if needed
@@ -301,8 +374,8 @@ class ArEvent:
 
         fail_msg = await Utils.guild_log(
             self.guild_id,
-            f"`{self.matched}` in message {self.trigger_message.jump_url}\n"
-            f"{self.get_author().mention} said:"
+            f"`{self.matched}` in message {self.trigger_message.jump_url if self.trigger_message else '[unknown message]'}\n"
+            f"{self.get_author_mention()} said:"
             f"```{msg_short}```"
             f"{context_msg}: ```{response_short}```")
 
@@ -313,7 +386,7 @@ class ArEvent:
                 f"no guild log channel in server {self.guild_id}")
             # no dm channel or guild log. no further response
 
-    async def get_defaulted_log_channels(self, default=False) -> [int]:
+    async def get_defaulted_log_channels(self, default=False) -> list[TextChannel]:
         """Find a channel to log in, and optionally default to guild log
 
         Parameters
@@ -326,13 +399,21 @@ class ArEvent:
         logging_channels
             List of channel IDs to use for logging
         """
-        log_channels = [Utils.BOT.get_channel(c) for c in self.get_channel_ids(AutoResponderChannelType.log)]
-        if not log_channels and (self.rule.flag_is_set(ArFlags.LOG_ONLY) or default):
-            # Logging channel is not set, but log_only flag is active or defaulting is enabled. use guild log
-            log_channels = [await Utils.get_guild_log_channel(self.guild_id)]
-        return log_channels
+        rule = await self.get_rule()
+        log_channels: list[Optional[TextChannel]] = []
 
-    def get_mod_response_channels(self) -> [TextChannel]:
+        for c in self.get_channel_ids(AutoResponderChannelType.log):
+            my_channel = Utils.BOT.get_channel(c)
+            if isinstance(my_channel, TextChannel):
+                log_channels.append(my_channel)
+
+        if not log_channels and (rule.flag_is_set(ArFlags.LOG_ONLY) or default):
+            # Logging channel is not set, but the log_only flag is active or defaulting is enabled. use guild log
+            default_log_channel = await Utils.get_guild_log_channel(self.guild_id)
+            log_channels = [await Utils.get_guild_log_channel(self.guild_id)]
+        return [x for x in log_channels if x is not None]
+
+    def get_mod_response_channels(self) -> list[Messageable]:
         output = []
         for c in self.get_channel_ids(AutoResponderChannelType.mod):
             this_channel = Utils.BOT.get_channel(c)
@@ -341,15 +422,30 @@ class ArEvent:
         return output
 
     async def send_mod_action_message(self) -> Optional[Message]:
-        msg = await self.fetch_trigger_message()
+        try:
+            msg = await self.fetch_trigger_message()
+        except (ValueError, NotFound, HTTPException, Forbidden) as e:
+            await Logging.bot_log(f"send_mod_action_message failed: {e}")
+            return None
+
+        if not self.mod_action_channel_id:
+            return None
+
         response_channel = self.bot.get_channel(self.mod_action_channel_id)
+        if not isinstance(response_channel, TextChannel):
+            return None
+
+        rule = await self.get_rule()
+        channel = msg.channel
+
         embed = discord.Embed(
-            title=f"Trigger: {self.matched or self.rule.short_description('')}",
+            title=f"Trigger: {self.matched or rule.short_description('')}",
             timestamp=msg.created_at,
             color=0xFF0940
         )
         embed.add_field(name='Message Author', value=msg.author.mention, inline=True)
-        embed.add_field(name='Channel', value=msg.channel.mention, inline=True)
+        if isinstance(channel, (TextChannel, Thread)):
+            embed.add_field(name='Channel', value=channel.mention, inline=True)
         embed.add_field(name='Jump link', value=f"[Go to message]({msg.jump_url})", inline=True)
         Utils.pages_to_embed(msg.content, embed, "Original Message")
         embed.add_field(name='Moderator Actions', value=f"""
@@ -372,11 +468,11 @@ class ArEvent:
                 tries = tries + 1
                 if tries == max_tries:
                     await Utils.handle_exception(f"failed to send mod-action message {tries} times", e)
-                    return mod_action_msg
+                    return None
 
         for action_emoji in ("YES", "CANDLE", "WARNING", "NO"):
             tries = 0
-            while tries < max_tries:
+            while tries < max_tries and mod_action_msg:
                 try:
                     await mod_action_msg.add_reaction(Emoji.get_emoji(action_emoji))
                     break
@@ -388,13 +484,13 @@ class ArEvent:
 
     async def send_mod_response(self):
         """Send mod response based on responses configured for this event's ruleset"""
-        response_channels = self.get_mod_response_channels()
+        mod_response_channels = self.get_mod_response_channels()
 
-        if not response_channels:
-            # No channels means no mod responses will be sent
+        if not mod_response_channels:
+            # If there are no channels, no mod responses will be sent
             return
 
-        for my_channel in response_channels:
+        for my_channel in mod_response_channels:
             my_responses = await self.get_formatted_responses(AutoResponseType.mod)
             if not my_responses:
                 return
@@ -410,7 +506,7 @@ class ArEvent:
             # No log channels, and logging is not forced. Do not log.
             return
 
-        my_responses = None
+        my_responses = []
         # prefer log_response > mod_response > response
         try:
             my_responses = await self.get_formatted_responses(AutoResponseType.log)
@@ -432,7 +528,7 @@ class ArEvent:
             except IndexError:
                 pass
 
-        my_responses = [x for x in my_responses if x]  # weed out empty responses
+        my_responses: list[str] = [x for x in my_responses if x]  # weed out empty responses
 
         if not my_responses:
             await Utils.guild_log(
@@ -475,6 +571,7 @@ class ArEventFactory:
         if message.channel.id in rule.ignored_channels:
             return None
 
+        # TODO: remove get_global_ignore_channels and replace with access to stored ignore_channels
         a, b, global_ignore_channel_ids, d = await ArRule.get_global_ignore_channels(bot, rule.guild_id)
         if message.channel.id in global_ignore_channel_ids:
             return None
