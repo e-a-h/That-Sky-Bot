@@ -4,16 +4,17 @@ from enum import IntEnum
 import discord
 from tortoise import Tortoise
 from tortoise.models import Model
-from tortoise.fields import \
-    BooleanField, BigIntField, IntField, SmallIntField, CharField, ForeignKeyField, OneToOneField, ReverseRelation, \
-    IntEnumField
+from tortoise.fields.relational import (ForeignKeyField, OneToOneField, ReverseRelation)
+from tortoise.fields.data import (BooleanField, BigIntField, IntField, SmallIntField,
+                             CharField, IntEnumField)
 
-from utils import tortoise_settings, Logging
-from utils.tortoise_settings import app_name as app
+from utils import Logging
+from utils.Constants import APP_NAME
 import os
 
 
 async def init(db_name=''):
+    from utils import tortoise_settings
     #  specify the app name of 'models'
     #  which contain models from "app.models"
 
@@ -33,7 +34,7 @@ async def init(db_name=''):
 class AbstractBaseModel(Model):
     id = IntField(pk=True)
 
-    class Meta:
+    class Meta(Model.Meta):
         abstract = True
 
 
@@ -42,23 +43,24 @@ class DeprecatedServerIdMixIn:
 
 
 class GuildMixin:
-    guild = OneToOneField(f'{app}.Guild', related_name='krill_config', index=True)
+    guild = OneToOneField(f'{APP_NAME}.Guild', related_name='krill_config', index=True)
 
 
 class AdminRole(AbstractBaseModel):
-    guild = ForeignKeyField(f'{app}.Guild', related_name='admin_roles', index=True)
+    guild = ForeignKeyField(f'{APP_NAME}.Guild', related_name='admin_roles', index=True)
     roleid = BigIntField()
 
     def __str__(self):
         return str(self.roleid)
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('roleid', 'guild')
         table = 'adminrole'
 
 
 class ArtChannel(AbstractBaseModel, DeprecatedServerIdMixIn):
-    # guild = ForeignKeyField(f'{app}.Guild', related_name='artchannels')
+    # guild = ForeignKeyField(f'{APP_NAME}.Guild', related_name='artchannels')
     listenchannelid = BigIntField(default=0)
     collectionchannelid = BigIntField(default=0)
     tag = CharField(max_length=30, default="")
@@ -66,19 +68,21 @@ class ArtChannel(AbstractBaseModel, DeprecatedServerIdMixIn):
     def __str__(self):
         return str(self.listenchannelid)
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('serverid', 'listenchannelid', 'collectionchannelid', 'tag')
         table = 'artchannel'
 
 
 class Attachments(AbstractBaseModel):
     url = CharField(max_length=1024)
-    report = ForeignKeyField(f'{app}.BugReport', related_name='attachments', index=True)
+    report = ForeignKeyField(f'{APP_NAME}.BugReport', related_name='attachments', index=True)
 
     def __str__(self):
         return self.url
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         table = 'attachments'
 
 
@@ -97,7 +101,8 @@ class AutoResponder(AbstractBaseModel, DeprecatedServerIdMixIn):
     def __str__(self):
         return self.trigger
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('trigger', 'serverid')
         table = 'autoresponder'
 
@@ -117,7 +122,7 @@ class AutoResponseType(IntEnum):
 
 
 class AutoResponderChannel(AbstractBaseModel):
-    autoresponder = ForeignKeyField(f'{app}.AutoResponder',
+    autoresponder = ForeignKeyField(f'{APP_NAME}.AutoResponder',
                                     related_name='channels',
                                     index=True,
                                     null=True,
@@ -125,12 +130,13 @@ class AutoResponderChannel(AbstractBaseModel):
     channelid = BigIntField()
     type = IntEnumField(AutoResponderChannelType)
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         table = 'autoresponderchannel'
 
 
 class AutoResponse(AbstractBaseModel):
-    autoresponder = ForeignKeyField(f'{app}.AutoResponder', related_name='responses', index=True)
+    autoresponder = ForeignKeyField(f'{APP_NAME}.AutoResponder', related_name='responses', index=True)
     response = CharField(max_length=2000)
     active = BooleanField(default=True)
     type = IntEnumField(AutoResponseType)
@@ -138,7 +144,8 @@ class AutoResponse(AbstractBaseModel):
     def __str__(self):
         return str(self.response)
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         table = 'autoresponse'
 
 
@@ -148,7 +155,8 @@ class BotAdmin(AbstractBaseModel):
     def __str__(self):
         return str(self.userid)
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         table = 'botadmin'
 
 
@@ -191,19 +199,21 @@ class BugReport(AbstractBaseModel):
     def __str__(self):
         return f"[{self.id}] {self.reporter}: {self.title} - {self.platform}/{self.branch}"
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         table = 'bugreport'
 
 
 class BugReportingChannel(AbstractBaseModel):
-    guild = ForeignKeyField(f'{app}.Guild', related_name='bug_channels', index=True)
+    guild = ForeignKeyField(f'{APP_NAME}.Guild', related_name='bug_channels', index=True)
     channelid = BigIntField()
-    platform = ForeignKeyField(f'{app}.BugReportingPlatform', related_name="bug_channels", index=True)
+    platform = ForeignKeyField(f'{APP_NAME}.BugReportingPlatform', related_name="bug_channels", index=True)
 
     def __str__(self):
         return str(self.channelid)
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         # unique constraint for guild/platform
         unique_together = ('guild', 'platform')
         table = 'bugreportingchannel'
@@ -218,7 +228,8 @@ class BugReportingPlatform(AbstractBaseModel):
     def __str__(self):
         return f"{self.platform}_{self.branch}"
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         # unique constraint for platform/branch
         unique_together = ('platform', 'branch')
         table = 'bugreportingplatform'
@@ -231,19 +242,21 @@ class ConfigChannel(AbstractBaseModel, DeprecatedServerIdMixIn):
     def __str__(self):
         return str(self.channelid)
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('configname', 'serverid')
         table = 'configchannel'
 
 
 class CountWord(AbstractBaseModel, DeprecatedServerIdMixIn):
-    # guild = ForeignKeyField(f'{app}.Guild', related_name='watchwords')
+    # guild = ForeignKeyField(f'{APP_NAME}.Guild', related_name='watchwords')
     word = CharField(max_length=300)
 
     def __str__(self):
         return self.word
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('word', 'serverid')
         table = 'countword'
 
@@ -267,7 +280,8 @@ class CustomCommand(AbstractBaseModel, DeprecatedServerIdMixIn):
     def __str__(self):
         return self.trigger
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('trigger', 'serverid')
         table = 'customcommand'
 
@@ -281,13 +295,14 @@ class DropboxChannel(AbstractBaseModel, DeprecatedServerIdMixIn):
     def __str__(self):
         return str(self.sourcechannelid)
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('serverid', 'sourcechannelid')
         table = 'dropboxchannel'
 
 
 class DropboxView(AbstractBaseModel):
-    guild = ForeignKeyField(f'{app}.Guild', related_name='dropbox_views', index=True)
+    guild = ForeignKeyField(f'{APP_NAME}.Guild', related_name='dropbox_views', index=True)
     channelid = BigIntField(unique=True)
 
     targets: ReverseRelation["DropboxTarget"]
@@ -295,7 +310,8 @@ class DropboxView(AbstractBaseModel):
     def __str__(self):
         return f"dropboxview for channel {self.channelid}"
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         table = 'dropboxview'
 
 
@@ -307,7 +323,7 @@ class DropboxThreadMode(IntEnum):
 
 class DropboxTarget(AbstractBaseModel):
     channelid = BigIntField(default=0)
-    dropboxview = ForeignKeyField(f'{app}.DropboxView', related_name='targets', index=True)
+    dropboxview = ForeignKeyField(f'{APP_NAME}.DropboxView', related_name='targets', index=True)
     button_label = CharField(max_length=100, unique=True, default="Send a Report")
     button_emoji = CharField(max_length=100, default="\N{ENVELOPE}")
     button_style = SmallIntField(default=1)
@@ -327,7 +343,8 @@ class DropboxTarget(AbstractBaseModel):
             f"\tmodal placeholder: {self.modal_placeholder}\n"
             f"\tthread mode: {DropboxThreadMode(self.thread_mode).name}\n")
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('dropboxview', 'button_label')
         table = 'dropboxtarget'
 
@@ -358,14 +375,15 @@ class Guild(AbstractBaseModel):
     dropbox_views: ReverseRelation["DropboxView"]
 
     def __str__(self):
-        return self.serverid
+        return str(self.serverid)
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         table = 'guild'
 
 
 class KrillByLines(AbstractBaseModel):
-    krill_config = ForeignKeyField(f'{app}.KrillConfig', related_name='bylines', index=True)
+    krill_config = ForeignKeyField(f'{APP_NAME}.KrillConfig', related_name='bylines', index=True)
     byline = CharField(max_length=100)
     type = SmallIntField(default=0)
     channelid = BigIntField(default=0)
@@ -374,7 +392,8 @@ class KrillByLines(AbstractBaseModel):
     def __str__(self):
         return self.byline
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('krill_config', 'byline', 'type')
         table = 'krillbylines'
 
@@ -385,13 +404,14 @@ class KrillChannel(AbstractBaseModel, DeprecatedServerIdMixIn):
     def __str__(self):
         return f"Krillchannel id:{str(self.channelid)}, channelid:{self.channelid}"
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('serverid', 'channelid')
         table = 'krillchannel'
 
 
 class KrillConfig(AbstractBaseModel):
-    guild = OneToOneField(f'{app}.Guild', related_name='krill_config', index=True)
+    guild = OneToOneField(f'{APP_NAME}.Guild', related_name='krill_config', index=True)
     return_home_freq = SmallIntField(default=0)
     shadow_roll_freq = SmallIntField(default=0)
     krill_rider_freq = SmallIntField(default=0)
@@ -404,56 +424,61 @@ class KrillConfig(AbstractBaseModel):
     def __str__(self):
         return self.guild.id
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         table = 'krillconfig'
 
 
 class Localization(AbstractBaseModel):
-    guild = ForeignKeyField(f'{app}.Guild', related_name='locales', index=True)
+    guild = ForeignKeyField(f'{APP_NAME}.Guild', related_name='locales', index=True)
     channelid = BigIntField(default=0)
     locale = CharField(max_length=10, default='')
 
     def __str__(self):
         return f"localized channel {str(self.channelid)} uses language: {self.locale}"
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('guild', 'channelid')
         table = 'localization'
 
 
 class MischiefRole(AbstractBaseModel):
-    guild = ForeignKeyField(f'{app}.Guild', related_name='mischief_roles', index=True)
+    guild = ForeignKeyField(f'{APP_NAME}.Guild', related_name='mischief_roles', index=True)
     roleid = BigIntField()
     alias = CharField(max_length=100)
 
     def __str__(self):
         return f"role {self.roleid} a.k.a \"{self.alias}\""
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('roleid', 'guild')
         table = 'mischiefrole'
 
 
 class MischiefName(AbstractBaseModel):
-    guild = ForeignKeyField(f'{app}.Guild', related_name='mischief_names', index=True)
+    guild = ForeignKeyField(f'{APP_NAME}.Guild', related_name='mischief_names', index=True)
     name = CharField(max_length=36)
 
     def __str__(self):
         return self.name
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('name', 'guild')
         table = 'mischiefname'
 
 
 class ModRole(AbstractBaseModel):
-    guild = ForeignKeyField(f'{app}.Guild', related_name='mod_roles', index=True)
+    guild = ForeignKeyField(f'{APP_NAME}.Guild', related_name='mod_roles', index=True)
     roleid = BigIntField()
 
     def __str__(self):
         return str(self.roleid)
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('roleid', 'guild')
         table = 'modrole'
 
@@ -465,7 +490,8 @@ class OreoLetters(AbstractBaseModel):
     def __str__(self):
         return self.token
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('token', 'token_class')
         table = 'oreoletters'
 
@@ -482,12 +508,13 @@ class OreoMap(AbstractBaseModel):
     def __str__(self):
         return 'enum mapping'
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         table = 'oreomap'
 
 
 class ReactWatch(AbstractBaseModel):
-    # guild = OneToOneField(f'{app}.Guild', related_name='watchemoji')
+    # guild = OneToOneField(f'{APP_NAME}.Guild', related_name='watchemoji')
     serverid = BigIntField(unique=True)
     muteduration = SmallIntField(default=600)
     watchremoves = BooleanField(default=False)
@@ -498,36 +525,39 @@ class ReactWatch(AbstractBaseModel):
         return f"Server: {self.serverid} - Mute Time: {self.muteduration}s - " \
                f"Watching for react removal: {'YES' if self.watchremoves else 'NO'}"
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         table = 'reactwatch'
 
 
 class Repros(AbstractBaseModel):
     user = BigIntField()
-    report = ForeignKeyField(f'{app}.BugReport', related_name='repros', index=True)
+    report = ForeignKeyField(f'{APP_NAME}.BugReport', related_name='repros', index=True)
 
     def __str__(self):
         return f"repro #{self.id} (unused)"
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('user', 'report')
         table = 'repros'
 
 
 class TrustedRole(AbstractBaseModel):
-    guild = ForeignKeyField(f'{app}.Guild', related_name='trusted_roles', index=True)
+    guild = ForeignKeyField(f'{APP_NAME}.Guild', related_name='trusted_roles', index=True)
     roleid = BigIntField()
 
     def __str__(self):
         return str(self.roleid)
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('roleid', 'guild')
         table = 'trustedrole'
 
 
 class UserPermission(AbstractBaseModel):
-    guild = ForeignKeyField(f'{app}.Guild', related_name='command_permissions', index=True)
+    guild = ForeignKeyField(f'{APP_NAME}.Guild', related_name='command_permissions', index=True)
     userid = BigIntField()
     command = CharField(max_length=200, default='')
     allow = BooleanField(default=True)
@@ -535,13 +565,14 @@ class UserPermission(AbstractBaseModel):
     def __str__(self):
         return f"{str(self.userid)}: {self.command} = {'true' if self.allow else 'false'}"
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('userid', 'command')
         table = 'userpermission'
 
 
 class WatchedEmoji(AbstractBaseModel):
-    watcher = ForeignKeyField(f'{app}.ReactWatch', related_name='emoji', index=True)
+    watcher = ForeignKeyField(f'{APP_NAME}.ReactWatch', related_name='emoji', index=True)
     emoji = CharField(max_length=50)
     log = BooleanField(default=False)
     remove = BooleanField(default=False)
@@ -550,6 +581,7 @@ class WatchedEmoji(AbstractBaseModel):
     def __str__(self):
         return self.emoji
 
-    class Meta:
+    class Meta(AbstractBaseModel.Meta):
+        abstract = False
         unique_together = ('emoji', 'watcher')
         table = 'watchedemoji'

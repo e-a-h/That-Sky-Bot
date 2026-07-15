@@ -9,6 +9,7 @@ import requests
 from discord.ext import commands
 from discord.ext.commands import MemberConverter
 
+import utils.Utils
 from cogs.BaseCog import BaseCog
 from utils import Logging, Utils, Lang
 
@@ -45,7 +46,13 @@ class Welcomer(BaseCog):
         pass
 
     async def cog_check(self, ctx):
-        return await Utils.permission_manage_bot(ctx) or (ctx.guild and ctx.author.guild_permissions.ban_members)
+        manage_bot = await Utils.permission_manage_bot(ctx)
+        guild = ctx.guild
+        is_mod = False
+        if guild:
+            my_member = guild.get_member(ctx.author.id)
+            is_mod = my_member and my_member.guild_permissions.ban_members
+        return manage_bot or is_mod
 
     @commands.group(name="welcome", invoke_without_command=True)
     @commands.guild_only()
@@ -165,7 +172,7 @@ class Welcomer(BaseCog):
     @commands.guild_only()
     async def count_shadows(self, ctx):
         """
-        Count members who have shadow role
+        Count members who have the shadow role
         """
         members = self.bot.get_all_members()
 
@@ -200,7 +207,7 @@ class Welcomer(BaseCog):
     @commands.guild_only()
     async def darkness(self, ctx, time_delta: typing.Optional[int] = 1):
         """
-        Add non-member role to members with no role
+        A cryptic message about members with no roles
 
         time_delta: how far back (in days) to search for members with no roles
         add_role:
@@ -235,6 +242,15 @@ class Welcomer(BaseCog):
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
+        """
+        Enforce the member role on member update. This only applies if the member role is set,
+        the member role exists, and the member has any roles other than the member role. The
+        logic prevents addition of the member when the member has not yet verified.
+
+        This is superseded by the onboarding workflow.
+
+        TODO: evaluate removal of this listener.
+        """
         try:
             if before.pending and not after.pending:
                 # TODO: metrics logging?
@@ -242,9 +258,9 @@ class Welcomer(BaseCog):
                 # don't add a role or this defeats security.
                 pass
 
+            # TODO: Add on|off configuration for enforcing member role
             # Only act if roles change, in case other bot (e.g. yagpdb.xyz) assigns a role.
             if before.roles != after.roles:
-                # TODO: should this be configurable on|off?
                 guild_row = await self.bot.get_guild_db_config(before.guild.id)
                 member_role = before.guild.get_role(guild_row.memberrole)
 
@@ -256,7 +272,7 @@ class Welcomer(BaseCog):
                 # @everyone counts as 1 role
                 has_no_roles = len(after.roles) == 1
 
-                # No member role but at least 1 other role? add member role.
+                # No member role but at least 1 other role? add the member role.
                 if not has_no_roles and not member_after:
                     await after.add_roles(member_role)
         except Exception as e:
@@ -277,47 +293,59 @@ class Welcomer(BaseCog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.author.bot or not hasattr(message.author, "guild"):
+        """
+        This listener ensures that members who join the server are assigned the member role.
+
+        - This listener ignores messages from bots and messages sent outside a Discord guild.
+        - If the message author is detected as a specific bot (`gearbot`), the code handles
+          cases where muted members rejoin the server before their mute expires.
+        - Mods, admins, and those who already have the member role won't be checked.
+        - Role assignment logic ensures nonmembers receive a proper member role if they
+          attempt to send messages outside expected conditions.
+        """
+        guild = message.guild
+        if message.author.bot or not guild:
             return
 
-        guild_row = await self.bot.get_guild_db_config(message.guild.id)
-        log_channel = await Utils.get_guild_log_channel(message.guild.id)
-        member_role = message.guild.get_role(guild_row.memberrole)
-        nonmember_role = message.guild.get_role(guild_row.nonmemberrole)
+        guild_row = await self.bot.get_guild_db_config(guild.id)
+        member_role = guild.get_role(guild_row.memberrole)
+        nonmember_role = guild.get_role(guild_row.nonmemberrole)
+        my_member = guild.get_member(message.author.id)
+        is_mod = my_member and my_member.guild_permissions.ban_members
+        is_admin = await self.bot.member_is_admin(message.author.id)
+        has_member_role = my_member and member_role is not None and member_role in my_member.roles
 
         if message.author.id == 349977940198555660:  # is gearbot
             pattern = re.compile(r'\(``(\d+)``\) has re-joined the server before their mute expired')
             match = re.search(pattern, message.content)
             if match:
                 user_id = int(match[1])
-                # gearbot is handling it. never unmute this user
-                muted_member = message.guild.get_member(user_id)
+                # another is handling it. never unmute this user
+                muted_member = guild.get_member(user_id)
                 muted_member_name = Utils.get_member_log_name(muted_member)
-                await log_channel.send(
-                    f'''
-                    Gearbot re-applied mute when member re-joined: {muted_member_name}
-                    I won't try to unmute them later.
-                    ''')
+                msg = (
+                    f"Gearbot re-applied mute when member re-joined: {muted_member_name}\n"
+                    "I won't try to unmute them later."
+                )
+                await utils.Utils.guild_log(guild.id, msg)
                 return
 
-        if message.author.guild_permissions.mute_members or await self.bot.member_is_admin(message.author.id) or \
-                (member_role is not None and member_role in message.author.roles):
+        if is_mod or is_admin or has_member_role or my_member is None or member_role is None:
             # is a mod or
-            # message from regular member. no action to take.
+            # message from a regular member. no action to take.
             return
 
-        if member_role is not None and member_role not in message.author.roles:
-            # nonmember speaking somewhere other than welcome channel? Maybe we're not using the
-            # welcome channel anymore? or something else went wrong... give them member role.
+        if member_role not in my_member.roles:
+            # A nonmember is speaking. Give them the member role.
             try:
-                await message.author.add_roles(member_role)
-                if nonmember_role is not None and nonmember_role in message.author.roles:
-                    Logging.info(f"{Utils.get_member_log_name(message.author)} - had shadow role when speaking. removing it!")
-                    await message.author.remove_roles(nonmember_role)
+                await my_member.add_roles(member_role)
+                if nonmember_role is not None and nonmember_role in my_member.roles:
+                    Logging.info(f"{Utils.get_member_log_name(my_member)} - had shadow role when speaking. removing it!")
+                    await my_member.remove_roles(nonmember_role)
             except Exception as e:
                 try:
                     Logging.info(f"member join exception message: {message.content}")
-                    Logging.info(f"member join exception user id: {message.author.id}")
+                    Logging.info(f"member join exception user id: {my_member.id}")
                 except Exception as ee:
                     pass
                 await Utils.handle_exception("member join exception", e)

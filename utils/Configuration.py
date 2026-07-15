@@ -17,17 +17,29 @@ PERSISTENT_AIO_QUEUE: asyncio.Queue
 @dataclass()
 class PersistentAction:
     """
-    Class representing an action to be performed on persistent storage.
+    Represents an action that may be performed persistently, including options to
+    delete, store key-value pairs, and handle missing conditions.
 
-    Attributes:
+        Attributes:
         delete (bool): Flag indicating if this is a delete operation. Defaults to False.
-        key (str): The key to operate on in persistent storage. Defaults to None.
+        key (str): Defaults to None.
         value (str): The value to store (for non-delete operations). Defaults to None.
         tolerate_missing (bool): Whether to ignore missing keys on delete. Defaults to False.
+
+    Attributes
+    ----------
+    delete : bool
+        Indicates whether the action involves deletion.
+    key : str
+        The index to operate on in persistent storage.
+    value : str
+        The value to store (for non-delete operations).
+    tolerate_missing : bool
+        Determines if delete operations should suppress errors.
     """
     delete: bool = False
-    key: str = None
-    value: str = None
+    key: str = ""
+    value: str = ""
     tolerate_missing: bool = False
 
 
@@ -65,7 +77,12 @@ def get_var(key, default=None):
 
 def load_persistent():
     global PERSISTENT_LOADED, PERSISTENT
-    PERSISTENT = Utils.fetch_from_disk('persistent')
+    data = Utils.fetch_from_disk('persistent')
+    if not data or not isinstance(data, dict):
+        Logging.error("Failed to load persistent data, using empty dict.")
+        PERSISTENT = dict()
+    else:
+        PERSISTENT = data
     PERSISTENT_LOADED = True
 
 

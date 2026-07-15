@@ -22,19 +22,42 @@ class UserActionItem:
     data: Any
     expires_at: datetime
     created_at: datetime = datetime.now(timezone.utc)
-    cancel_callback: Callable[[Interaction, "UserActionItem"], Awaitable[None]] = None
-    interrupt_callback: Callable[[Interaction, "UserActionItem"], Awaitable[bool]] = None
-    expiry_callback: Callable[["UserActionItem"], Awaitable[None]] = None
-    finally_callback: Callable[[Optional[Interaction], "UserActionItem"], Awaitable[None]] = None
+    cancel_callback: Optional[Callable[[Interaction, "UserActionItem"], Awaitable[None]]] = None
+    interrupt_callback: Optional[Callable[[Interaction, "UserActionItem"], Awaitable[bool]]] = None
+    expiry_callback: Optional[Callable[["UserActionItem"], Awaitable[None]]] = None
+    finally_callback: Optional[Callable[[Optional[Interaction], "UserActionItem"], Awaitable[None]]] = None
 
 
-# shared register for DM-actions. Key is user_id,
+# shared register for DM-actions. The index is user_id,
 # each user may have only one action of any type at a time
 user_action_register: dict[int, UserActionItem] = {}
 
 
 async def check_expiration():
-    """check and expire and actions whose time has come"""
+    """
+    Manage the lifecycle of user actions: check the expiration status of items
+    in the `user_action_register` dictionary and trigger appropriate callbacks
+    if conditions are met.
+
+    The function performs the following tasks:
+    1. Iterates over the items in the `user_action_register` dictionary.
+    2. Compares the current time with the `expires_at` time of each item.
+    3. Executes the `expiry_callback` if the item has expired and the callback is defined.
+    4. Executes the `finally_callback` regardless of the expiration status, if defined.
+    5. Removes expired items from the registry.
+    6. Logs expiration status and remaining time of each item.
+
+    Notes
+    -----
+    - Time comparison is based on UTC timezone.
+    - Asynchronous callbacks are triggered to handle expiry and final actions for expired items.
+
+    Returns
+    -------
+    None
+        This function does not return a value; it operates on the global state of the
+        `user_action_register` and interacts with associated callbacks.
+    """
     now = datetime.now(timezone.utc)
     for i, item in dict(user_action_register).items():
         if item.expires_at < now:
@@ -51,6 +74,28 @@ async def check_expiration():
 
 
 def is_user_registered(user: User, cog_name: str, method_name: str) -> bool:
+    """
+    Check if a user is registered any action within a specific cog and method.
+
+    This function verifies whether the provided user is registered for a
+    specific cog and method name by checking the `user_action_register`
+    dictionary.
+
+    Parameters
+    ----------
+    user : User
+        The user object containing the identifier to check registration for.
+    cog_name : str
+        The name of the cog to be verified.
+    method_name : str
+        The name of the method to be verified.
+
+    Returns
+    -------
+    bool
+        True if the user is registered for the specific cog and method,
+        False otherwise.
+    """
     if user.id in user_action_register:
         action = user_action_register[user.id]
         if action.cog_name == cog_name and action.method_name == method_name:
@@ -66,10 +111,10 @@ async def register_user_action(
         user: User,
         created_at: datetime,
         expires_in: int,
-        cancel_callback: Callable[[Interaction, UserActionItem], Awaitable[None]] = None,
-        interrupt_callback: Callable[[Interaction, UserActionItem], Awaitable[bool]] = None,
-        expiry_callback: Callable[[UserActionItem], Awaitable[None]] = None,
-        finally_callback: Callable[[Optional[Interaction], UserActionItem], Awaitable[None]] = None) -> bool:
+        cancel_callback: Optional[Callable[[Interaction, UserActionItem], Awaitable[None]]] = None,
+        interrupt_callback: Optional[Callable[[Interaction, UserActionItem], Awaitable[bool]]] = None,
+        expiry_callback: Optional[Callable[[UserActionItem], Awaitable[None]]] = None,
+        finally_callback: Optional[Callable[[Optional[Interaction], UserActionItem], Awaitable[None]]] = None) -> bool:
     """
     Register a blocking user-based action
     Parameters
@@ -104,7 +149,7 @@ async def register_user_action(
     item = get_user_action(user)
     if item and item.interrupt_callback is not None:
         # interrupt callback exists
-        interrupt = await item.interrupt_callback(interaction, get_user_action(user))
+        interrupt = await item.interrupt_callback(interaction, item)
         if interrupt:
             # user opted to interrupt the existing action
             if item.finally_callback is not None:
@@ -162,7 +207,7 @@ class StopUserActionButton(
 
     # This is called when the button is clicked and the custom_id matches the template.
     @classmethod
-    async def from_custom_id(cls, interaction: Interaction, item: Button, match: re.Match[str], /):
+    async def from_custom_id(cls, interaction: Interaction, item, match: re.Match[str], /) -> 'StopUserActionButton':
         user_id = int(match['id'])
         user = interaction.client.get_user(user_id)
         if user is None:
@@ -171,8 +216,7 @@ class StopUserActionButton(
                 user = await interaction.client.fetch_user(user_id)
             except Exception as e:
                 Logging.debug(f"StopUserActionButton.from_custom_id fetch_user failed for {user_id}: {e}")
-                # return None and let discord.py ignore it.
-                return None
+                raise
         return cls(user)
 
     async def interaction_check(self, interaction: Interaction) -> bool:
@@ -194,7 +238,8 @@ class StopUserActionButton(
 
         # Edit the message using the REST endpoint (not the interaction token)
         try:
-            await interaction.message.edit(view=new_view)
+            if interaction.message:
+                await interaction.message.edit(view=new_view)
         except discord.NotFound:
             Logging.debug(f"StopUserActionButton: message not found for {self.user.id}; possibly deleted.")
         except Exception as e:

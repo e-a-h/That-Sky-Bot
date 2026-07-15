@@ -2,6 +2,7 @@ import asyncio
 import re
 
 import discord
+from discord import Guild
 from discord.ext import commands
 
 from cogs.BaseCog import BaseCog
@@ -28,7 +29,7 @@ class WordCounter(BaseCog):
         for guild in self.bot.guilds:
             await self.init_guild(guild)
 
-    async def init_guild(self, guild):
+    async def init_guild(self, guild: Guild):
         my_words = set()
         # fetch words and build matching pattern
         for row in await CountWord.filter(serverid=guild.id):
@@ -54,14 +55,17 @@ class WordCounter(BaseCog):
     @commands.bot_has_permissions(embed_links=True)
     async def word_counter(self, ctx: commands.Context):
         """Show a list of counted words"""
+        guild = ctx.guild
+        assert guild is not None
+
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=0x663399,
-            title=Lang.get_locale_string("word_counter/list_words", ctx, server_name=ctx.guild.name))
+            title=Lang.get_locale_string("word_counter/list_words", ctx, server_name=guild.name))
 
         word_list = set()
         # TODO: get guild->words
-        for row in await CountWord.filter(serverid=ctx.guild.id):
+        for row in await CountWord.filter(serverid=guild.id):
             word_list.add(row.word)
 
         if word_list != set():
@@ -82,10 +86,13 @@ class WordCounter(BaseCog):
     @commands.guild_only()
     async def add(self, ctx: commands.Context, *, word: str):
         """command_add_help"""
-        row = await CountWord.get_or_none(serverid=ctx.guild.id, word=word)
+        guild = ctx.guild
+        assert guild is not None
+
+        row = await CountWord.get_or_none(serverid=guild.id, word=word)
         if row is None:
-            await CountWord.create(serverid=ctx.guild.id, word=word)
-            await self.init_guild(ctx.guild)
+            await CountWord.create(serverid=guild.id, word=word)
+            await self.init_guild(guild)
             emoji = Emoji.get_chat_emoji('YES')
             msg = Lang.get_locale_string('word_counter/word_added', ctx, word=word)
             await ctx.send(f"{emoji} {msg}")
@@ -96,10 +103,13 @@ class WordCounter(BaseCog):
     @commands.guild_only()
     async def remove(self, ctx:commands.Context, *, word):
         """command_remove_help"""
-        row = await CountWord.get_or_none(serverid=ctx.guild.id, word=word)
+        guild = ctx.guild
+        assert guild is not None
+
+        row = await CountWord.get_or_none(serverid=guild.id, word=word)
         if row is not None:
             await row.delete()
-            await self.init_guild(ctx.guild)
+            await self.init_guild(guild)
             emoji = Emoji.get_chat_emoji('YES')
             msg = Lang.get_locale_string('word_counter/word_removed', ctx, word=word)
         else:
@@ -116,22 +126,21 @@ class WordCounter(BaseCog):
         ctx = await self.bot.get_context(message)
         is_boss = await self.cog_check(ctx)
         command_context = message.content.startswith(prefix, 0) and is_boss
-        not_in_guild = not hasattr(message.channel, "guild") or message.channel.guild is None
-
-        if command_context or not_in_guild:
+        guild = message.guild
+        if command_context or guild is None:
             return
 
         m = self.bot.metrics
         try:
-            pattern = re.compile(self.words[message.guild.id], re.IGNORECASE)
+            pattern = re.compile(self.words[guild.id], re.IGNORECASE)
             # find all matches and reduce to unique set
             words = set(pattern.findall(message.content))
             for word in words:
                 # increment counters
                 word = str(word).lower()
-                m.word_counter.labels(word=word, guild_name=message.guild.name, guild_id=message.guild.id).inc()
+                m.word_counter.labels(word=word, guild_name=guild.name, guild_id=guild.id).inc()
         except KeyError:
-            # Guild not present or not initialized. Ignore.
+            # No guild, or not initialized. Ignore.
             pass
 
 

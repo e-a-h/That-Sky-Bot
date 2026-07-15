@@ -25,8 +25,8 @@ from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 from tortoise import Tortoise
 
 import utils.tortoise_settings
-from utils import Logging, Configuration, Utils, Emoji, Database, Lang, dbbackup, UserActionRegister
-from utils.Database import BotAdmin, Guild
+from utils import Logging, Configuration, Constants, Utils, Emoji, Database, Lang, dbbackup, UserActionRegister
+from utils.Database import BotAdmin
 from utils.Logging import TCol
 from utils.PrometheusMon import PrometheusMon
 from utils.Tree import CustomCommandTree
@@ -160,7 +160,10 @@ class Skybot(Bot):
 
     async def on_command_error(self, ctx: commands.Context, error):
         if ctx and ctx.command is not None and hasattr(self.help_command, "get_command_signature"):
-            signature = self.help_command.get_command_signature(ctx.command)
+            try:
+                signature = self.help_command.get_command_signature(ctx.command)
+            except AttributeError:
+                signature = "[unknown command signature]"
         else:
             signature = "[unknown command signature]"
 
@@ -264,7 +267,7 @@ class Skybot(Bot):
         # Logging.debug(f"in_admins: {'yes' if in_admins else 'no'}")
         return is_db_admin or is_owner or in_admins
 
-    async def get_guild_db_config(self, guild_id) -> Optional[Guild]:
+    async def get_guild_db_config(self, guild_id) -> Database.Guild:
         """
         Retrieves the database configuration for a specific guild.
 
@@ -280,19 +283,24 @@ class Skybot(Bot):
 
         Returns
         -------
-        Optional[Guild]
-            The configuration object of the guild if it exists or is created
-            successfully; otherwise, None.
+        Database.Guild
+            The configuration row for the guild if it exists or is created
+            successfully
+
+        Raises
+        ------
+        Exception
+            If an error occurs while fetching or creating the guild configuration.
         """
         try:
             if guild_id in Utils.GUILD_CONFIGS:
-                return Utils.GUILD_CONFIGS[guild_id]
+                guild_row = Utils.GUILD_CONFIGS[guild_id]
+                return guild_row
             row, created = await Database.Guild.get_or_create(serverid=guild_id)
             Utils.GUILD_CONFIGS[guild_id] = row
             return row
         except Exception as e:
-            Utils.get_embed_and_log_exception("--------Failed to get config--------", e)
-            return None
+            raise Exception(f"Failed to get guild config for {guild_id}") from e
 
 
 async def run_db_migrations():
@@ -311,7 +319,7 @@ async def run_db_migrations():
         Logging.info('######## dg migrations ########', TCol.Underline, TCol.Blue)
         command = Command(
             tortoise_config=utils.tortoise_settings.TORTOISE_ORM,
-            app=utils.tortoise_settings.app_name
+            app=Constants.APP_NAME,
         )
         await command.init()
         result = await command.upgrade(False)
@@ -479,11 +487,15 @@ async def main():
         command_attrs={"name": "snelp", "checks": [Utils.can_help]})
     Utils.BOT = this_bot
 
+    def close_bot():
+        global this_bot
+        if this_bot:
+            Logging.info("sending close signal")
+            asyncio.ensure_future(this_bot.close())
+
     try:
-        for signal_name in ('SIGINT', 'SIGTERM'):
-            loop.add_signal_handler(
-                getattr(signal, signal_name),
-                lambda: asyncio.ensure_future(this_bot.close()))
+        for this_signal in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(this_signal, close_bot)
     except (NotImplementedError, AttributeError):
         pass
 

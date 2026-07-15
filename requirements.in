@@ -8,6 +8,6 @@ pytz
 pyyaml
 requests
 sentry-sdk
-setuptools
 tortoise-orm
 hanging_threads
+pydantic>=2,<3

@@ -1,11 +1,12 @@
 import asyncio
 import os
 from datetime import datetime
+from typing import Optional
 
 import discord
 from discord import File, Message
 from discord.ext import commands
-from discord.ext.commands import Context
+from discord.ext.commands import Context, CommandError
 
 from cogs.BaseCog import BaseCog
 from utils import Utils, Lang, Questions
@@ -18,30 +19,36 @@ class Sweepstakes(BaseCog):
         super().__init__(bot)
 
     async def cog_check(self, ctx):
-        if ctx.guild is None:
+        guild = ctx.guild
+        if guild is None:
             return False
         # TODO: change to admin role
         #  and/or separate roles for view and manage sweeps
-        return ctx.author.guild_permissions.manage_channels or await Utils.permission_manage_bot(ctx)
+        return ((hasattr(ctx.author, 'guild_permissions') and ctx.author.guild_permissions.manage_channels) or
+                await Utils.permission_manage_bot(ctx))
 
-    async def get_reaction_message(self, ctx, jump_url):
+    async def get_reaction_message(self, ctx: Context, jump_url: str) -> Optional[Message]:
         parts = jump_url.split('/')
         try:
-            channel_id = parts[-2]
-            message_id = parts[-1]
+            channel_id = int(parts[-2])
+            message_id = int(parts[-1])
         except IndexError as e:
             await ctx.send(Lang.get_locale_string('sweeps/jumpurl_prompt', ctx))
-            return
+            return None
 
         try:
             channel = await self.bot.fetch_channel(channel_id)
-            message = await channel.fetch_message(message_id)
-            return message
+            if isinstance(channel, (discord.TextChannel, discord.Thread)):
+                message = await channel.fetch_message(message_id)
+                return message
+            else:
+                await ctx.send("Channel type does not support sweeps")
+                return None
         except Exception as e:
             await Utils.handle_exception(f"Failed to get message {channel_id}/{message_id}", e)
             await ctx.send(Lang.get_locale_string('sweeps/fetch_message_failed', ctx, channel_id=channel_id, message_id=message_id))
 
-    async def get_unique_react_users(self, message: Message):
+    async def get_unique_react_users(self, message: Message) -> dict:
         fields = ["id", "nick", "username", "discriminator", "mention", "left_guild"]
         data_list = ()
 
@@ -67,7 +74,7 @@ class Sweepstakes(BaseCog):
                            "left_guild": left_guild},)
         return {'fields': fields, 'data': data_list}
 
-    async def get_all_react_users(self, message: Message):
+    async def get_all_react_users(self, message: Message) -> dict:
         fields = ["reaction", "id", "nick", "username", "discriminator", "mention", "left_guild"]
         data_list = ()
         reaction_list = {}
@@ -145,21 +152,21 @@ class Sweepstakes(BaseCog):
     @commands.group(name="sweeps", aliases=['drawing'])
     @commands.guild_only()
     @commands.bot_has_permissions(embed_links=True)
-    async def sweepstakes(self, ctx: commands.Context):
+    async def sweepstakes(self, ctx: Context):
         """sweeps help"""
         if not ctx.invoked_subcommand:
             await ctx.send_help(ctx.command)
 
     @sweepstakes.group(name="entries")
     @commands.guild_only()
-    async def entries(self, ctx: commands.Context):
+    async def entries(self, ctx: Context):
         """reporting group"""
         if ctx.invoked_subcommand is None:
             await ctx.send(Lang.get_locale_string('sweeps/entries_sub_command', ctx))
 
     @sweepstakes.group(name="end", aliases=["cancel", "stop"])
     @commands.guild_only()
-    async def end_sweeps(self, ctx: commands.Context):
+    async def end_sweeps(self, ctx: Context):
         """reporting group"""
         # TODO: add sub-commands for ending, with reaction clear, restarting with reaction reset to only author
         if ctx.invoked_subcommand is None:
@@ -167,8 +174,10 @@ class Sweepstakes(BaseCog):
 
     @end_sweeps.command(aliases=["clean", "clear"])
     @commands.guild_only()
-    async def end_clean(self, ctx: commands.Context, jump_url: str):
-        message: Message = await self.get_reaction_message(ctx, jump_url)
+    async def end_clean(self, ctx: Context, jump_url: str):
+        message = await self.get_reaction_message(ctx, jump_url)
+        if message is None:
+            raise CommandError("Failed to find a message")
         try:
             pending = await ctx.send(Lang.get_locale_string('sweeps/removing_reactions', ctx))
             # TODO: refactor fetch methods to return dict and file so only 2 messages are sent; "working" and "done"
@@ -188,8 +197,10 @@ class Sweepstakes(BaseCog):
 
     @end_sweeps.command(aliases=["reset", "restart"])
     @commands.guild_only()
-    async def end_reset(self, ctx: commands.Context, jump_url: str):
-        message: Message = await self.get_reaction_message(ctx, jump_url)
+    async def end_reset(self, ctx: Context, jump_url: str):
+        message = await self.get_reaction_message(ctx, jump_url)
+        if message is None:
+            raise CommandError("Failed to find a message")
 
         if not message.reactions:
             # no reactions to reset
@@ -201,12 +212,17 @@ class Sweepstakes(BaseCog):
         not_my_emoji = set()
 
         for reaction in message.reactions:
-            if (isinstance(reaction.emoji, str) or
-                    (hasattr(reaction.emoji, 'id') and self.bot.get_emoji(reaction.emoji.id))):
-                my_emoji.add(reaction.emoji)
+            this_emoji = reaction.emoji
+            if isinstance(this_emoji, str) or this_emoji.id is None:
+                continue
+
+            emoji_id = this_emoji.id
+            if (isinstance(this_emoji, str) or
+                    (hasattr(this_emoji, 'id') and self.bot.get_emoji(emoji_id))):
+                my_emoji.add(this_emoji)
             else:
                 # Can't use a custom emoji from a server I'm not in
-                not_my_emoji.add(reaction.emoji)
+                not_my_emoji.add(this_emoji)
 
         clear = True
 
@@ -270,16 +286,20 @@ class Sweepstakes(BaseCog):
 
     @entries.command(aliases=["unique"])
     @commands.guild_only()
-    async def unique_entries(self, ctx: commands.Context, jump_url: str):
+    async def unique_entries(self, ctx: Context, jump_url: str):
         """get a list of unique users who reacted to a given message"""
         message = await self.get_reaction_message(ctx, jump_url)
+        if not message:
+            return
         await self.fetch_unique(ctx, message)
 
     @entries.command(aliases=["all"])
     @commands.guild_only()
-    async def all_entries(self, ctx: commands.Context, jump_url: str):
+    async def all_entries(self, ctx: Context, jump_url: str):
         """get a list of all reactions to a given message"""
         message = await self.get_reaction_message(ctx, jump_url)
+        if not message:
+            return
         await self.fetch_all(ctx, message)
 
 

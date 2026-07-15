@@ -1,5 +1,6 @@
 import os
 from utils import Configuration
+from utils.Constants import APP_NAME
 
 db_model = 'utils.Database'
 db_name = Configuration.get_var("DATABASE_NAME")
@@ -7,7 +8,6 @@ db_user = Configuration.get_var("DATABASE_USER")
 db_pass = Configuration.get_var("DATABASE_PASS")
 db_host = Configuration.get_var("DATABASE_HOST")
 db_port = Configuration.get_var("DATABASE_PORT")
-app_name = "skybot"
 
 # env var BOT_DB will override db name from both init call AND config.json
 override_db_name = os.getenv('BOT_DB')
@@ -32,7 +32,7 @@ TORTOISE_ORM = {
         }
     },
     'apps': {
-        app_name: {'models': [db_model, 'aerich.models']}
+        APP_NAME: {'models': [db_model, 'aerich.models']}
     },
     'use_tz': False,
     'timezone': 'UTC'

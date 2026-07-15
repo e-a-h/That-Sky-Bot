@@ -1,33 +1,39 @@
+from __future__ import annotations
 import csv
 import inspect
 import json
 import math
-import time
 import traceback
 import typing
 import uuid
-from collections import OrderedDict, namedtuple
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import EnumMeta, Enum
 from json import JSONDecodeError
-from typing import Optional, Union
+from typing import (TYPE_CHECKING, Union, Collection, Dict, Optional,
+                    OrderedDict, Pattern, Tuple, Match)
+from utils import Database
 
 import discord
 import sentry_sdk
 from aiohttp import ClientOSError, ServerDisconnectedError
-from discord import Embed, Colour, ConnectionClosed, NotFound, Guild, Role, HTTPException, AllowedMentions, \
-    InteractionResponse, Interaction
-from discord.abc import PrivateChannel
+from discord import (Embed, Colour, ConnectionClosed, Guild,
+                     NotFound, HTTPException, AllowedMentions, Message,
+                     InteractionResponse, Interaction, Member, TextChannel, Thread, DMChannel, Role, PartialMessageable)
+from discord.abc import PrivateChannel, GuildChannel
 from discord.ext.commands import Context
 
-from utils import Logging, Configuration, Utils
+from utils import Logging, Configuration
 from utils.Constants import *
 from utils.Logging import TCol
 
-BOT = None
-GUILD_CONFIGS = dict()
-known_invalid_users = []
-user_cache = OrderedDict()
+if TYPE_CHECKING:
+    from _typeshed import SupportsWrite
+    from sky import Skybot
+
+BOT: "Skybot"
+GUILD_CONFIGS: Dict[int, Database.Guild] = {}
+known_invalid_users: list[int] = []
+user_cache: OrderedDict = OrderedDict()
 
 
 class MetaEnum(EnumMeta):
@@ -43,25 +49,46 @@ class BaseEnum(Enum, metaclass=MetaEnum):
     pass
 
 
-def get_home_guild() -> Optional[Guild]:
-    return BOT.get_guild(Configuration.get_var("guild_id"))
+def get_home_guild() -> Guild:
+    """
+    Fetches and returns the home guild specified by the configuration.
+
+    This function retrieves the `guild_id` set in the configuration and fetches
+    the corresponding guild object from the bot's available guilds. If no guild
+    is found with the given `guild_id`, an exception is raised.
+
+    Returns
+    -------
+    Guild
+        The guild object corresponding to the configured `guild_id`.
+
+    Raises
+    ------
+    ValueError
+        If no guild is found with the specified `guild_id` in the bot's guilds.
+    """
+    home_id = Configuration.get_var("guild_id")
+    guild = BOT.get_guild(home_id)
+    if guild is None:
+        raise ValueError(f"No guild with id {home_id} found")
+    return guild
 
 
 def get_prefix() -> str:
     return Configuration.get_var("bot_prefix")
 
 
-def get_chanconf_description(bot, guild_id):
+def get_chanconf_description(bot: Skybot, guild_id: int) -> str:
     message = f"guild {guild_id}" + '\n'
     try:
-        for name, id in bot.config_channels[guild_id].items():
-            message += f"**{name}**: <#{id}>" + '\n'
+        for name, cid in bot.config_channels[guild_id].items():
+            message += f"**{name}**: <#{cid}>" + '\n'
     except KeyError:
         pass
     return message
 
 
-async def fetch_last_message_by_channel(channel):
+async def fetch_last_message_by_channel(channel: TextChannel) -> Optional[Message]:
     try:
         messages = [message async for message in channel.history(limit=1)]
         return messages[0]
@@ -70,21 +97,41 @@ async def fetch_last_message_by_channel(channel):
 
 
 # Command checks
-async def permission_official_mute(ctx: Union[Context, Interaction]):
-    author = ctx.author if isinstance(ctx, Context) else ctx.user
-    return permission_official(author.id, 'mute_members') or await permission_manage_bot(ctx)
+async def permission_official_mute(ctx: Union[Context, Interaction]) -> bool:
+    if isinstance(ctx, Context):
+        author = ctx.author
+        pctx = ctx
+    elif isinstance(ctx, Interaction):
+        author = ctx.user
+        pctx = await BOT.get_context(ctx)
+    else:
+        return False
+
+    po = permission_official(author.id, 'mute_members')
+    pmb = await permission_manage_bot(pctx)
+    return po or pmb
 
 
-async def permission_official_ban(ctx: Union[Context, Interaction]):
-    author = ctx.author if isinstance(ctx, Context) else ctx.user
-    return permission_official(author.id, 'ban_members') or await permission_manage_bot(ctx)
+async def permission_official_ban(ctx: Union[Context, Interaction]) -> bool:
+    if isinstance(ctx, Context):
+        author = ctx.author
+        pctx = ctx
+    elif isinstance(ctx, Interaction):
+        author = ctx.user
+        pctx = await BOT.get_context(ctx)
+    else:
+        return False
+
+    pbm = permission_official(author.id, 'ban_members')
+    pmb = await permission_manage_bot(pctx)
+    return pbm or pmb
 
 
 #####################################
 # App command interaction checks
 #####################################
 
-def check_is_owner(interaction: Interaction):
+def check_is_owner(interaction: Interaction) -> bool:
     return interaction.user.id == BOT.owner_id
 
 #####################################
@@ -92,32 +139,42 @@ def check_is_owner(interaction: Interaction):
 #####################################
 
 
-async def can_mod_official(ctx: Union[Context, Interaction]):
-    return await permission_official_ban(ctx)
+async def can_mod_official(ctx: Union[Context, Interaction]) -> bool:
+    if isinstance(ctx, Context):
+        pctx = ctx
+    elif isinstance(ctx, Interaction):
+        pctx = await BOT.get_context(ctx)
+    else:
+        return False
+    return await permission_official_ban(pctx)
 
 
-def permission_official(member_id, permission_name):
+def permission_official(member_id: int, permission_name: str) -> bool:
     # ban permission on official server - sort of a hack to propagate perms
     # TODO: better permissions model
     try:
         official_guild = get_home_guild()
         official_member = official_guild.get_member(member_id)
+        if official_member is None:
+            return False
         return getattr(official_member.guild_permissions, permission_name)
-    except Exception:
+    except ValueError:
         return False
 
 
-async def can_mod_guild(ctx: Union[Context, Interaction]):
+async def can_mod_guild(ctx: Union[Context, Interaction]) -> bool:
     author = ctx.author if isinstance(ctx, Context) else ctx.user
 
     guild = get_home_guild()
     member = guild.get_member(author.id)
-    return (member.guild_permissions.mute_members or
+    if member is None:
+        return False
+    return (bool(member.guild_permissions.mute_members) or
             BOT is not None and
             await permission_manage_bot(ctx))
 
 
-async def permission_manage_bot(ctx: Union[Context, Interaction]):
+async def permission_manage_bot(ctx: Union[Context, Interaction]) -> bool:
     author = ctx.author if isinstance(ctx, Context) else ctx.user
     guild = ctx.guild
     cmd_name = ctx.command.name if ctx.command is not None else '[no command]'
@@ -127,7 +184,7 @@ async def permission_manage_bot(ctx: Union[Context, Interaction]):
         Logging.info(f"{inspect.stack()[1].filename}:{inspect.stack()[1].function} - admin granted to {author.name} for {cmd_name}", TCol.Green)
         return True
 
-    if guild is not None:
+    if guild is not None and isinstance(author, Member):
         """
         Logging.info(
             f"{inspect.stack()[1].filename}:{inspect.stack()[1].function}"
@@ -135,11 +192,13 @@ async def permission_manage_bot(ctx: Union[Context, Interaction]):
             TCol.Warning)
         """
         guild_row = await BOT.get_guild_db_config(guild.id)
+        if guild_row is None:
+            return False
         config_role_ids = Configuration.get_var("admin_roles", [])  # roles saved in the config
         db_admin_roles = await guild_row.admin_roles.filter()  # Roles saved in the db for this guild
         db_admin_role_ids = [row.roleid for row in db_admin_roles]
         admin_role_ids = db_admin_role_ids + config_role_ids
-        admin_roles = Utils.id_list_to_roles(guild, admin_role_ids)
+        admin_roles = id_list_to_roles(guild, admin_role_ids)
 
         for role in author.roles:
             if role in admin_roles:
@@ -148,50 +207,61 @@ async def permission_manage_bot(ctx: Union[Context, Interaction]):
     return False
 
 
-async def can_help(ctx):
-    return ctx.author.guild_permissions.mute_members or await Utils.permission_manage_bot(ctx)
+async def can_help(ctx: Context) -> bool:
+    user = ctx.author
+    if isinstance(user, Member):
+        return bool(user.guild_permissions.mute_members) or (await permission_manage_bot(ctx))
+    return False
+
+async def get_guild_log_channel(guild_id: int) -> Optional[GuildChannel]:
+    # TODO: per-cog override for logging channel?
+    channel = await get_guild_config_channel(guild_id, 'log')
+    if not channel or isinstance(channel, (Thread, PrivateChannel)):
+        raise ValueError(f"No log channel for guild {guild_id}")
+    return channel
 
 
-async def get_guild_log_channel(guild_id):
-    # TODO: per cog override for logging channel?
-    return await get_guild_config_channel(guild_id, 'log')
-
-
-async def get_guild_rules_channel(guild_id):
+async def get_guild_rules_channel(guild_id: int) -> Optional[GuildChannel]:
     return await get_guild_config_channel(guild_id, 'rules')
 
 
-async def get_guild_maintenance_channel(guild_id):
+async def get_guild_maintenance_channel(guild_id: int) -> Optional[GuildChannel]:
     return await get_guild_config_channel(guild_id, 'maintenance')
 
 
-async def get_guild_config_channel(guild_id, name):
+async def get_guild_config_channel(guild_id: int, name: str) -> Optional[GuildChannel]:
     config = await BOT.get_guild_db_config(guild_id)
     if config:
-        return BOT.get_channel(getattr(config, f'{name}channelid'))
+        channel = BOT.get_channel(getattr(config, f'{name}channelid'))
+        if not channel or isinstance(channel, (Thread, PrivateChannel)):
+            raise ValueError(f"No {name} channel for guild {guild_id}")
+        return channel
     return None
 
 
-async def guild_log(guild_id, msg = None, embed = None):
+async def guild_log( guild_id: int, msg: Optional[str] = None, embed: Optional[Embed] = None) -> Optional[Message]:
     if not (msg or embed):
-        # can't send nothing, so return none
+        # can't send anything if there's no message or embed, so return none
         return None
 
     channel = await get_guild_log_channel(guild_id)
-    if channel:
+    if channel and isinstance(channel, (TextChannel, Thread, DMChannel)):
         try:
-            sent = await channel.send(content=msg, embed=embed, allowed_mentions=AllowedMentions.none())
+            args: dict = {"allowed_mentions": AllowedMentions.none()}
+            if embed:
+                args["embed"] = embed
+            sent = await channel.send(msg, **args)
             return sent
         except HTTPException:
             pass
 
-    # No channel, or send failed. Send notice in bot server:
+    # No channel or send failed. Send notice in bot server:
     sent = await Logging.bot_log(f"server {guild_id} is misconfigured for logging. Failed message:"
                                  f"```{msg}```", embed=embed)
     return sent
 
 
-def id_list_to_roles(guild, id_list):
+def id_list_to_roles(guild: Guild, id_list: list[int]) -> list[Role]:
     """Convert a list of integer role IDs to a list of validated roles for the requested guild.
 
     Parameters
@@ -211,14 +281,14 @@ def id_list_to_roles(guild, id_list):
     return output
 
 
-def get_channel_description(bot, channel_id):
+def get_channel_description(bot: Skybot, channel_id: int) -> str:
     channel = bot.get_channel(channel_id)
-    if not channel:
+    if not channel or isinstance(channel, PrivateChannel):
         return f"**[Invalid Channel ID {channel_id}]**"
     return f"**{channel.name}** {channel.mention} ({channel.id})"
 
 
-def extract_info(o):
+def extract_info(o) -> str:
     info = ""
     if hasattr(o, "__dict__"):
         info += str(o.__dict__)
@@ -235,7 +305,7 @@ def extract_info(o):
     return info
 
 
-async def do_re_search(pattern: typing.Union[re.Pattern, str], subject: str):
+async def do_re_search(pattern: Union[Pattern, str], subject: str) -> Optional[Match]:
     """
     Regex search coro to allow running regex as a task and timeout for poorly formed patterns
     :param pattern:
@@ -248,16 +318,16 @@ async def do_re_search(pattern: typing.Union[re.Pattern, str], subject: str):
 
 
 def get_embed_and_log_exception(
-        exception_type,
-        exception,
-        message=None,
-        ctx=None,
+        exception_type: str,
+        exception: Exception,
+        message: Optional[Message] = None,
+        ctx: Optional[Union[Context, Interaction]] = None,
         *args,
-        **kwargs):
-    with (sentry_sdk.push_scope() as scope):
-        embed = Embed(colour=Colour(0xff0000), timestamp=datetime.utcfromtimestamp(time.time()))
+        **kwargs) -> Optional[Embed]:
+    with sentry_sdk.isolation_scope() as scope:
+        embed = Embed(colour=Colour(0xff0000), timestamp=datetime.now(timezone.utc))
 
-        # something went wrong and it might have been in on_command_error, make sure we log to the log file first
+        # something went wrong, and it might have been in on_command_error, make sure we log to the log file first
         lines = [
             "\n_____EXCEPTION CAUGHT, DUMPING ALL AVAILABLE INFO_____",
             f"Type: {exception_type}"
@@ -315,9 +385,16 @@ def get_embed_and_log_exception(
                 scope.set_tag('command', ctx.command.name)
 
             if hasattr(ctx, "channel"):
-                channel_name = ('Private Message' if
-                                isinstance(ctx.channel, PrivateChannel) else
-                                f"{ctx.channel.name} (`{ctx.channel.id}`)")
+                channel = ctx.channel
+                channel_name = "Unknown Channel"
+                if channel is not None:
+                    if isinstance(channel, (Thread, PartialMessageable, DMChannel)):
+                        name = f"channel {channel.id}"
+                    else:
+                        name = channel.name
+                    channel_name = ('Private Message' if
+                                    isinstance(channel, PrivateChannel) else
+                                    f"{name} (`{channel.id}`)")
                 lines.append(f"Channel: {channel_name}")
                 embed.add_field(name="Channel", value=channel_name, inline=False)
                 scope.set_tag('channel', channel_name)
@@ -348,9 +425,15 @@ def get_embed_and_log_exception(
         return embed
 
 
-async def handle_exception(exception_type, exception, message=None, ctx=None, *args, **kwargs):
+async def handle_exception(
+        exception_type: str,
+        exception: Exception,
+        message: Optional[Message]=None,
+        ctx: Optional[Union[Context, Interaction]]=None,
+        *args,
+        **kwargs) -> None:
     embed = get_embed_and_log_exception(exception_type, exception, message, ctx, *args, **kwargs)
-    if embed.fields:
+    if embed and embed.fields:
         try:
             await Logging.bot_log(embed=embed)
         except Exception as ex:
@@ -359,16 +442,13 @@ async def handle_exception(exception_type, exception, message=None, ctx=None, *a
             Logging.error(traceback.format_exc())
 
 
-def trim_message(message, limit):
+def trim_message(message: str, limit: int) -> str:
     if len(message) < limit - 3:
         return message
     return f"{message[:limit - 3]}..."
 
 
-async def get_user(uid, fetch=True):
-    UserClass = namedtuple(
-        "UserClass",
-        "name id discriminator bot avatar created_at is_avatar_animated mention")
+async def get_user(uid: int, fetch: bool=True) -> Optional[discord.User]:
     user = BOT.get_user(uid)
     if user is None:
         if uid in known_invalid_users:
@@ -387,29 +467,34 @@ async def get_user(uid, fetch=True):
     return user
 
 
-def clean_user(user):
+def clean_user(user: Optional[discord.User]) -> str:
     if user is None:
         return "UNKNOWN USER"
     return f"{escape_markdown(user.name)}#{user.discriminator}"
 
 
-async def username(uid, fetch=True, clean=True):
+async def username(uid: int, fetch: bool = True, do_clean: bool = True) -> str:
     user = await get_user(uid, fetch)
     if user is None:
         return "UNKNOWN USER"
-    if clean:
+    if do_clean:
         return clean_user(user)
     else:
         return f"{user.name}#{user.discriminator}"
 
 
-def get_member_log_name(member):
+def get_member_log_name(member: Optional[Union[discord.User, discord.Member]]) -> str:
     if member:
         return f"{member.mention} {member.display_name} ({member.id})"
     return "unknown user"
 
 
-async def clean(text, guild=None, markdown=True, links=True, emoji=True):
+async def clean(
+        text,
+        guild: Optional[Guild] = None,
+        markdown: Optional[bool] = True,
+        links: Optional[bool] = True,
+        emoji: Optional[bool] = True) -> str:
     text = str(text)
     if guild is not None:
         # resolve user mentions
@@ -463,14 +548,16 @@ async def clean(text, guild=None, markdown=True, links=True, emoji=True):
     return text
 
 
-def escape_markdown(text):
+def escape_markdown(text: str) -> str:
     text = str(text)
     for c in ["\\", "`", "*", "_", "~", "|", "{", ">"]:
         text = text.replace(c, f"\\{c}")
     return text.replace("@", "@\u200b")
 
 
-def fetch_from_disk(filename, alternative=None):
+def fetch_from_disk(
+        filename: str,
+        alternative: Optional[str] = None) -> Union[None, dict, list, str, int, float]:
     try:
         with open(f"{filename}.json", encoding="UTF-8") as file:
             return json.load(file)
@@ -483,28 +570,40 @@ def fetch_from_disk(filename, alternative=None):
     return dict()
 
 
-def save_to_disk(filename, data, ext="json", fields=None):
+def save_to_disk(
+        filename: str,
+        data: Union[Tuple, Dict],
+        ext: str="json",
+        fields: Optional[Collection]=None) -> None:
     with open(f"{filename}.{ext}", "w", encoding="UTF-8", newline='') as file:
-        if ext == 'json':
-            json.dump(data, file, indent=4, skipkeys=True, sort_keys=True)
-        elif ext == 'csv':
-            csvwriter = csv.DictWriter(file, fieldnames=fields)
-            csvwriter.writeheader()
-            for row in data:
-                csvwriter.writerow(row)
+        do_save(file, data, ext, fields)
 
 
-def save_to_buffer(buffer, data, ext="json", fields=None):
+def save_to_buffer(
+        buffer: SupportsWrite[str],
+        data: Union[Tuple, Dict],
+        ext: str="json",
+        fields: Optional[Collection]=None) -> None:
+    do_save(buffer, data, ext, fields)
+
+
+def do_save(
+        buffer: SupportsWrite[str],
+        data: Union[Tuple, Dict],
+        ext: str="json",
+        fields: Optional[Collection]=None) -> None:
     if ext == 'json':
         json.dump(data, buffer, indent=4, skipkeys=True, sort_keys=True)
     elif ext == 'csv':
+        if fields is None:
+            raise ValueError("fields must be provided for CSV export")
         csvwriter = csv.DictWriter(buffer, fieldnames=fields)
         csvwriter.writeheader()
         for row in data:
             csvwriter.writerow(row)
 
 
-def to_pretty_time(seconds):
+def to_pretty_time(seconds: Union[int, float]) -> str:
     part_count = 0
     parts = {
         'week': 60 * 60 * 24 * 7,
@@ -527,16 +626,21 @@ def to_pretty_time(seconds):
     return duration.strip()
 
 
-def chunk_list_or_string(input_list, chunk_size):
+def chunk_list_or_string(input_list, chunk_size: int):
     """
     cut input into chunks, maximum size is `chunk_size` and return a generator that goes through every chunk.
-    chunks are contiguous and only last one may have length less than `chunk_size`
+    chunks are contiguous and only the last one may have length less than `chunk_size`
     """
     for i in range(0, len(input_list), chunk_size):
         yield input_list[i:i + chunk_size]
 
 
-def paginate(input_data, max_lines=20, max_chars=1900, prefix="", suffix="") -> list[str]:
+def paginate(
+        input_data: str,
+        max_lines: int = 20,
+        max_chars: int = 1900,
+        prefix: str = "",
+        suffix: str = "") -> list[str]:
     """
     splits the given text input into a list of pages to fit in Discord messages.
 
@@ -551,7 +655,7 @@ def paginate(input_data, max_lines=20, max_chars=1900, prefix="", suffix="") -> 
     max_chars : int
         max number of characters per page. one page is meant to fit in one message, so should be a positive integer
         less than the Discord message length a bot can send (2k characters right now).
-        recommend to set lower than max to leave some buffer for other additions
+        recommend setting lower than max to leave some buffer for other additions
     prefix: str
     suffix: str
 
@@ -595,7 +699,7 @@ def paginate(input_data, max_lines=20, max_chars=1900, prefix="", suffix="") -> 
                             page = f"{chunk} "
                             if len(chunk) == max_chars:
                                 add_page(page)
-                            # last chunk night not fill page, nothing to do in that case
+                            # last chunk might not fill page, nothing to do in that case
                     else:
                         page = f"{word} "
                 else:
@@ -608,7 +712,10 @@ def paginate(input_data, max_lines=20, max_chars=1900, prefix="", suffix="") -> 
     return pages
 
 
-def pages_to_embed(content: str, embed: discord.Embed, field_name: str = "Contents"):
+def pages_to_embed(
+        content: str,
+        embed: discord.Embed,
+        field_name: str = "Contents") -> None:
     contents = paginate(content, max_chars=900)
     i = 0
     for chunk in contents:
@@ -623,7 +730,7 @@ def get_new_uuid_str() -> str:
     return str(uuid.uuid4())
 
 
-def closest_power2_log(num):
+def closest_power2_log(num: int) -> int:
     lower = int(math.floor(math.log2(num)))
     upper = int(math.ceil(math.log2(num)))
     lower_pow = 1 << lower
@@ -633,7 +740,7 @@ def closest_power2_log(num):
     return upper_pow
 
 
-def closest_power2_str(num):
+def closest_power2_str(num: int) -> int:
     # faster in small runs, slower overall
     upper_exp = len(f"{num:b}")
     lower_exp = upper_exp - 1
@@ -645,10 +752,10 @@ def closest_power2_str(num):
     return upper_pow
 
 
-def is_power_of_two(num: int):
+def is_power_of_two(num: int) -> bool:
     if num < 0:
         return False
-    return num and (not(num & (num - 1)))
+    return bool(num and (not(num & (num - 1))))
 
 
 def get_bitshift(value: int) -> int:

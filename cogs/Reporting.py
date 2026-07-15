@@ -35,9 +35,9 @@ class Reporting(BaseCog):
         csv                      exports 100 most recent reports
         csv 15 20                exports reports with ids in the range 15-20
         csv -200                 exports the last 200 reports matching other criteria (max 1000)
-        csv [beta|stable]        exports reports for given branch (all platforms)
+        csv [beta|stable]        exports reports for a given branch (all platforms)
         csv {beta|stable} [android|ios|etc]
-                                 exports reports for given branch and platform"""
+                                 exports reports for a given branch and platform"""
         # TODO: start from date?
 
         async def get_branch(a_branch):

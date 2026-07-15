@@ -8,12 +8,12 @@ from enum import Enum
 from typing import Optional, Literal, Union
 
 import discord
-from discord import (Forbidden, Embed, NotFound, HTTPException, TextChannel, AllowedMentions, app_commands,
+from discord import (CategoryChannel, Forbidden, Embed, ForumChannel, NotFound, HTTPException, TextChannel, AllowedMentions, app_commands,
                      Interaction, User, Permissions)
+from discord.abc import GuildChannel, PrivateChannel
 from discord.app_commands import Group
 from discord.ext import commands, tasks
 from discord.ext.commands import Context, UserInputError
-from discord.utils import utcnow
 from tortoise.exceptions import DoesNotExist, OperationalError, IntegrityError
 
 from cogs.BaseCog import BaseCog
@@ -119,9 +119,10 @@ class Bugs(BaseCog):
             await Utils.handle_exception("unexpected bug runner exception", e)
 
         try:
-            Logging.info("\tWait for ready to end... it should have ended ages ago", TCol.Warning)
-            await self.ready_task
-            Logging.info("\t\tDone waiting.", TCol.Green)
+            if self.ready_task is not None:
+                Logging.info("\tWait for ready to end... it should have ended ages ago", TCol.Warning)
+                await self.ready_task
+                Logging.info("\t\tDone waiting.", TCol.Green)
         except CancelledError:
             Logging.info("\t\tReady task was canceled.", TCol.Fail)
             pass
@@ -175,7 +176,9 @@ class Bugs(BaseCog):
             shutdown_key = f"{guild_row.serverid}_{row.platform.platform}_{row.platform.branch}_shutdown"
             shutdown_id = Configuration.get_persistent_var(shutdown_key)
 
-            if shutdown_id is not None and channel is not None:
+            if (shutdown_id is not None
+                    and channel is not None
+                    and not isinstance(channel, (CategoryChannel, ForumChannel, PrivateChannel) )):
                 try:
                     Configuration.del_persistent_var(shutdown_key, True)
                 except KeyError:
@@ -246,7 +249,7 @@ class Bugs(BaseCog):
                 try:
                     channel = self.bot.get_channel(cid)
 
-                    if channel is not None:
+                    if channel is not None and not isinstance(channel, (CategoryChannel, ForumChannel, PrivateChannel)):
                         if cid not in reported:
                             await self.remove_bug_info_msg(channel)
                             shutdown_message = await channel.send(

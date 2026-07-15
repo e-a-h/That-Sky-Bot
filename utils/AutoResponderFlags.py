@@ -20,7 +20,8 @@ class ArFlags(IntFlag):
     def __str__(self):
         flags = []
         for i in ArFlags:
-            if i in self:
+            # if the flag is set and has a name, add it to the display list
+            if (self & i) and i.name:
                 flags.append(i.name.lower())
         return ", ".join(flags)
 
@@ -33,31 +34,32 @@ class ArFlags(IntFlag):
     @staticmethod
     def get_name_by_bitshift(value: int):
         flag = ArFlags.init_by_bitshift(value)
-        return flag.name.lower()
+        return flag.name.lower() if flag.name else "unknown"
 
     @staticmethod
     def get_all_names():
-        return [i.name.lower() for i in ArFlags]
+        return [i.name.lower() for i in ArFlags if i.name]
 
     @staticmethod
     def bitshift_is_valid_flag(value: int) -> bool:
         return value >= 0 and Utils.is_power_of_two(1 << value) and 1 << value in [int(i) for i in ArFlags]
 
     def get_flags_description(self, pre=None) -> str:
-        """Flag formatting for standardization in dialogs
+        """Get a Markdown-formatted description of the flags set in this instance
 
         Parameters
         ----------
         pre: str
-            some empty space for indent, if a prefix string is not given
+            An optional prefix to add to the beginning of the description.
+            When omitted, the default is DISCORD_INDENT (renders in discord as blank spaces).
 
         Returns
         -------
         str
-            Description of which flags are set, or "DISABLED" if not active
+            A Description of which flags are set, or "DISABLED" if not active, formatted as Markdown
         """
         #
         pre = pre or DISCORD_INDENT
-        if ArFlags.ACTIVE in self:
+        if self & ArFlags.ACTIVE:
             return f'{pre} Flags: **{self}**'
         return f"{pre} ***DISABLED***"

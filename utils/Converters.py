@@ -4,7 +4,7 @@ from discord.ext.commands import Converter, BadArgument, UserConverter
 from pytz import UnknownTimeZoneError
 
 from utils import Utils
-from utils.Constants import ID_MATCHER
+from utils.Constants import ID_MATCHER, SIGNED_64_BIT_INTEGER_LIMIT
 
 
 class Timezone(Converter):
@@ -31,7 +31,9 @@ class DiscordUser(Converter):
         except BadArgument:
             try:
                 user = await Utils.get_user(
-                    await RangedInt(min=20000000000000000, max=9223372036854775807).convert(ctx, argument))
+                    await RangedInt(
+                        minimum=20000000000000000,
+                        maximum=SIGNED_64_BIT_INTEGER_LIMIT).convert(ctx, argument))
             except (ValueError, HTTPException):
                 pass
 
@@ -42,9 +44,9 @@ class DiscordUser(Converter):
 
 class RangedInt(Converter):
 
-    def __init__(self, min=None, max=None) -> None:
-        self.min = min
-        self.max = max
+    def __init__(self, minimum=None, maximum=None) -> None:
+        self.minimum = minimum
+        self.maximum = maximum
 
     async def convert(self, ctx, argument) -> int:
         try:
@@ -52,9 +54,9 @@ class RangedInt(Converter):
         except ValueError:
             raise BadArgument('NaN')
         else:
-            if self.min is not None and argument < self.min:
-                raise BadArgument(f'number is below minimum: {min}')
-            elif self.max is not None and argument > self.max:
-                raise BadArgument(f'number is above maximum: {max}')
+            if self.minimum is not None and argument < self.minimum:
+                raise BadArgument(f'number is below minimum: {self.minimum}')
+            elif self.maximum is not None and argument > self.maximum:
+                raise BadArgument(f'number is above maximum: {self.maximum}')
             else:
                 return argument

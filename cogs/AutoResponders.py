@@ -5,10 +5,10 @@ import re
 from collections.abc import ItemsView
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Union, Literal, List
+from typing import Optional, Union, Literal, List, Any
 
 import discord
-from discord import AllowedMentions, Message, TextChannel
+from discord import AllowedMentions, Message, TextChannel, Guild
 from discord.errors import NotFound, HTTPException, Forbidden
 from discord.ext import commands, tasks
 from discord.ext.commands import (Context, ChannelNotFound,
@@ -27,12 +27,13 @@ from utils.AutoResponderRule import ArRule
 from utils.Database import (AutoResponder, AutoResponderChannel, AutoResponse,
                             AutoResponderChannelType, AutoResponseType)
 from utils.Logging import TCol
+from utils.Utils import to_pretty_time
 
 
 @dataclass
 class ArPager:
+    message: discord.Message
     active_page: int = 0
-    message: discord.Message = None
 
 
 class ArCommandMode:
@@ -86,6 +87,8 @@ class AutoResponders(BaseCog):
     """
 
     trigger_length_max = 300
+    raw_response_fields_per_embed = 25
+    embeds_per_message = 10
     action_expiry_default = 86400
     cold_ping_default_threshold = 600
 
@@ -150,7 +153,7 @@ class AutoResponders(BaseCog):
         await AutoResponder.filter(serverid=guild.id).delete()
 
     @staticmethod
-    async def nope(ctx: Context, msg: str = None):
+    async def nope(ctx: Context, msg: str = ""):
         msg = msg or Lang.get_locale_string('common/nope', ctx)
         await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} {msg}")
 
@@ -161,7 +164,7 @@ class AutoResponders(BaseCog):
         return await AutoResponder.get_or_none(serverid=guild_id, trigger=trigger)
 
     @staticmethod
-    def validate_replies(reply_list: List) -> Optional[list[str]]:
+    def validate_replies(reply_list: List) -> Optional[set[str]]:
         output = []
         for reply in reply_list:
             if reply is not None and reply != "":
@@ -169,7 +172,94 @@ class AutoResponders(BaseCog):
 
         if not output:
             return None
-        return output
+        return set(output)
+
+    @staticmethod
+    async def describe_raw_response_embeds(timestamp, input_label, embed_color, input_deque):
+        embeds = []
+        my_embed: Optional[discord.Embed] = None
+
+        def current_embed() -> discord.Embed:
+            nonlocal my_embed
+            if my_embed is None or len(my_embed.fields) >= AutoResponders.raw_response_fields_per_embed:
+                my_embed = discord.Embed(
+                    timestamp=timestamp,
+                    color=embed_color,
+                    title=f"**{input_label}** responses")
+                embeds.append(my_embed)
+            # TODO: figure out why inspection needs this assertion
+            assert my_embed is not None
+            return my_embed
+
+        if len(input_deque) == 0:
+            return embeds
+
+        j = 1
+        while input_deque:
+            response = input_deque.popleft()
+            wrap = "" if response.active else "~~"
+            label = j if response.active else f"{j} [DISABLED]"
+            response_str = await Utils.clean(str(response))
+            i = 1
+            while len(response_str) > 1000:
+                output = response_str[:1000]
+                response_str = response_str[1000:]
+                current_embed().add_field(
+                    name=label if i == 1 else f"{label} (part {i})",
+                    value=f"{wrap}{output}{wrap}",
+                    inline=False)
+                i += 1
+            current_embed().add_field(
+                name=label if i == 1 else f"{label} (part {i})",
+                value=f"{wrap}{response_str}{wrap}",
+                inline=False)
+            j += 1
+        return embeds
+
+    @staticmethod
+    async def send_embed_chunks(ctx: Context, embeds: list[discord.Embed], content: str = ""):
+        for i, embed_chunk in enumerate(
+                Utils.chunk_list_or_string(embeds, AutoResponders.embeds_per_message)):
+            await ctx.send(content if i == 0 else None, embeds=embed_chunk)
+
+    async def get_raw_embeds(self, ctx: Context, trigger: str) -> Optional[list[discord.Embed]]:
+        row = await AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
+        if trigger is None or row is None:
+            await self.nope(ctx)
+            return None
+
+        embeds = []
+        embed = discord.Embed(
+            timestamp=ctx.message.created_at,
+            color=0xffe900,
+            title=Lang.get_locale_string("autoresponder/raw", ctx, server_name=ctx.guild.name))
+
+        embed.add_field(name="Raw trigger", value=trigger, inline=False)
+        embeds.append(embed)
+
+        embeds.extend(
+            await AutoResponders.describe_raw_response_embeds(
+                ctx.message.created_at,
+                "public",
+                0xc8ff00,
+                collections.deque(
+                    self.triggers[ctx.guild.id][trigger].responses[str(AutoResponseType.public)])))
+        embeds.extend(
+            await AutoResponders.describe_raw_response_embeds(
+                ctx.message.created_at,
+                "mod",
+                0x5ed900,
+                collections.deque(
+                    self.triggers[ctx.guild.id][trigger].responses[str(AutoResponseType.mod)])))
+        embeds.extend(
+            await AutoResponders.describe_raw_response_embeds(
+                ctx.message.created_at,
+                "log",
+                0x00954a,
+                collections.deque(
+                    self.triggers[ctx.guild.id][trigger].responses[str(AutoResponseType.log)])))
+
+        return embeds
 
     async def cog_check(self, ctx: Context):
         if ctx.guild is None:
@@ -424,7 +514,7 @@ class AutoResponders(BaseCog):
                                           allowed_mentions=AllowedMentions.none())
             for emoji in ['LEFT', 'RIGHT']:
                 await list_message.add_reaction(Emoji.get_emoji(emoji))
-            self.ar_list_messages[ctx.guild.id][list_message.id] = ArPager(0, list_message)
+            self.ar_list_messages[ctx.guild.id][list_message.id] = ArPager(list_message)
         else:
             await ctx.send(Lang.get_locale_string("autoresponder/none_set", ctx))
 
@@ -436,30 +526,36 @@ class AutoResponders(BaseCog):
     def mod_action_items_view(events: dict) -> ItemsView[int, dict]:
         return events.items()
 
-    def find_trigger_by_id(self, guild_id, ar_id):
+    def find_trigger_by_id(self, guild_id, ar_id) -> str:
         for trigger, data in AutoResponders.trigger_items_view(self.triggers[guild_id]):
             if data.id == ar_id:
                 return trigger
-        return None
+        raise ValueError(f"No trigger found for id {ar_id}")
 
-    def get_rule_by_id(self, guild_id: int, ar_id: int):
-        return self.triggers[guild_id][self.find_trigger_by_id(guild_id, ar_id)]
+    def get_rule_by_id(self, guild_id: int, ar_id: int) -> ArRule:
+        try:
+            return self.triggers[guild_id][self.find_trigger_by_id(guild_id, ar_id)]
+        except ValueError:
+            raise
 
-    async def choose_trigger(self, ctx: Context, trigger: Union[int, str]):
+    async def choose_trigger(self, ctx: Context, trigger: Optional[Union[int, str]]):
         if trigger is not None:
             try:
                 # check for trigger by db id
                 my_id = int(trigger)
-                trigger_by_id = self.find_trigger_by_id(ctx.guild.id, my_id)
-                if trigger_by_id is not None:
+                try:
+                    trigger_by_id = self.find_trigger_by_id(ctx.guild.id, my_id)
                     if str(trigger) in self.triggers[ctx.guild.id]:
                         # TODO: detect trigger text that also matches id and offer a choice
                         #  e.g. if trigger "134" and ar id 134 are different rules, choose
                         pass
                     return trigger_by_id
+                except ValueError:
+                   # Not found by id, fall through and prompt for trigger
+                   pass
             except ValueError:
                 if trigger in self.triggers[ctx.guild.id]:
-                    return trigger
+                    return str(trigger)
                 msg = Lang.get_locale_string(
                     'autoresponder/not_found', ctx, trigger=trigger)
                 await ctx.send(f"{Emoji.get_chat_emoji('NO')} {msg}")
@@ -495,12 +591,13 @@ class AutoResponders(BaseCog):
         prompt = Lang.get_locale_string('autoresponder/which_trigger', ctx)
 
         try:
-            chosen_trigger = int(await Questions.ask_text(self.bot,
-                                                          ctx.channel,
-                                                          ctx.author,
-                                                          prompt,
-                                                          locale=ctx,
-                                                          delete_after=True))
+            chosen_trigger = int(await Questions.ask_text(
+                self.bot,
+                ctx.channel,
+                ctx.author,
+                prompt,
+                locale=ctx,
+                delete_after=True))
             if chosen_trigger in trigger_str_by_id.keys():
                 chosen_trigger = trigger_str_by_id[chosen_trigger]
                 chosen: ArRule = self.triggers[ctx.guild.id][chosen_trigger]
@@ -521,7 +618,7 @@ class AutoResponders(BaseCog):
                     keys=key_dump))
             raise
 
-    async def validate_trigger(self, ctx: Context, trigger):
+    async def validate_trigger(self, ctx: Context, trigger: str):
         if len(trigger) == 0:
             msg = Lang.get_locale_string('autoresponder/empty_trigger', ctx)
             await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} {msg}")
@@ -541,7 +638,7 @@ class AutoResponders(BaseCog):
                 return fixed
             except json.decoder.JSONDecodeError:
                 return trigger
-        return False
+        raise ValueError("Invalid trigger")
 
     @commands.group(name="autoresponder", aliases=['ar'])
     @commands.guild_only()
@@ -553,7 +650,7 @@ class AutoResponders(BaseCog):
 
     @autor.command()
     @commands.guild_only()
-    async def info(self, ctx: Context, trigger: str = None):
+    async def info(self, ctx: Context, trigger: str = ""):
         """Show detailed information about an auto-responder
 
         Parameters
@@ -562,150 +659,95 @@ class AutoResponders(BaseCog):
         trigger
             The trigger or auto-responder ID to view
         """
+        guild = ctx.guild
+        assert isinstance(guild, Guild) # guild_only decorator enforces this
+
         try:
             trigger = await self.choose_trigger(ctx, trigger)
         except (ValueError, asyncio.TimeoutError):
-            return
+            raise CommandError("Couldn't match trigger. Try again.")
 
-        rule: ArRule = self.triggers[ctx.guild.id][trigger]
-        embeds = await ctx.invoke(self.get_raw, trigger=trigger, return_embeds=True)
-        await ctx.send(rule.get_info(), embeds=embeds)
+        rule: ArRule = self.triggers[guild.id][trigger]
+        embeds = await self.get_raw_embeds(ctx, trigger)
+        if embeds is None:
+            await self.nope(ctx)
+            return
+        await AutoResponders.send_embed_chunks(ctx, embeds, rule.get_info())
 
     @autor.command(aliases=["flags", "lf"])
     @commands.guild_only()
-    async def list_flags(self, ctx: Context, trigger: str = None):
+    async def list_flags(self, ctx: Context, trigger: str = ""):
         """List settings for a trigger/response
 
         Parameters
         ----------
         ctx
         trigger: str
-            Optionally name the trigger to select. If trigger is omitted, dialog will request it.
+            Optionally name the trigger to select. If the trigger is omitted, a dialog will request it.
         """
+        guild = ctx.guild
+        assert isinstance(guild, Guild) # guild_only decorator enforces this
+
         try:
             trigger = await self.choose_trigger(ctx, trigger)
         except (ValueError, asyncio.TimeoutError):
             return
 
-        trigger_obj: ArRule = self.triggers[ctx.guild.id][trigger]
+        trigger_obj: ArRule = self.triggers[guild.id][trigger]
         await ctx.send(
             f"{trigger_obj.short_description()}: {trigger_obj.flags.get_flags_description()}")
 
     @autor.command(aliases=["raw"])
     @commands.guild_only()
-    async def get_raw(self, ctx: Context, trigger: str = None, return_embeds: bool = False):
+    async def get_raw(self, ctx: Context, trigger: str = ""):
         """View raw trigger/response text for a given autoresponder
 
         Parameters
         ----------
         ctx
         trigger: str
-            Optionally name the trigger to select. If trigger is omitted, dialog will request it.
-        return_embeds: bool
-            If set, suppress message sending, and return list of embeds instead
+            Optionally name the trigger to select. If the trigger is omitted, a dialog will request it.
         """
         try:
             trigger = await self.choose_trigger(ctx, trigger)
         except (ValueError, asyncio.TimeoutError):
             return
 
-        row = await AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
-        if trigger is None or row is None:
+        embeds = await self.get_raw_embeds(ctx, trigger)
+        if embeds is None:
             await self.nope(ctx)
             return
-
-        embeds = []
-        embed = discord.Embed(
-            timestamp=ctx.message.created_at,
-            color=0xffe900,
-            title=Lang.get_locale_string("autoresponder/raw", ctx, server_name=ctx.guild.name))
-
-        embed.add_field(name="Raw trigger", value=trigger, inline=False)
-        embeds.append(embed)
-
-        async def describe(input_label, embed_color, input_deque):
-            my_embed = discord.Embed(
-                timestamp=ctx.message.created_at,
-                color=embed_color,
-                title=f"**{input_label}** responses")
-
-            if len(input_deque) == 0:
-                return None
-
-            i = 1
-            j = 1
-            while input_deque:
-                response = input_deque.popleft()
-                wrap = "" if response.active else "~~"
-                label = j if response.active else f"{j} [DISABLED]"
-                response_str = await Utils.clean(str(response))
-                while len(response_str) > 1000:
-                    output = response_str[:1000]
-                    response_str = response_str[1000:]
-                    my_embed.add_field(
-                        name=label if i == 1 else f"{label} (part {i})",
-                        value=f"{wrap}{output}{wrap}",
-                        inline=False)
-                    i += 1
-                my_embed.add_field(
-                    name=label if i == 1 else f"{label} (part {i})",
-                    value=f"{wrap}{response_str}{wrap}",
-                    inline=False)
-                j += 1
-            return my_embed
-
-        embeds.append(
-            await describe(
-                "public",
-                0xc8ff00,
-                collections.deque(
-                    self.triggers[ctx.guild.id][trigger].responses[str(AutoResponseType.public)])))
-        embeds.append(
-            await describe(
-                "mod",
-                0x5ed900,
-                collections.deque(
-                    self.triggers[ctx.guild.id][trigger].responses[str(AutoResponseType.mod)])))
-        embeds.append(
-            await describe(
-                "log",
-                0x00954a,
-                collections.deque(
-                    self.triggers[ctx.guild.id][trigger].responses[str(AutoResponseType.log)])))
-
-        embeds = [x for x in embeds if x is not None]
-        if return_embeds:
-            return embeds
-        await ctx.send(embeds=embeds)
-        return None
+        await AutoResponders.send_embed_chunks(ctx, embeds)
 
     @autor.group(name='settings', aliases=['set'], invoke_without_command=True)
     @commands.guild_only()
     @commands.bot_has_permissions(embed_links=True)
     async def ar_conf_set(self, ctx: Context):
         """List auto-responder global settings if no subcommand is given."""
+        guild = ctx.guild
+        assert isinstance(guild, Guild) # guild_only decorator enforces this
 
         embed = discord.Embed(
             timestamp=ctx.message.created_at,
             color=0x663399,
-            title=f"Auto-responder settings for {ctx.guild.name}")
+            title=f"Auto-responder settings for {guild.name}")
 
         action_expiry = Configuration.get_var(
-            f'auto_action_expiry_seconds_{ctx.guild.id}',
+            f'auto_action_expiry_seconds_{guild.id}',
             AutoResponders.action_expiry_default)
         cold_ping_time = Configuration.get_var(
-            f'autoresponder_max_mentionable_age_{ctx.guild.id}',
+            f'autoresponder_max_mentionable_age_{guild.id}',
             AutoResponders.cold_ping_default_threshold)
         a, b, c, ignore_description = await ArRule.get_global_ignore_channels(
-            self.bot, ctx.guild.id)
+            self.bot, guild.id)
 
         embed.add_field(
             name="Cold Ping Threshold",
-            value=cold_ping_time,
+            value=to_pretty_time(cold_ping_time),
             inline=False)
         embed.add_field(
             name="Mod Action Expiration",
-            value=action_expiry,
+            value=to_pretty_time(action_expiry),
             inline=False)
         embed.add_field(
             name="Global Ignore Channels",
@@ -725,19 +767,22 @@ class AutoResponders(BaseCog):
         expiry_seconds
             Time in seconds. (e.g. 3600 for one hour, 86400 for one day) Default is 1 day.
         """
+        guild = ctx.guild
+        assert isinstance(guild, Guild) # guild_only decorator enforces this
+
         if expiry_seconds == 0:
             expiry_seconds = AutoResponders.action_expiry_default
 
-        old_exp = self.mod_action_expiry[ctx.guild.id]
+        old_exp = self.mod_action_expiry[guild.id]
         exp = Utils.to_pretty_time(expiry_seconds)
         if old_exp == expiry_seconds:
             await ctx.send(f"mod action message expiration time is already {exp}")
             return
         try:
             # save to configuration and local var last in case saving config raises error
-            Configuration.MASTER_CONFIG[f'auto_action_expiry_seconds_{ctx.guild.id}'] = expiry_seconds
+            Configuration.MASTER_CONFIG[f'auto_action_expiry_seconds_{guild.id}'] = expiry_seconds
             Configuration.save()
-            self.mod_action_expiry[ctx.guild.id] = expiry_seconds
+            self.mod_action_expiry[guild.id] = expiry_seconds
             await ctx.send(f"{Emoji.get_chat_emoji('YES')} "
                            f"Configuration saved. "
                            f"Autoresponder mod action messages are now valid for {exp}")
@@ -754,13 +799,16 @@ class AutoResponders(BaseCog):
         max_age
             Threshold value, in seconds
         """
+        guild = ctx.guild
+        assert isinstance(guild, Guild) # guild_only decorator enforces this
+
         max_age = int(max_age)
         if max_age < 0:
             await ctx.send("Sorry, I can't wait less than zero time, "
                            "or else I'd have to ping everyone in advance")
             return
 
-        Configuration.MASTER_CONFIG[f'autoresponder_max_mentionable_age_{ctx.guild.id}'] = max_age
+        Configuration.MASTER_CONFIG[f'autoresponder_max_mentionable_age_{guild.id}'] = max_age
         Configuration.save()
 
         if max_age == 0:
@@ -773,14 +821,14 @@ class AutoResponders(BaseCog):
     @autor.command()
     @commands.guild_only()
     async def reload(self, ctx: Context):
-        """Reload all AutoResponders for the current guild from database"""
+        """Reload all AutoResponders for the current guild from the database"""
         await self.reload_triggers(ctx)
         await ctx.send("reloaded:")
         await self.list_auto_responders(ctx)
 
     @autor.command()
     @commands.guild_only()
-    async def create(self, ctx: Context, trigger: str, *, reply: str = None):
+    async def create(self, ctx: Context, trigger: str, *, reply: str = ""):
         """Add a new trigger/response
 
         Specify the trigger string and the response.
@@ -796,18 +844,28 @@ class AutoResponders(BaseCog):
             `«[["one", "two"]]»` will match a message with one **OR** two
             `«[["one", "two"],["three", "four"]]»` will match `one three`, `one four`, `two three`, or `two four`
         reply
-            Public response to comments that match the trigger. To specify multiple responses, terminate each response
-            with both a semicolon and newline.
+            Public response to comments that match the trigger.
+
+            To specify multiple responses, terminate each response with both a semicolon and a newline.
             Add responses and response types later with the `autoresponder response add [type]` command.
             All auto-responses can include these tokens (include curly braces):
+
             {author} mentions the user who triggered
-            {channel} mentions the channel in which response was triggered
+
+            {channel} mentions the channel in which a response was triggered
+
             {link} links to the message that triggered response
+
             {trigger_message} contents of the message that matched the trigger
+
             {matched} the token or list of tokens that matched the trigger
         """
-        trigger = await self.validate_trigger(ctx, trigger)
-        if not trigger:
+        guild = ctx.guild
+        assert isinstance(guild, Guild) # guild_only decorator enforces this
+
+        try:
+            trigger = await self.validate_trigger(ctx, trigger)
+        except ValueError as e:
             await ctx.send(Lang.get_locale_string('autoresponder/not_updating', ctx))
             return
 
@@ -818,17 +876,18 @@ class AutoResponders(BaseCog):
         last = re.sub(r';$', '', last)
         replies[-1:] = [last]
 
-        validated_replies = set(AutoResponders.validate_replies(replies))
+
+        validated_replies = AutoResponders.validate_replies(replies)
         if validated_replies is None:
             await ctx.send(
                 f"{Emoji.get_chat_emoji('WHAT')} "
                 f"{Lang.get_locale_string('autoresponder/empty_reply', ctx)}")
             return
 
-        ar_row = await self.get_db_trigger(ctx.guild.id, trigger)
+        ar_row = await self.get_db_trigger(guild.id, trigger)
         if ar_row is None:
             try:
-                ar_row = await AutoResponder.create(serverid=ctx.guild.id, trigger=trigger)
+                ar_row = await AutoResponder.create(serverid=guild.id, trigger=trigger)
                 for this_reply in validated_replies:
                     response_row = await AutoResponse.create(
                         autoresponder=ar_row,
@@ -847,15 +906,18 @@ class AutoResponders(BaseCog):
 
     @autor.command(aliases=["del", "delete"])
     @commands.guild_only()
-    async def remove(self, ctx: Context, trigger: str = None):
+    async def remove(self, ctx: Context, trigger: Optional[str] = None):
         """Remove a trigger/response.
 
         Parameters
         ----------
         ctx
         trigger
-            Optionally name the trigger to select. If trigger is omitted, dialog will request it.
+            Optionally name the trigger to select. If the trigger is omitted, a dialog will request it.
         """
+        guild = ctx.guild
+        assert isinstance(guild, Guild) # guild_only decorator enforces this
+
         try:
             trigger = await self.choose_trigger(ctx, trigger)
         except (ValueError, asyncio.TimeoutError):
@@ -868,9 +930,9 @@ class AutoResponders(BaseCog):
             msg = Lang.get_locale_string('autoresponder/removed', ctx, trigger=desc)
 
             # Delete from db and memory
-            ar_row = await AutoResponder.get(serverid=ctx.guild.id, trigger=trigger)
+            ar_row = await AutoResponder.get(serverid=guild.id, trigger=trigger)
             await ar_row.delete()
-            del self.triggers[ctx.guild.id][trigger]
+            del self.triggers[guild.id][trigger]
 
             # respond and reload from db
             await ctx.send(f"{Emoji.get_chat_emoji('YES')} {msg}")
@@ -896,8 +958,8 @@ class AutoResponders(BaseCog):
                        ctx: Context,
                        mode: ArCommandMode.ResponseCommandModes,
                        response_type: ArResponseType.ResponseTypes,
-                       trigger: str = None,
-                       *, response: str = None):
+                       trigger: Optional[str] = None,
+                       *, response: Optional[str] = None):
         """Add, remove, or edit a response of any type for a given AutoResponder
 
         Parameters
@@ -948,10 +1010,12 @@ class AutoResponders(BaseCog):
         choice_list = '\n'.join(choice_list)
 
         async def list_existing():
-            # list existing responses for type
-            await ctx.send(f"**{response_type}** responses for ar id {my_rule.id}:\n"
-                           f"{choice_list}",
-                           allowed_mentions=AllowedMentions.none())
+            # list existing responses for the selected type
+            output = (f"**{response_type}** responses for ar id {my_rule.id}:\n"
+                      f"{choice_list}")
+            pages = Utils.paginate(output)
+            for page in pages:
+                await ctx.send(page, allowed_mentions=AllowedMentions.none())
 
         if mode in [ArCommandMode.Remove,
                     ArCommandMode.Edit,
@@ -1091,7 +1155,7 @@ class AutoResponders(BaseCog):
 
     @autor.command(aliases=["edit", "trigger", "st"])
     @commands.guild_only()
-    async def set_trigger(self, ctx: Context, trigger: str = None, *, new_trigger: str = None):
+    async def set_trigger(self, ctx: Context, trigger: str = '', *, new_trigger: str = ''):
         """Update tan autoresponder trigger
 
         Parameters
@@ -1102,13 +1166,15 @@ class AutoResponders(BaseCog):
         new_trigger: str
             The new trigger to replace the old (no need for quotes)
         """
+        guild = ctx.guild
+        assert isinstance(guild, Guild) # guild_only decorator enforces this
+
         try:
-            trigger = await self.choose_trigger(ctx, trigger)
+            valid_trigger = await self.choose_trigger(ctx, trigger)
         except (ValueError, asyncio.TimeoutError):
             raise CommandError
 
-        # trigger = await Utils.clean(trigger, links=False)
-        if new_trigger is None:
+        if new_trigger == '':
             try:
                 new_trigger = await Questions.ask_text(
                     self.bot,
@@ -1118,27 +1184,31 @@ class AutoResponders(BaseCog):
                     escape=False,
                     locale=ctx)
             except asyncio.TimeoutError:
-                # empty trigger emits message when validated below. pass exception
+                # an empty trigger causes a validation message to be sent in validate_trigger
+                # so this can be ignored
                 pass
 
-        new_trigger = await self.validate_trigger(ctx, new_trigger)
-        if new_trigger is not False:
-            trigger = await AutoResponder.get_or_none(serverid=ctx.guild.id, trigger=trigger)
-            if trigger is None:
-                await self.nope(ctx)
-            else:
-                trigger.trigger = new_trigger
-                await trigger.save()
-                await self.reload_triggers(ctx)
+        try:
+            new_trigger = await self.validate_trigger(ctx, new_trigger)
+        except ValueError:
+            return
 
-                await ctx.send(
-                    f"{Emoji.get_chat_emoji('YES')} "
-                    f"{Lang.get_locale_string('autoresponder/updated', ctx, trigger=new_trigger)}"
-                )
+        trigger_row = await AutoResponder.get_or_none(serverid=guild.id, trigger=valid_trigger)
+        if trigger_row is None:
+            await self.nope(ctx)
+            return
+
+        trigger_row.trigger = new_trigger
+        await trigger_row.save()
+        await self.reload_triggers(ctx)
+
+        await ctx.send(
+            f"{Emoji.get_chat_emoji('YES')} "
+            f"{Lang.get_locale_string('autoresponder/updated', ctx, trigger=new_trigger)}")
 
     @autor.command(aliases=["chance"])
     @commands.guild_only()
-    async def set_chance(self, ctx: Context, trigger: str = None, *, chance: float = None):
+    async def set_chance(self, ctx: Context, trigger: str = '', *, chance: Optional[float] = None):
         """Set the probability for matching message to trigger a response
 
         Parameters
@@ -1150,6 +1220,9 @@ class AutoResponders(BaseCog):
             Probability of triggering autoresponder,
             expressed as a percentage with up to 2 decimal places, e.g. 35.15
         """
+        guild = ctx.guild
+        assert isinstance(guild, Guild) # guild_only decorator enforces this
+
         try:
             trigger = await self.choose_trigger(ctx, trigger)
         except (ValueError, asyncio.TimeoutError):
@@ -1168,7 +1241,7 @@ class AutoResponders(BaseCog):
                 return
 
         try:
-            ar_row = await self.get_db_trigger(ctx.guild.id, trigger)
+            ar_row = await self.get_db_trigger(guild.id, trigger)
             if ar_row is None:
                 await self.nope(ctx)
                 return
@@ -1182,7 +1255,7 @@ class AutoResponders(BaseCog):
             Lang.get_locale_string(
                 'autoresponder/chance_set', ctx,
                 chance=chance / 100,
-                trigger=self.triggers[ctx.guild.id][trigger].short_description('')))
+                trigger=self.triggers[guild.id][trigger].short_description('')))
         await self.reload_triggers(ctx)
 
     @autor.command(aliases=['ignore'])
@@ -1201,7 +1274,7 @@ class AutoResponders(BaseCog):
         mode
             Add, Remove, or List
         channels
-            The channels to add/remove from global ignore list
+            The channels to add/remove from the global ignore list
         """
         global_ignore_rows, global_ignore_channels, global_ignore_channel_ids, ignore_description = \
             await ArRule.get_global_ignore_channels(self.bot, ctx.guild.id)
@@ -1319,8 +1392,8 @@ class AutoResponders(BaseCog):
                        ctx: Context,
                        mode: ArCommandMode.ChannelCommandModes,
                        channel_type: ArChannelType.ChannelTypes,
-                       trigger: str = None,
-                       channel: TextChannel = None):
+                       trigger: Optional[str] = None,
+                       channel: Optional[TextChannel] = None):
         """Add or remove a channel for AutoResponder handling
 
         Parameters
@@ -1331,10 +1404,12 @@ class AutoResponders(BaseCog):
         channel_type
             Ignore, listen, response, log, or mod
         trigger
-            Trigger id or text
+            A Trigger id or text
         channel
-            Channel to configure
+            A Channel to configure
         """
+        guild = ctx.guild
+        assert isinstance(guild, Guild) # guild_only decorator enforces this
 
         types = {
             ArChannelType.Listen: AutoResponderChannelType.listen,
@@ -1351,7 +1426,7 @@ class AutoResponders(BaseCog):
         except (ValueError, asyncio.TimeoutError):
             return
 
-        rule: ArRule = self.triggers[ctx.guild.id][trigger]
+        rule: ArRule = self.triggers[guild.id][trigger]
 
         channel_groups = {
             ArChannelType.Listen: rule.listen_channels,
@@ -1431,7 +1506,7 @@ class AutoResponders(BaseCog):
             except asyncio.TimeoutError:
                 return
 
-        ar_row = await self.get_db_trigger(ctx.guild.id, trigger)
+        ar_row = await self.get_db_trigger(guild.id, trigger)
 
         if not ar_row or not channel_id:
             raise CommandError
@@ -1449,7 +1524,7 @@ class AutoResponders(BaseCog):
                         ctx,
                         channel_type=channel_type,
                         channel_desc=Utils.get_channel_description(self.bot, channel_id),
-                        trigger=self.triggers[ctx.guild.id][trigger].short_description('')))
+                        trigger=self.triggers[guild.id][trigger].short_description('')))
                 else:
                     await ctx.send(
                         f"{Emoji.get_chat_emoji('WARNING')} "
@@ -1506,21 +1581,21 @@ class AutoResponders(BaseCog):
                 ctx,
                 channel=channel.mention,
                 channel_type=channel_type,
-                trigger=self.triggers[ctx.guild.id][trigger].short_description('')))
+                trigger=self.triggers[guild.id][trigger].short_description('')))
 
         await self.reload_triggers(ctx)
 
     @autor.command(aliases=["sf"])
     @commands.guild_only()
     async def set_flag(
-            self, ctx: Context, trigger: str = None, flag_index: int = None, value: bool = None):
+            self, ctx: Context, trigger: Optional[str] = None, flag_index: Optional[int] = None, value: Optional[bool] = None):
         """Set an on/off option for a trigger/response
 
         Parameters
         ----------
         ctx
         trigger: str
-            Optionally name the trigger to select. If trigger is omitted, dialog will request it.
+            Optionally name the trigger to select. If the trigger is omitted, a dialog will request it.
         flag_index: int
             Flag number
         value: bool
@@ -1629,7 +1704,7 @@ class AutoResponders(BaseCog):
         command_context = message.content.startswith(prefix, 0) and is_mod
 
         if guild.id not in self.triggers or command_context:
-            # Guild not initialized or AR items empty? Ignore.
+            # Guild is not initialized or AR items empty? Ignore.
             return
 
         # search guild auto-responders
@@ -1644,7 +1719,7 @@ class AutoResponders(BaseCog):
                 # All actions for the matched rule completed, or no match. Evaluate the next rule
                 continue
 
-            if my_event.has_mod_action():
+            if await my_event.has_mod_action():
                 await self.add_mod_action(my_event)
             else:
                 sent = await my_event.send_public_response()
@@ -1652,7 +1727,7 @@ class AutoResponders(BaseCog):
                 # Responding in other channels is usually for mods and logs,
                 # so only allow future delete if the response is sent in the triggering channel
                 delete_in_future = rule.flag_is_set(ArFlags.DELETE_WHEN_TRIGGER_DELETED)
-                response_in_trigger_channel = my_event.response_channel == message.channel
+                response_in_trigger_channel = my_event.response_channel_id == message.channel.id
 
                 if sent and response_in_trigger_channel and delete_in_future:
                     self.future_delete(
@@ -1693,8 +1768,11 @@ class AutoResponders(BaseCog):
         # TODO: can future delete be handled by ArEvent? use cog to broadcast delete events
 
         # Do not queue for delete if the trigger is no longer active
-        rule = self.get_rule_by_id(guild_id, ar_id)
-        if not rule.flag_is_set(ArFlags.ACTIVE):
+        try:
+            rule = self.get_rule_by_id(guild_id, ar_id)
+            if not rule.flag_is_set(ArFlags.ACTIVE):
+                return
+        except ValueError:
             return
 
         if guild_id not in self.awaiting_delete:
@@ -1797,7 +1875,7 @@ class AutoResponders(BaseCog):
         my_pager.active_page = page
 
     async def add_mod_action(self, ar_event):
-        """Send mod action message and queue followup actions
+        """Send a mod action message and queue followup actions
 
         Parameters
         ----------
@@ -1818,7 +1896,7 @@ class AutoResponders(BaseCog):
         Configuration.set_persistent_var(f"mod_messages_{gid}", self.mod_messages[gid])
 
     async def do_mod_action(self, ar_event, member, message, emoji):
-        """Perform a mod action, triggered by react
+        """Perform a mod action, triggered by a reaction
 
         Parameters
         ----------
@@ -1884,14 +1962,20 @@ class AutoResponders(BaseCog):
                 allow_mentions = (datetime.now().timestamp() - trigger_message.created_at.timestamp()) < max_age
                 mentions = AllowedMentions(users=True) if allow_mentions else AllowedMentions.none()
 
-                use_reply = ar_event.rule.flag_is_set(ArFlags.USE_REPLY)
-                delete_now = ar_event.rule.flag_is_set(ArFlags.DELETE_ON_MOD_RESPOND)
-                future_delete = ar_event.rule.flag_is_set(ArFlags.DELETE_WHEN_TRIGGER_DELETED)
+                rule = await ar_event.get_rule()
+                use_reply = rule.flag_is_set(ArFlags.USE_REPLY)
+                delete_now = rule.flag_is_set(ArFlags.DELETE_ON_MOD_RESPOND)
+                future_delete = rule.flag_is_set(ArFlags.DELETE_WHEN_TRIGGER_DELETED)
 
-                public_response = await trigger_message.channel.send(
-                    content=msg,
-                    allowed_mentions=mentions,
-                    reference=trigger_message if use_reply else None)
+                # assert isinstance(msg, str)
+                my_args: dict[str, Any] = {
+                    'content': msg,
+                    'allowed_mentions': mentions
+                }
+                if use_reply:
+                    my_args['reference'] = trigger_message
+
+                public_response = await trigger_message.channel.send(**my_args)
 
                 # delete_now takes precedence over future_delete
                 if delete_now:
