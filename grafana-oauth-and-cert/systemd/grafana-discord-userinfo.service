@@ -1,0 +1,27 @@
+[Unit]
+Description=Grafana Discord UserInfo compatibility adapter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=grafana-oauth
+Group=grafana-oauth
+WorkingDirectory=/usr/local/lib/grafana-discord-userinfo
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 -I /usr/local/lib/grafana-discord-userinfo/adapter.py
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

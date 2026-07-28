@@ -1,0 +1,87 @@
+#!/bin/sh
+set -eu
+
+target_lineage=/etc/letsencrypt/live/grafana.example.com
+destination_dir=/etc/grafana/certs
+certificate_destination=$destination_dir/fullchain.pem
+key_destination=$destination_dir/privkey.pem
+log_tag=grafana-cert-refresh
+
+log_message() {
+    logger -t "$log_tag" -- "$*"
+}
+
+if [ "${RENEWED_LINEAGE:-}" != "$target_lineage" ]; then
+    log_message "Skipping unrelated lineage: ${RENEWED_LINEAGE:-unset}"
+    exit 0
+fi
+
+install -d -o root -g grafana -m 0750 "$destination_dir"
+
+certificate_temporary=$(mktemp "$destination_dir/.fullchain.pem.XXXXXX")
+key_temporary=$(mktemp "$destination_dir/.privkey.pem.XXXXXX")
+
+cleanup() {
+    if [ -n "${certificate_temporary:-}" ]; then
+        rm -f -- "$certificate_temporary"
+    fi
+    if [ -n "${key_temporary:-}" ]; then
+        rm -f -- "$key_temporary"
+    fi
+}
+trap cleanup EXIT HUP INT TERM
+
+install -o root -g grafana -m 0640 \
+    "$RENEWED_LINEAGE/fullchain.pem" "$certificate_temporary"
+install -o root -g grafana -m 0640 \
+    "$RENEWED_LINEAGE/privkey.pem" "$key_temporary"
+
+if ! openssl x509 -in "$certificate_temporary" -noout >/dev/null 2>&1; then
+    log_message "Certificate validation failed"
+    exit 1
+fi
+
+if ! openssl pkey -in "$key_temporary" -noout -check >/dev/null 2>&1; then
+    log_message "Private-key validation failed"
+    exit 1
+fi
+
+certificate_public_key=$(
+    openssl x509 -in "$certificate_temporary" -pubkey -noout |
+        openssl pkey -pubin -outform DER 2>/dev/null |
+        sha256sum |
+        awk '{print $1}'
+)
+private_public_key=$(
+    openssl pkey -in "$key_temporary" -pubout -outform DER 2>/dev/null |
+        sha256sum |
+        awk '{print $1}'
+)
+
+if [ "$certificate_public_key" != "$private_public_key" ]; then
+    log_message "Certificate and private key do not match"
+    exit 1
+fi
+
+mv -f -- "$certificate_temporary" "$certificate_destination"
+certificate_temporary=
+mv -f -- "$key_temporary" "$key_destination"
+key_temporary=
+
+systemctl restart grafana-server
+
+attempt=0
+while [ "$attempt" -lt 30 ]; do
+    if systemctl is-active --quiet grafana-server &&
+        curl --silent --show-error --fail --insecure --max-time 2 \
+            https://127.0.0.1:3000/api/health |
+            grep -q '"database": "ok"'; then
+        log_message "Grafana certificate refreshed and HTTPS health check passed"
+        exit 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+done
+
+log_message "Grafana did not become healthy within 30 seconds"
+exit 1
