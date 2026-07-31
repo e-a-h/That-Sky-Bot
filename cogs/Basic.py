@@ -1,17 +1,19 @@
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, Union
+from logging import getLevelName
+from typing import Optional, Union, Literal
 
 import discord
 from discord import app_commands, Interaction
+from discord.app_commands import Choice
 from discord.ext.commands import Context, Greedy, is_owner, guild_only, command
 
 from cogs.BaseCog import BaseCog
 from utils import Utils, Logging
 from utils.Helper import Sender
 from utils.Logging import TCol
-from utils.Utils import interaction_response
+from utils.Utils import interaction_response, parse_date_with_pacific_fallback, check_is_owner
 
 
 class SyncValues(Enum):
@@ -38,8 +40,32 @@ class Basic(BaseCog):
         t2 = time.perf_counter()
         rest = round((t2 - t1) * 1000)
         latency = round(self.bot.latency * 1000, 2)
-        edited_message = await message.edit(
+        await message.edit(
             content=f":hourglass: REST API ping is {rest} ms | Websocket ping is {latency} ms :hourglass:")
+
+    @app_commands.command(description="Set log level")
+    @app_commands.describe(
+        level="The log level. Default is INFO.",
+        logger="The logger. Default is BOT.")
+    @app_commands.check(check_is_owner)
+    @app_commands.default_permissions(manage_channels=True)
+    async def set_log_level(
+            self,
+            interaction: Interaction,
+            level: Optional[Logging.LogLevelOptions] = None,
+            logger: Optional[Literal['BOT', 'DISCORD']] = None):
+        """Set log level"""
+        if not level:
+            level = Logging.LogLevelOptions.INFO
+
+        my_logger = Logging.LOGGER
+        if logger == "DISCORD":
+            my_logger = Logging.DISCORD_LOGGER
+
+        Logging.debug(f"Basic/set_log_level: {level}", TCol.Cyan)
+        Logging.set_level(level, my_logger)
+        my_level = getLevelName(Logging.get_level(my_logger))
+        await interaction_response(interaction).send_message(f"Log level set to {my_level}", ephemeral=True)
 
     @app_commands.command(description="Get discord time stamps")
     @app_commands.describe(request_formats="Available formats: d D t T f F R s")
@@ -47,19 +73,29 @@ class Basic(BaseCog):
     async def timestamp(
             self,
             interaction: Interaction,
-            request_formats: str = ""):
-        """Print timestamp for current time. TODO: print timestamp for a given datetime or offset
+            request_formats: str = "",
+            date_time: str = ""):
+        """Print a timestamp for the current or specified time.
 
         Parameters
         ----------
         interaction
         request_formats
             Available formats: d D t T f F R s
+        date_time
+            Date/Time in ISO-8601 Format: YYYY-MM-DD HH:MM:SS [+/-<:offset>]
+            Assumes Pacific Time if no offset is specified.
         """
-        if interaction.user.bot:
-            return
+        if date_time:
+            try:
+                dt = parse_date_with_pacific_fallback(date_time)
+            except ValueError:
+                await interaction_response(interaction).send_message("Invalid date/time format", ephemeral=True)
+                return
+        else:
+            dt = datetime.now(timezone.utc)
 
-        now = int(datetime.now().timestamp())
+        now = int(dt.timestamp())
         formats = {
             'd': f"<t:{now}:d>",
             'D': f"<t:{now}:D>",
@@ -91,32 +127,32 @@ class Basic(BaseCog):
 
     @app_commands.guild_only()
     @app_commands.command()
+    @app_commands.check(check_is_owner)
     @app_commands.default_permissions(manage_channels=True)
     async def sync_app_commands(
             self,
             interaction: Interaction,
-            operation: Optional[SyncValues],
-            guild: str = None) -> None:
-        if not await self.bot.is_owner(interaction.user):
-            # Permissions prevent most from seeing the command, but owner is required
-            await interaction_response(interaction).send_message(f"you're not <@{self.bot.owner_id}>,  you can't do that!", ephemeral=True)
-            return
-
+            operation: Optional[SyncValues] = None,
+            guild_id: Optional[int] = None) -> None:
         guilds = []
-        if guild:
+        if guild_id:
             for candidate_guild in self.bot.guilds:
-                if candidate_guild.name == guild:
-                    guilds.append(candidate_guild.id)
+                if candidate_guild.id == guild_id:
+                    guilds = [candidate_guild.id]
+                    break
+        Logging.debug(f"Syncing --\n"
+                      f"\tguilds: {guilds}\n"
+                      f"\tspec: {operation.name if operation else 'global'}")
         await self.do_sync(interaction, guilds=guilds, spec=operation.value if operation else "")
 
-    @sync_app_commands.autocomplete('guild')
+    @sync_app_commands.autocomplete('guild_id')
     async def guild_autocomplete(
             self,
             interaction: discord.Interaction,
-            current: str) -> list[app_commands.Choice[str]]:
-        guilds = [guild for guild in self.bot.guilds]
+            current: str) -> list[Choice[Union[int, str, float]]]:
+        guilds = self.bot.guilds
         ret = [
-            app_commands.Choice(name=guild.name, value=guild.name)
+            app_commands.Choice(name=guild.name, value=guild.id)
             for guild in guilds if current.lower() in guild.name.lower()
         ]
         return ret
@@ -127,7 +163,7 @@ class Basic(BaseCog):
     async def app_command_sync(
             self,
             ctx: Context,
-            guilds: Greedy[discord.Object] = None,
+            guilds: Greedy[discord.Object] = None,  # type: ignore
             spec: Optional[SyncValues] = None) -> None:
         """
         Sync commands by guild or globally
@@ -140,41 +176,50 @@ class Basic(BaseCog):
         spec: str
             Sync type: [~]current [*]global to local [^]clear tree"""
         validated_guilds = []
-        # Logging.info("guilds: "+repr(guilds))
+        Logging.debug("guilds: "+repr(guilds))
         if guilds:
             for i in guilds:
                 validated_guilds.append(i.id)
-        # Logging.info("my_guilds: "+repr(validated_guilds))
-        # Logging.info("spec: "+repr(spec))
-        await self.do_sync(ctx, validated_guilds, spec.value if spec else '')
+        Logging.debug("my_guilds: "+repr(validated_guilds))
+        Logging.debug("spec: "+repr(spec))
+        await self.do_sync(ctx, validated_guilds, spec if spec else '')
 
-    async def do_sync(self, ctx: Union[Context, Interaction], guilds: list[int] = None, spec: str = "") -> None:
+    async def do_sync(self, ctx: Union[Context, Interaction], guilds: list[int], spec: str = "") -> None:
         sender = Sender(ctx)
+        guild = ctx.guild
+        if guild is None:
+            await sender.send("Sync failed. This command must be used in a guild.", ephemeral=True)
+            return
         if not guilds:
+            guild_arg = {"guild": guild}
             if spec == SyncValues.Current.value:
-                synced = await self.bot.tree.sync(guild=ctx.guild)
+                Logging.debug("Syncing current guild")
             elif spec == SyncValues.GlobalToLocal.value:
-                self.bot.tree.copy_global_to(guild=ctx.guild)
-                synced = await self.bot.tree.sync(guild=ctx.guild)
+                Logging.debug("Syncing global to local")
+                self.bot.tree.copy_global_to(guild=guild)
             elif spec == SyncValues.ClearTree.value:
-                self.bot.tree.clear_commands(guild=ctx.guild)
-                await self.bot.tree.sync(guild=ctx.guild)
-                synced = []
+                Logging.debug("Clearing command tree")
+                self.bot.tree.clear_commands(guild=guild)
             else:
-                synced = await self.bot.tree.sync()
+                Logging.debug("Syncing globally")
+                guild_arg = {}
+
+            synced = await self.bot.tree.sync(**guild_arg)
 
             await sender.send(
-                f"Synced {len(synced)} commands {'globally' if spec is None else 'to the current guild.'}",
+                f"Synced {len(synced)} commands {'globally' if not spec else 'to the current guild.'}",
                 ephemeral=True)
             return
 
         ret = 0
-        Logging.info("do guilds: " + repr(guilds))
+        Logging.debug("do guilds: " + repr(guilds))
         for guild_id in guilds:
             try:
                 a_guild = self.bot.get_guild(guild_id)
                 if a_guild is None or a_guild not in self.bot.guilds:
+                    Logging.debug(f"Guild {guild_id} not found")
                     continue
+                Logging.debug(f"Syncing guild {guild_id}")
                 await self.bot.tree.sync(guild=a_guild)
             except discord.HTTPException:
                 pass

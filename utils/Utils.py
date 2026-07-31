@@ -11,6 +11,8 @@ from enum import EnumMeta, Enum
 from json import JSONDecodeError
 from typing import (TYPE_CHECKING, Union, Collection, Dict, Optional,
                     OrderedDict, Pattern, Tuple, Match)
+from zoneinfo import ZoneInfo
+
 from utils import Database
 
 import discord
@@ -132,7 +134,11 @@ async def permission_official_ban(ctx: Union[Context, Interaction]) -> bool:
 #####################################
 
 def check_is_owner(interaction: Interaction) -> bool:
-    return interaction.user.id == BOT.owner_id
+    """Check if the user is the bot owner."""
+    is_owner = interaction.user.id == BOT.owner_id
+    if not is_owner:
+        Logging.warn(f"check_is_owner: {interaction.user.id} != {BOT.owner_id}")
+    return is_owner
 
 #####################################
 # END App command interaction checks
@@ -357,7 +363,7 @@ def get_embed_and_log_exception(
         sentry_sdk.add_breadcrumb(category='kwarg info', message=kwarg_info, level='info')
 
         lines.append("======================STACKTRACE======================")
-        tb = "".join(traceback.format_tb(exception.__traceback__))
+        tb = "".join(traceback.format_exception(type(exception), exception, exception.__traceback__))
         lines.append(tb)
 
         if message is None and ctx is not None and hasattr(ctx, "message"):
@@ -793,3 +799,26 @@ def get_bitshift(value: int) -> int:
 def interaction_response(interaction: Interaction) -> InteractionResponse:
     """This exists only for type hinting because pycharm can't properly infer type for interaction.response"""
     return typing.cast(InteractionResponse, interaction.response)
+
+def parse_date_with_pacific_fallback(date_str: str) -> datetime:
+    """Parses a 'YYYY-MM-DD HH:MM' string.
+
+    Allows a trailing offset after a space.
+    Falls back to America/Los_Angeles if the offset is missing.
+    """
+    # Clean up double spaces and strip trailing whitespace
+    cleaned = re.sub(r"\s+", " ", date_str.strip())
+
+    # Regular expression to detect a trailing offset: +/-HH:MM, +/-HHMM, +/-HH, or Z
+    offset_pattern = r"(Z|[+-]\d{2}(:?\d{2})?)$"
+
+    if re.search(offset_pattern, cleaned):
+        # 1. Offset exists. Replace the first space with 'T' to make it strict ISO 8601
+        # Example conversion: "2026-07-29 19:55 -07:00" -> "2026-07-29T19:55-07:00"
+        iso_str = cleaned.replace(" ", "T", 1).replace(" T", "T")
+        return datetime.fromisoformat(iso_str)
+    else:
+        # 2. Offset is missing. Parse as naive datetime, then attach Pacific Time
+        # We append ":00" to ensure compatibility with older Python 3.7-3.10 versions
+        naive_dt = datetime.strptime(cleaned, "%Y-%m-%d %H:%M:00")
+        return naive_dt.replace(tzinfo=ZoneInfo("America/Los_Angeles"))

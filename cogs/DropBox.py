@@ -1552,8 +1552,11 @@ class DropBox(BaseCog):
     #########################
 
     @commands.Cog.listener()
-    async def on_message(self, message: discord.message):
+    async def on_message(self, message: Message):
         try:
+            if message.author.bot:
+                return
+
             has_channel = hasattr(message, 'channel')
             has_guild = (has_channel and hasattr(message.channel, 'guild') and
                          message.channel.guild is not None)
@@ -1570,16 +1573,19 @@ class DropBox(BaseCog):
                 self.qualified_name,
                 DropboxFollowup.action_register_name)
 
-            if (not message.author.bot and not has_guild and
-                    should_followup and not message.content.startswith(get_prefix())):
+            if (not has_guild
+                    and should_followup
+                    and not message.content.startswith(get_prefix())):
                 Logging.debug(f"got a message from {message.author}: {message.content}")
                 await handle_followup(message, get_user_action(message.author).data)
         except Exception as e:
             Logging.error(e, exc_info=True)
             return
 
-        if (message.author.bot or not has_guild or author_not_in_guild or
-                channel_not_in_dropboxes or is_mod):
+        if (not has_guild
+                or author_not_in_guild
+                or channel_not_in_dropboxes
+                or is_mod):
             # check for dropbox matching channel id
             # ignore bots and mods/admins
             return

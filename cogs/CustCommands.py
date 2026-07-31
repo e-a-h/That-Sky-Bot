@@ -93,7 +93,7 @@ class CustCommands(BaseCog):
 
     @app_commands.guild_only()
     @app_commands.command(name='enlighten')
-    async def do_command(self, interaction: Interaction, topic: str, to: Optional[User] = None) -> None:
+    async def do_command(self, interaction: Interaction, topic: Range[str, 1, trigger_max_length], to: Optional[User] = None) -> None:
         """
         Perform a custom command
 
@@ -103,7 +103,7 @@ class CustCommands(BaseCog):
         topic
             green friends in a pod
         to
-            Someone to ping in my response
+            Ping someone. Choose yourself for a private response.
 
         Returns
         -------
@@ -128,7 +128,7 @@ class CustCommands(BaseCog):
                     if not interaction.permissions.ban_members:
                         raise MissingPermissions([""])
                 command_content = command.response.replace("@", "@\u200b").format(author=interaction.user.mention)
-                ephemeral = command.ephemeral
+                ephemeral = command.ephemeral or to is not None and to.id == interaction.user.id
 
                 # don't bother with @ when message is ephemeral
                 if to and not ephemeral:
@@ -342,6 +342,8 @@ class CustCommands(BaseCog):
             interaction: discord.Interaction,
             current: str) -> list[app_commands.Choice]:
 
+        Logging.debug(f"Autocomplete called with: {current}")
+
         if interaction.guild is None:
             raise AppCommandError("Command must be used in a server")
 
@@ -360,13 +362,17 @@ class CustCommands(BaseCog):
         autocomplete_commands = [key for key, command in guild_commands.items() if can_autocomplete(command)]
         # Logging.debug(f"Autocomplete commands: {autocomplete_commands}")
 
+        Logging.debug(f"Autocomplete commands: {autocomplete_commands}")
+
         # generator for all command names:
         all_matching_commands = (i for i in autocomplete_commands if current.lower() in i.lower())
         # islice to limit to 25 options (discord API limit)
+        Logging.debug(f"Autocomplete matching commands: {all_matching_commands}")
 
         some_commands = list(islice(all_matching_commands, CustCommands.max_autocomplete_results))
         # convert matched list into list of choices
         ret = [app_commands.Choice(name=c, value=c) for c in some_commands]
+        Logging.debug(f"Autocomplete results: {ret}")
         return ret
 
     ####################

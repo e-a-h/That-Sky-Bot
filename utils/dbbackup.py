@@ -37,8 +37,9 @@ def backup_database():
     # [mysqldump]
     # user=your_username
     # password=your_password
-    dump_command = f"mysqldump -h {ts.db_host} {ts.db_name} > " + \
+    dump_command = f"mysqldump -h {ts.db_host} {ts.db_name} --set-gtid-purged=OFF --single-transaction > " + \
                    f"{pipes.quote(backup_path)}/{ts.db_name}.sql"
+    Logging.info(f"\tdump command: {dump_command}")
 
     # do the backup
     os.system(dump_command)

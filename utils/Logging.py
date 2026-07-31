@@ -5,14 +5,17 @@ import sys
 import typing
 from enum import Enum
 from logging.handlers import TimedRotatingFileHandler
+from typing import Literal, get_args
 
 from discord import TextChannel, Embed
 
 BOT_LOG_CHANNEL: typing.Union[TextChannel, None] = None
 
-LOGGER = logging.getLogger('thatskybot')
-DISCORD_LOGGER = logging.getLogger('discord')
+LOGGER = logging.getLogger('thatskybot')  # logs from this bot
+DISCORD_LOGGER = logging.getLogger('discord')  # logs from discord.py
 
+LogLevelOptions = Literal['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+LOG_LEVELS = get_args(LogLevelOptions)
 
 class TCol(Enum):
     Header = '\033[95m'
@@ -27,23 +30,22 @@ class TCol(Enum):
 
 
 def init():
-    LOGGER.setLevel(logging.DEBUG)
-    DISCORD_LOGGER.setLevel(logging.DEBUG)
-
+    LOGGER.setLevel(logging.INFO)
+    DISCORD_LOGGER.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s')
-
     handler = logging.StreamHandler(stream=sys.stdout)
-    handler.setLevel(logging.INFO)
     handler.setFormatter(formatter)
     LOGGER.addHandler(handler)
     DISCORD_LOGGER.addHandler(handler)
 
     if not os.path.isdir("logs"):
         os.mkdir("logs")
-    handler = TimedRotatingFileHandler(filename='logs/thatskybot.log', encoding='utf-8', when="midnight",
-                                       backupCount=30)
+    handler = TimedRotatingFileHandler(
+        filename='logs/thatskybot.log',
+        encoding='utf-8',
+        when="midnight",
+        backupCount=30)
     handler.setFormatter(formatter)
-    handler.setLevel(logging.INFO)
     DISCORD_LOGGER.addHandler(handler)
     LOGGER.addHandler(handler)
 
@@ -89,3 +91,33 @@ def warn(message, *style, **kwargs):
 @color_log
 def error(message, *style, **kwargs):
     LOGGER.error(message, **kwargs)
+
+
+def log_always(message, *styles: TCol, level: int = logging.INFO, logger: logging.Logger = LOGGER):
+    """Emit one record regardless of the logger's current level.
+
+    Bypasses the level threshold (Logger.handle skips isEnabledFor) so audit
+    lines like "log level changed" always appear, without mutating global state.
+    """
+    formatted = log_format(message, *styles)
+    if logger.isEnabledFor(level):
+        logger.log(level, formatted)
+    else:
+        record = logger.makeRecord(logger.name, level, "(unknown)", 0, formatted, None, None)
+        logger.handle(record)
+
+
+def set_level(level:LogLevelOptions, logger: logging.Logger = LOGGER):
+    if level not in LOG_LEVELS:
+        raise ValueError(f"Invalid log level: {level}")
+    log_always(f"{logger}: Setting log level to {level}", TCol.Underline, TCol.Cyan)
+    logger.setLevel(level)
+    if logger == LOGGER:
+        debug(f"DEBUG", TCol.Green)
+        info(f"INFO", TCol.Cyan)
+        warn(f"WARN", TCol.Warning)
+        error(f"ERROR", TCol.Fail)
+
+
+def get_level(logger) -> int:
+    return logger.getEffectiveLevel()

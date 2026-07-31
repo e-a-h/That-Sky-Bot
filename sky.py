@@ -11,6 +11,7 @@ import asyncio
 import os
 import signal
 import sys
+import traceback
 from typing import Optional
 from asyncio import shield, iscoroutinefunction
 
@@ -55,7 +56,7 @@ class Skybot(Bot):
     data = {}
 
     def __init__(self, *args, loop=None, **kwargs):
-        super().__init__(*args, loop=loop, **kwargs)
+        super().__init__(*args, **kwargs)
         self.shutting_down = False
         self.metrics = PrometheusMon(self)
         self.config_channels = {}
@@ -259,12 +260,17 @@ class Skybot(Bot):
             True if the member is an administrator; False otherwise.
         """
         my_user = self.get_user(member_id)
+        if not my_user:
+            return False
         is_owner = await self.is_owner(my_user) if my_user else False
         is_db_admin = await BotAdmin.get_or_none(userid=member_id) is not None
         in_admins = member_id in Configuration.get_var("ADMINS", [])
-        # Logging.debug(f"owner: {'yes' if is_owner else 'no'}")
-        # Logging.debug(f"db_admin: {'yes' if is_db_admin else 'no'}")
-        # Logging.debug(f"in_admins: {'yes' if in_admins else 'no'}")
+        caller = traceback.extract_stack(limit=2)[0]
+        Logging.debug(f"member_is_admin called from {caller.filename}:{caller.lineno} in {caller.name}\n"
+                      f"{Utils.get_member_log_name(my_user)}\n"
+                      f"\towner: {'yes' if is_owner else 'no'}\n"
+                      f"\tdb_admin: {'yes' if is_db_admin else 'no'}\n"
+                      f"\tin_admins: {'yes' if in_admins else 'no'}")
         return is_db_admin or is_owner or in_admins
 
     async def get_guild_db_config(self, guild_id) -> Database.Guild:
@@ -495,6 +501,7 @@ async def main():
 
     try:
         for this_signal in (signal.SIGINT, signal.SIGTERM):
+            # noinspection PyTypeChecker
             loop.add_signal_handler(this_signal, close_bot)
     except (NotImplementedError, AttributeError):
         pass
