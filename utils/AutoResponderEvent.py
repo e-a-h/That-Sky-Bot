@@ -410,7 +410,8 @@ class ArEvent:
         if not log_channels and (rule.flag_is_set(ArFlags.LOG_ONLY) or default):
             # Logging channel is not set, but the log_only flag is active or defaulting is enabled. use guild log
             default_log_channel = await Utils.get_guild_log_channel(self.guild_id)
-            log_channels = [await Utils.get_guild_log_channel(self.guild_id)]
+            if default_log_channel and isinstance(default_log_channel, TextChannel):
+                log_channels = [default_log_channel]
         return [x for x in log_channels if x is not None]
 
     def get_mod_response_channels(self) -> list[Messageable]:

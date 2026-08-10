@@ -7,7 +7,7 @@ from datetime import datetime
 from itertools import islice
 from random import random, choice
 from time import time
-from typing import Optional, Union
+from typing import Optional, Union, Any
 
 import discord
 import tortoise
@@ -141,8 +141,8 @@ class Mischief(BaseCog):
         self.cooldown_time: float = 600.0
         self.name_mischief_chance: float = 0.0
         self.name_cooldown_time: float = 60.0
-        self.name_cooldown: dict = dict()
-        self.mischief_map: dict[int, dict[str, Role]] = dict()
+        self.name_cooldown: dict[str, dict[str, dict[str, Any]]] = dict()
+        self.mischief_map: dict[int, dict[str, Optional[Role]]] = dict()
         self.mischief_names: dict[int, set[str]] = dict()
         self.role_counts: dict = dict()
 
@@ -414,10 +414,13 @@ class Mischief(BaseCog):
         -------
         None
         """
-        if wishing_role not in self.mischief_map[interaction.guild.id]:
+        my_guild = interaction.guild
+        assert isinstance(my_guild, discord.Guild)  # Command group enforces this
+
+        if wishing_role not in self.mischief_map[my_guild.id]:
             raise CommandError(f"alias {wishing_role} does not exist")
 
-        guild_row = await self.bot.get_guild_db_config(interaction.guild.id)
+        guild_row = await self.bot.get_guild_db_config(my_guild.id)
         delete_row = await MischiefRole.get_or_none(guild=guild_row, alias=wishing_role)
         sender = Sender(interaction)
         message = ""
@@ -430,15 +433,15 @@ class Mischief(BaseCog):
                 delete_role_id = delete_row.roleid
                 # remove role from database
                 await delete_row.delete()
-            except (tortoise.exceptions.OperationalError):
+            except tortoise.exceptions.OperationalError:
                 await sender.send(f"I had some trouble. Trying to recover...{message}", ephemeral=True)
-                await self.init_guild(interaction.guild)
+                await self.init_guild(my_guild)
                 return
         try:
             # remove role from tracking dicts
-            del self.mischief_map[interaction.guild.id][wishing_role]
+            del self.mischief_map[my_guild.id][wishing_role]
             if delete_role_id is not None:
-                del self.role_counts[interaction.guild.id][delete_role_id]
+                del self.role_counts[my_guild.id][delete_role_id]
 
             await sender.send(f"`{wishing_role}` is no longer a Mischief role!{message}", ephemeral=True)
         except KeyError:
@@ -547,27 +550,32 @@ class Mischief(BaseCog):
         -------
         None
         """
-        guild = interaction.guild
-        if not interaction.guild:
-            guild = Utils.get_home_guild()
-        await self.do_wish_stats(interaction, guild)
+        my_guild = interaction.guild
+        if not my_guild:
+            my_guild = Utils.get_home_guild()
+        await self.do_wish_stats(interaction, my_guild)
 
     @app_commands.guild_only()
     @app_commands.command(name='mischief_stats')
     async def app_mischief(self, interaction: Interaction) -> None:
         """Show mischief stats"""
         # TODO: make counts guild-specific
-        member_counts = Configuration.get_persistent_var(f"mischief_usage", dict())
-        max_member_id = max(member_counts, key=member_counts.get)
-        wishes_granted = sum(member_counts.values())
-        max_user = interaction.guild.get_member(int(max_member_id))
+        member_counts: dict[str, int] = Configuration.get_persistent_var(f"mischief_usage", dict())
+        if not member_counts:
+            await interaction_response(interaction).send_message("No wishes have been made yet.")
+            return
+        wishes_granted = int(sum(member_counts.values()))
+        max_member_id, max_wishes = max(
+            member_counts.items(),
+            key=lambda item: item[1])
+        max_user = interaction.guild.get_member(int(max_member_id))  # type: ignore[PyUnresolvedReferences]
         max_user_name = Utils.get_member_log_name(max_user)
         messages = [
             f"{len(member_counts)} people have gotten mischief roles.",
             f"I have granted {wishes_granted} wishes."]
         if await Utils.can_mod_official(interaction):
             messages.append("\n__only mods can see this__:")
-            messages.append(f"{max_user_name} has wished the most, with {member_counts[max_member_id]} wishes granted.")
+            messages.append(f"{max_user_name} has wished the most, with {max_wishes} wishes granted.")
         await interaction_response(interaction).send_message(
             "\n".join(messages),
             allowed_mentions=AllowedMentions.none(),
@@ -598,7 +606,10 @@ class Mischief(BaseCog):
 
         sender = Sender(interaction)
         try:
-            result = await self.do_wishing_role(interaction, interaction.user, selection)
+            my_member = interaction.user
+            if not isinstance(my_member, discord.Member):
+                raise AppCommandError("This command is only available in servers... how did you get here?")
+            result = await self.do_wishing_role(interaction, my_member, selection)
         except NotFound as e:
             Logging.info(f"a role is missing... {e}")
             await sender.send("well this is embarrassing... I couldn't grant your wish", ephemeral=True)
@@ -624,7 +635,7 @@ class Mischief(BaseCog):
     async def mischief_name_autocomplete(
             self,
             interaction: Interaction,
-            current: str) -> list[app_commands.Choice[str]]:
+            current: str) -> list[app_commands.Choice[Union[str, int, float]]]:
         """Autocomplete for mischief names"""
         names = sorted(self.mischief_names[interaction.guild.id])
         # generator for all cog names:
@@ -641,7 +652,7 @@ class Mischief(BaseCog):
     async def wish_autocomplete(
             self,
             interaction: Interaction,
-            current: str) -> list[app_commands.Choice[str]]:
+            current: str) -> list[app_commands.Choice[Union[str, int, float]]]:
         """Autocomplete for wishing roles"""
         me = OrderedDict([(Mischief.me_again, Mischief.me_again_display)])
         them = OrderedDict(sorted(self.mischief_map[interaction.guild.id].items()))
@@ -729,18 +740,21 @@ wish cooldown is {self.cooldown_time} seconds
         if ctx.guild and not await Utils.can_mod_official(ctx):
             return
 
-        member_counts = Configuration.get_persistent_var(f"mischief_usage", dict())
-        max_member_id = max(member_counts, key=member_counts.get)
+        member_counts: dict[str, int] = Configuration.get_persistent_var(f"mischief_usage", dict())
+        if not member_counts:
+            await ctx.send("No mischief roles have been granted yet.")
+            return
+        max_member_id, max_member_wishes = max(member_counts.items(), key=lambda item: item[1])
         wishes_granted = sum(member_counts.values())
         guild = Utils.get_home_guild()
         max_user = guild.get_member(int(max_member_id))
         max_user_name = Utils.get_member_log_name(max_user)
         await ctx.send(f"{len(member_counts)} people have gotten mischief roles.\n"
                        f"I have granted {wishes_granted} wishes.\n"
-                       f"{max_user_name} has wished the most, with {member_counts[max_member_id]} wishes granted.",
+                       f"{max_user_name} has wished the most, with {max_member_wishes} wishes granted.",
                        allowed_mentions=AllowedMentions.none())
 
-    @mischief.command()
+    @mischief.command()  # type: ignore[PyUnresolvedReferences]
     @commands.guild_only()
     @commands.check(Utils.can_mod_official)
     async def add_role(self, ctx, role: discord.Role):
@@ -767,7 +781,7 @@ wish cooldown is {self.cooldown_time} seconds
 
         await ctx.invoke(self.team_mischief)
 
-    @mischief.command()
+    @mischief.command()  # type: ignore[PyUnresolvedReferences]
     @commands.guild_only()
     @commands.check(Utils.can_mod_official)
     async def remove_role(self, ctx, role: discord.Role):
@@ -780,9 +794,10 @@ wish cooldown is {self.cooldown_time} seconds
                 # remove role from database
                 await old_role.delete()
                 # remove role from map
-                guild_map: dict[str, discord.Role] = dict(self.mischief_map[ctx.guild.id])
+                my_map = self.mischief_map[ctx.guild.id]
+                guild_map: dict[str, Optional[discord.Role]] = dict(my_map)
                 for alias, map_role in guild_map.items():
-                    if map_role.id == role.id:
+                    if map_role is not None and map_role.id == role.id:
                         del self.mischief_map[ctx.guild.id][alias]
                         del self.role_counts[ctx.guild.id][role.id]
                         break
@@ -934,7 +949,8 @@ wish cooldown is {self.cooldown_time} seconds
         for old_role in list(self.mischief_map[guild.id].values()):
             try:
                 if old_role in member.roles:
-                    await member.remove_roles(old_role)
+                    if old_role:
+                        await member.remove_roles(old_role)
             except NotFound as e:
                 Logging.info(f"role {old_role.name} ({old_role.id}) is missing. {e}")
             except Exception:
@@ -957,11 +973,14 @@ wish cooldown is {self.cooldown_time} seconds
             return True
 
         # add the selected role
-        added = await Mischief.do_add_roles(member, self.mischief_map[guild.id][selection])
-        if added:
-            # TODO: add wish metrics, tag with userid and role name
-            pass
-        return added
+        selection_role = self.mischief_map[guild.id][selection]
+        if selection_role:
+            added = await Mischief.do_add_roles(member, selection_role)
+            if added:
+                # TODO: add wish metrics, tag with userid and role name
+                pass
+            return added
+        return False
 
 
     async def role_mischief(self, message, member):

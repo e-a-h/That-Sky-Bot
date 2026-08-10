@@ -2,6 +2,7 @@ import asyncio
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Optional
 from uuid import uuid4
 
 import discord
@@ -215,7 +216,7 @@ class ReactMonitor(BaseCog):
     async def is_user_event_ignored(self, event: RawReactionActionEvent):
         ignored_channels = [row.channelid for row in await BugReportingChannel.all()]
         is_ignored_channel = event.channel_id in ignored_channels
-        guild = self.bot.get_guild(event.guild_id)
+        guild = self.bot.get_guild(event.guild_id) if event.guild_id else None
         if not guild:
             # Don't listen to DMs
             return True
@@ -253,10 +254,10 @@ class ReactMonitor(BaseCog):
                         try:
                             guild = self.bot.get_guild(guild_id)
                             guild_config = await self.bot.get_guild_db_config(guild_id)
-                            if guild_config and guild_config.mutedrole:
+                            if guild and guild_config and guild_config.mutedrole:
                                 mute_role = guild.get_role(guild_config.mutedrole)
                                 member = guild.get_member(int(user_id))
-                                if mute_role in member.roles:
+                                if member and mute_role and mute_role in member.roles:
                                     await member.remove_roles(mute_role)
                                 del self.mutes[guild_id][user_id]
                         except Exception:
@@ -303,6 +304,8 @@ class ReactMonitor(BaseCog):
         await self.apply_reaction_add_rules(data)
 
     async def spam_check(self, data: ReactData):
+        if not data.event.guild_id:
+            return
         member = data.event.member
         emoji_used = data.event.emoji
         guild = self.bot.get_guild(data.event.guild_id)
@@ -410,7 +413,7 @@ class ReactMonitor(BaseCog):
             self,
             interaction: Interaction,
             target: discord.User,
-            check_channel: discord.TextChannel = None,
+            check_channel: Optional[discord.TextChannel] = None,
             count: int = 200):
         set_pvar(VarKeys.rbu_interrupt, False)
         channels = interaction.guild.channels if check_channel is None else [check_channel]
@@ -577,7 +580,7 @@ class ReactMonitor(BaseCog):
 
             for member_id, timestamp in dict(self.mutes[ctx.guild.id]).items():
                 member = ctx.guild.get_member(int(member_id))
-                if member is not None:
+                if mute_role and member is not None:
                     await member.remove_roles(mute_role)
                     del self.mutes[ctx.guild.id][member_id]
                     long_name = Utils.get_member_log_name(member)
@@ -609,6 +612,8 @@ class ReactMonitor(BaseCog):
         :param data:
         :return:
         """
+        if not data.event.guild_id:
+            return
         emoji_used = data.event.emoji
         member = data.event.member
         guild = self.bot.get_guild(data.event.guild_id)
@@ -647,15 +652,18 @@ class ReactMonitor(BaseCog):
             if guild_config and guild_config.mutedrole:
                 try:
                     mute_role = guild.get_role(guild_config.mutedrole)
-                    await member.add_roles(mute_role)
-                    self.mutes[guild.id][str(member.id)] = data.time
-                    set_pvar(f"{VarKeys.mutes}{guild.id}", self.mutes[guild.id])
-                    log_msg = f"{log_msg}\n--- I **muted** them"
+                    if mute_role:
+                        await member.add_roles(mute_role)
+                        self.mutes[guild.id][str(member.id)] = data.time
+                        set_pvar(f"{VarKeys.mutes}{guild.id}", self.mutes[guild.id])
+                        log_msg = f"{log_msg}\n--- I **muted** them"
+                    else:
+                        log_msg = f"{log_msg}\n--- I **failed to mute** them because the mute role is not valid"
                 except Exception as e:
                     await Utils.handle_exception("reactmon failed to mute member", e)
             else:
                 await Utils.guild_log(
-                    guild.id, "**I can't mute for reacts because `!guildconfig` mute role is not set.")
+                    guild.id, "**I can't mute for reacts because `!guildconfig` mute role is not set")
 
         if emoji_rule.log or emoji_rule.remove or emoji_rule.mute:
             await Utils.guild_log(guild.id, log_msg)
@@ -669,6 +677,10 @@ class ReactMonitor(BaseCog):
         # self.react_removers[event.guild_id][event.user_id] = now
 
         event = remove_data.event
+        if not event.guild_id:
+            return
+
+        guild = self.bot.get_guild(event.guild_id)
         # don't bother with ignored channels
         if event.message_id in self.excluded_channels[event.guild_id]:
             return
@@ -693,7 +705,6 @@ class ReactMonitor(BaseCog):
                 continue
 
             # This user added a reaction that was removed within the warning time window
-            guild = self.bot.get_guild(event.guild_id)
             emoji_used = str(event.emoji)
             channel = self.bot.get_channel(event.channel_id)
 

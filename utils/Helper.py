@@ -89,9 +89,15 @@ class ConfirmView(ui.View):
             super().__init__(label=before_label, style=style, emoji=emoji)
 
         async def callback(self, interaction: Interaction):
+            if self.my_parent.value is not None:
+                await interaction.response.defer()
+                return
+
             self.my_parent.value = self.value
-            self.my_parent.stop()
-            await self.my_parent.disable_buttons(interaction, self)
+            try:
+                await self.my_parent.disable_buttons(interaction, self)
+            finally:
+                self.my_parent.stop()
 
         def disable(self):
             self.disabled = True

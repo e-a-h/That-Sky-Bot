@@ -282,11 +282,11 @@ dropbox:
   set_delay_success: Confirmation messages in dropbox channel {channel} will be deleted after {time}
   set_delay_fail: Failed to set dropbox delete delay time in {channel}
   msg_delivered: "{author} Your message was delivered."
-  msg_not_delivered: "{author} Your message was **not** delivered. Please try again, or contact a moderator."
+  msg_not_delivered: "# {author} Delivery failed.\nPlease try again, or contact a moderator."
   msg_blank: I didn't find any text content in the original message
   attachment_fail: Attachment from {author} failed. Censored or deleted by member?
   msg_receipt: "Here's a copy of the message you sent in {channel}:"
-  msg_receipt_ephemeral: "Here's a copy of the message I delivered for you:"
+  msg_receipt_ephemeral: "Here's a copy of your original message:"
   msg_followup_instructions: "If you would like to send additional information, screenshots, or files, press the button and I will prompt you by DM for more."
   receipt_set_true: receipt set. authors will be DMed a copy of their message in {channel}.
   receipt_set_false: receipt set. authors won't be DMed for their messages in {channel}.

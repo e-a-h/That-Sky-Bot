@@ -2,6 +2,7 @@ import asyncio
 import importlib
 import os
 from itertools import islice
+from typing import Union
 
 import discord
 from discord import app_commands
@@ -100,7 +101,7 @@ class Reload(BaseCog):
     async def module_autocomplete(
             self,
             interaction: discord.Interaction,
-            current: str) -> list[app_commands.Choice[str]]:
+            current: str) -> list[app_commands.Choice[Union[str, int, float]]]:
 
         if not check_is_owner(interaction):
             return []

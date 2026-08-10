@@ -1,6 +1,7 @@
 import json
 from itertools import islice
 from json import JSONDecodeError
+from typing import Union
 
 import discord
 from discord import app_commands, Interaction, TextChannel
@@ -229,7 +230,7 @@ class LangConfig(commands.GroupCog, group_name='language'):
     async def locale_autocomplete(
             self,
             interaction: discord.Interaction,
-            current: str) -> list[app_commands.Choice[str]]:
+            current: str) -> list[app_commands.Choice[Union[str, int, float]]]:
 
         my_locales = set(Lang.locales)
         my_locales.add('None')

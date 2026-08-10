@@ -2,10 +2,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
-from typing import Callable, Any, Awaitable, Optional
+from typing import Callable, Any, Awaitable, Optional, Union
 
 import discord
-from discord import User, ButtonStyle, Interaction
+from discord import User, ButtonStyle, Interaction, Member
 from discord.ui import DynamicItem, Button
 
 from utils import Logging
@@ -16,7 +16,7 @@ from utils.Utils import interaction_response as ir, get_member_log_name
 
 @dataclass
 class UserActionItem:
-    user: User
+    user: Union[User, Member]
     cog_name: str
     method_name: str
     data: Any
@@ -67,13 +67,13 @@ async def check_expiration():
             if item.finally_callback is not None:
                 Logging.debug(f"UserAction FINALLY: {i}")
                 await item.finally_callback(None, item)
-            del user_action_register[i]
+            user_action_register.pop(i, None)
         else:
             expires_in = item.expires_at - now
             Logging.debug(f"{TCol.Header}item expiring in {expires_in.seconds} seconds:{TCol.End}\n\t{item}")
 
 
-def is_user_registered(user: User, cog_name: str, method_name: str) -> bool:
+def is_user_registered(user: Union[User, Member], cog_name: str, method_name: str) -> bool:
     """
     Check if a user is registered any action within a specific cog and method.
 
@@ -83,11 +83,11 @@ def is_user_registered(user: User, cog_name: str, method_name: str) -> bool:
 
     Parameters
     ----------
-    user : User
+    user
         The user object containing the identifier to check registration for.
-    cog_name : str
+    cog_name
         The name of the cog to be verified.
-    method_name : str
+    method_name
         The name of the method to be verified.
 
     Returns
@@ -108,7 +108,7 @@ async def register_user_action(
         cog_name: str,
         method_name: str,
         data: Any,
-        user: User,
+        user: Union[User, Member],
         created_at: datetime,
         expires_in: int,
         cancel_callback: Optional[Callable[[Interaction, UserActionItem], Awaitable[None]]] = None,
@@ -176,8 +176,12 @@ async def register_user_action(
     return True
 
 
-def get_user_action(user: User) -> Optional[UserActionItem]:
+def get_user_action(user: Union[User, Member]) -> Optional[UserActionItem]:
     return user_action_register[user.id] if user.id in user_action_register else None
+
+
+def unregister_user_action(user: Union[User, Member]) -> None:
+    user_action_register.pop(user.id, None)
 
 
 # generic stop button
@@ -186,7 +190,7 @@ class StopUserActionButton(
     template=r'stopaction:(?P<id>[0-9]+)'):
     def __init__(
             self,
-            user: User,
+            user: Union[User, Member],
             label: str = "Done",
             emoji: str = get_chat_emoji("PEA POD"),
             style: ButtonStyle = ButtonStyle.primary) -> None:

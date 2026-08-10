@@ -176,9 +176,9 @@ class CustCommands(BaseCog):
             Lang.get_locale_string('custom_commands/override_confirmation', interaction),
             view=view)
 
-        await view.wait()
+        view_timeout = await view.wait()
 
-        if view.value is None:
+        if view_timeout:
             await interaction.followup.send(
                 Lang.get_locale_string('common/interaction_timeout', interaction, description="Add command"))
         elif view.value:
@@ -208,9 +208,9 @@ class CustCommands(BaseCog):
                f"```{trim_message(my_command.response, 300)}```")
         view = ConfirmView(interaction.user)
         await interaction.followup.send(msg, view=view)
-        await view.wait()
+        view_timeout = await view.wait()
 
-        if view.value is None:
+        if view_timeout:
             await interaction.followup.send(
                 Lang.get_locale_string('common/interaction_timeout', interaction, description="Remove command"))
         elif view.value:
@@ -234,9 +234,9 @@ class CustCommands(BaseCog):
                f"```{trim_message(my_command.response, 1000)}```\n")
         view = ConfirmView(interaction.user)
         await interaction.followup.send(msg, view=view)
-        await view.wait()
+        view_timeout = await view.wait()
 
-        if view.value is None:
+        if view_timeout:
             await interaction.followup.send(
                 Lang.get_locale_string('common/interaction_timeout', interaction, description="Edit command"))
         elif view.value:
@@ -331,12 +331,11 @@ class CustCommands(BaseCog):
 
     # set_command_context causes inspection to fail here.
     # if `describe` and `choices` decorators are removed from that function, it works. :(
-    # noinspection PyUnresolvedReferences
     @do_command.autocomplete('topic')
     @edit_command.autocomplete('trigger')
     @remove_command.autocomplete('trigger')
     @set_command_flag.autocomplete('trigger')
-    @set_command_context.autocomplete('trigger')
+    @set_command_context.autocomplete('trigger')  # type: ignore[attr-defined] linter is deficient
     async def trigger_autocomplete(
             self,
             interaction: discord.Interaction,

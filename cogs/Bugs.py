@@ -8,12 +8,13 @@ from enum import Enum
 from typing import Optional, Literal, Union
 
 import discord
-from discord import (CategoryChannel, Forbidden, Embed, ForumChannel, NotFound, HTTPException, TextChannel, AllowedMentions, app_commands,
-                     Interaction, User, Permissions)
-from discord.abc import GuildChannel, PrivateChannel
+from discord import (CategoryChannel, Forbidden, Embed, ForumChannel, NotFound, HTTPException, TextChannel,
+                     AllowedMentions, app_commands,
+                     Interaction, User, Permissions, Member, Message, DMChannel)
+from discord.abc import PrivateChannel
 from discord.app_commands import Group
 from discord.ext import commands, tasks
-from discord.ext.commands import Context, UserInputError
+from discord.ext.commands import Context, UserInputError, CommandError
 from tortoise.exceptions import DoesNotExist, OperationalError, IntegrityError
 
 from cogs.BaseCog import BaseCog
@@ -29,8 +30,8 @@ from utils.Utils import get_member_log_name, interaction_response, permission_of
 
 @dataclass()
 class BugReportingAction:
-    user: User
-    channel: TextChannel
+    user: Union[User, Member]
+    channel: Union[TextChannel, DMChannel]
     interaction: Optional[Interaction] = None
     uuid: str = field(default_factory=Utils.get_new_uuid_str)
 
@@ -195,7 +196,11 @@ class Bugs(BaseCog):
         except Exception as e:
             await Utils.handle_exception("bug clean messages failure", e)
 
-    def enqueue_bug_report(self, user: User, channel: TextChannel, interaction: Optional[Interaction] = None):
+    def enqueue_bug_report(
+            self,
+            user: Union[User, Member],
+            channel: Union[TextChannel, DMChannel],
+            interaction: Optional[Interaction] = None):
         work_item = BugReportingAction(user, channel, interaction)
         self.bug_report_queue.put_nowait(work_item)
         Logging.info(f"{work_item.uuid} report for {Utils.get_member_log_name(user)} "
@@ -274,7 +279,7 @@ class Bugs(BaseCog):
         send_tasks = []
         for channel_id in args:
             channel = self.bot.get_channel(channel_id)
-            if channel is None:
+            if channel is None or not isinstance(channel, TextChannel):
                 await Logging.bot_log(f"can't send bug info to nonexistent channel {channel_id}")
                 continue
             send_tasks.append(self.send_bug_info_impl(channel))
@@ -290,7 +295,7 @@ class Bugs(BaseCog):
             tries += 1
             try:
                 if not last_message:
-                    last_message = await channel.send('preparing bug reporting...')
+                    last_message: Message = await channel.send('preparing bug reporting...')
                 if not ctx:
                     ctx = await self.bot.get_context(last_message)
                 await self.remove_bug_info_msg(channel)
@@ -462,7 +467,7 @@ class Bugs(BaseCog):
     async def platform_autocomplete(
             self,
             interaction: discord.Interaction,
-            current: str) -> list[app_commands.Choice[str]]:
+            current: str) -> list[app_commands.Choice[Union[str, int, float]]]:
         platforms = await BugReportingPlatform.all()
         platform_set = set()
 
@@ -480,7 +485,7 @@ class Bugs(BaseCog):
     async def branch_autocomplete(
             self,
             interaction: discord.Interaction,
-            current: str) -> list[app_commands.Choice[str]]:
+            current: str) -> list[app_commands.Choice[Union[str, int, float]]]:
         branches = await BugReportingPlatform.all()
         branch_set = set()
 
@@ -503,7 +508,10 @@ class Bugs(BaseCog):
         # remove command trigger message (unless we are in a DM already)
         if ctx.guild is not None:
             await ctx.message.delete()
-        self.enqueue_bug_report(ctx.author, ctx.channel)
+        my_user = ctx.author
+        my_channel = ctx.channel
+        if my_user and isinstance(my_channel, (TextChannel, DMChannel)):
+            self.enqueue_bug_report(my_user, my_channel)
 
     @bug.command()
     @commands.check(permission_official_ban)
@@ -579,7 +587,7 @@ class Bugs(BaseCog):
     @channels.command(aliases=['remove'])
     @commands.guild_only()
     @commands.check(permission_manage_bot)
-    async def remove_channel(self, ctx, channel: TextChannel, platform: str = None, branch: str = None) -> None:
+    async def remove_channel(self, ctx, channel: TextChannel, platform: Optional[str] = None, branch: Optional[str] = None) -> None:
         """
         Remove a bug report channel from the bug reporting config
         Parameters
@@ -647,9 +655,10 @@ class Bugs(BaseCog):
                 beta_role = None
                 if guild_config and guild_config.betarole:
                     beta_role = guild.get_role(guild_config.betarole)
-                    beta_overwrite = maint_message_channel.overwrites[beta_role]
-                    beta_overwrite.update(read_messages=active)
-                    await maint_message_channel.set_permissions(beta_role, overwrite=beta_overwrite)
+                    if beta_role:
+                        beta_overwrite = maint_message_channel.overwrites[beta_role]
+                        beta_overwrite.update(read_messages=active)
+                        await maint_message_channel.set_permissions(beta_role, overwrite=beta_overwrite)
                 else:
                     message = f'beta role is not configured for `{guild.name}`'
                     await Utils.guild_log(guild.id, message)
@@ -813,11 +822,15 @@ class Bugs(BaseCog):
         await self.remove_bug_info_msg(channel)
         await self.send_bug_report_messages(channel.id)
 
-    async def do_remove_channel(self, ctx: Union[Context, Interaction], channel: TextChannel, platform: str, branch: str):
+    async def do_remove_channel(self, ctx: Union[Context, Interaction], channel: TextChannel, platform: Optional[str], branch: Optional[str]):
         """Remove a bug report channel from the bug reporting options"""
         sender = Sender(ctx)
 
-        filter_args = dict(channelid=channel.id, guild__serverid=ctx.guild.id)
+        my_guild = ctx.guild
+        if not my_guild:
+            raise CommandError("This command can only be used in a server")
+
+        filter_args: dict[str, Union[str, int]] = dict(channelid=channel.id, guild__serverid=ctx.guild.id)
         if platform:
             filter_args["platform__platform"] = platform
         if branch:
@@ -846,7 +859,7 @@ class Bugs(BaseCog):
             msg += row_msg
         await sender.send(msg)
         await self.remove_bug_info_msg(channel)
-        await self.clean_and_send_trigger_messages(ctx.guild)
+        await self.clean_and_send_trigger_messages(my_guild)
 
 
     async def report_bug(self, work_item: BugReportingAction):
@@ -879,8 +892,8 @@ class Bugs(BaseCog):
             if user.id in self.blocking:
                 # user blocked from starting a new report. waiting for DM response
                 msg = Lang.get_locale_string("bugs/stop_spamming", ctx, user=user.mention)
-                r = interaction_response(interaction)
                 if interaction:
+                    r = interaction_response(interaction)
                     if not r.is_done():
                         await r.send_message(msg, ephemeral=True, delete_after=10)
                 else:
@@ -1421,9 +1434,9 @@ class Bugs(BaseCog):
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):
-        if event.message_id in self.bug_messages and event.user_id != self.bot.user.id:
-            user = self.bot.get_user(event.user_id)
-            channel = self.bot.get_channel(event.channel_id)
+        user = self.bot.get_user(event.user_id)
+        channel = self.bot.get_channel(event.channel_id)
+        if user and channel and event.message_id in self.bug_messages and event.user_id != self.bot.user.id:
             try:
                 message = channel.get_partial_message(event.message_id)
                 await message.remove_reaction(event.emoji, user)

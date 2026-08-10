@@ -48,7 +48,7 @@ from typing import Dict, Set, Union, Optional, Tuple
 import aiohttp
 import discord
 from discord import (Embed, NotFound, HTTPException, Message, TextChannel, User, Interaction,
-                     Permissions, ButtonStyle, app_commands, AllowedMentions)
+                     Permissions, ButtonStyle, app_commands, AllowedMentions, Member)
 from discord.abc import Messageable
 from discord.app_commands import Group, Choice
 from discord.ext import commands, tasks
@@ -60,7 +60,8 @@ from utils import Lang, Questions, Utils, Logging, Constants, UserActionRegister
 from utils.Database import DropboxChannel, DropboxView, DropboxTarget, DropboxThreadMode
 from utils.Emoji import get_chat_emoji
 from utils.Helper import Sender, ConfirmView
-from utils.UserActionRegister import is_user_registered, get_user_action, StopUserActionButton, UserActionItem
+from utils.UserActionRegister import is_user_registered, get_user_action, StopUserActionButton, UserActionItem, \
+    unregister_user_action
 from utils.Utils import interaction_response as ir, paginate, get_prefix
 
 
@@ -124,42 +125,36 @@ class DropModal(discord.ui.Modal):
         The target configuration object defining where and how the user input should be processed.
     title : str
         The title displayed on the modal dialog.
-    label : str
-        The label text for one of the input fields.
-    placeholder : str
-        Placeholder description within the user input field.
     target_channel : discord.abc.GuildChannel
         The Discord text channel where the processed user submission will be directed.
     """
     def __init__(self, target: DropboxTarget) -> None:
         super().__init__(title=target.modal_title)
         self.target: DropboxTarget = target
-        self.title = target.modal_title
-        self.label = target.modal_label
-        self.placeholder = target.modal_placeholder
         self.target_channel = Utils.BOT.get_channel(target.channelid)
         # TODO: configurable text field length?
 
-        self.add_item(discord.ui.TextInput(
+        self.subject_input = discord.ui.TextInput(
             label="Subject",
             placeholder="Subject",
             required=False,
             style=discord.TextStyle.short,
-            max_length=modal_subject_max_length))
-
-        self.add_item(discord.ui.TextInput(
+            max_length=modal_subject_max_length)
+        self.body_input = discord.ui.TextInput(
             label=target.modal_label,
-            placeholder=self.placeholder,
+            placeholder=target.modal_placeholder,
             style=discord.TextStyle.long,
-            max_length=modal_body_max_length))
+            max_length=modal_body_max_length)
+        self.add_item(self.subject_input)
+        self.add_item(self.body_input)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
             user_locks[interaction.user.id] = datetime.now(timezone.utc)
             await ir(interaction).defer(ephemeral=True)
 
-            subject = str(self.children[0].value).strip("#\u200B \n")
-            message = str(self.children[1].value).strip("\u200B \n")
+            subject = self.subject_input.value.strip("#\u200B \n")
+            message = self.body_input.value.strip("\u200B \n")
             message = re.sub(r"\n\n+", "\n\n", message)
         except Exception as e:
             Logging.error(e, exc_info=True)
@@ -188,7 +183,7 @@ class DropboxButton(
         The dropbox target associated with the button. If None, the button is considered disabled.
     """
 
-    def __init__(self, target: DropboxTarget) -> None:
+    def __init__(self, target: Optional[DropboxTarget]) -> None:
         if target is None:
             # A defunct view was triggered. Placeholder will not respond.
             super().__init__(
@@ -212,9 +207,9 @@ class DropboxButton(
         # my_target = await DropboxTarget.get_or_none(id=target_id)
         try:
             target = await DropboxTarget.get(id=target_id)
+            return cls(target)
         except DoesNotExist:
-            target = None
-        return cls(target)
+            return cls(None)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         return True
@@ -228,10 +223,13 @@ class DropboxButton(
             return
         if self.target is None:
             await ir(interaction).send_message("The button you pressed has been disabled.", ephemeral=True)
-            await Utils.guild_log(
-                interaction.guild_id,
-                f"There's a broken dropbox button in {interaction.channel.mention}. Delete the message!"
-                f" If there are still active buttons, create the controls again with `/dropbox prepare_channel`")
+            guild_id = interaction.guild_id
+            msg = (f"There's a broken dropbox button in {interaction.channel.mention}. Delete the message! "
+                   f"If there are still active buttons, create the controls again with `/dropbox prepare_channel`")
+            if guild_id:
+                await Utils.guild_log(guild_id, msg)
+            else:
+                Logging.error(msg)
             return
         await ir(interaction).send_modal(DropModal(self.target))
 
@@ -247,7 +245,7 @@ def unlock_user(user_id: int) -> None:
 
 async def followup_finally(interaction: Optional[Interaction], item: UserActionItem):
     Logging.debug(f"finally item: {item}")
-    my_data: DropboxFollowup = item.data or None
+    my_data: Optional[DropboxFollowup] = item.data or None
     if my_data:
         await my_data.target_channel.send(
             f"__**Followup {'Expired' if interaction is None else 'Complete'}** - "
@@ -277,9 +275,9 @@ async def followup_forwarding_interrupt(interaction: Interaction, item: UserActi
            "sending messages for me to forward.")
     view = ConfirmView(interaction.user)
     await interaction.followup.send(msg, view=view, ephemeral=True)
-    await view.wait()
+    view_timeout = await view.wait()
 
-    if view.value is None:
+    if view_timeout:
         await interaction.followup.send(
             Lang.get_locale_string('common/interaction_timeout', interaction, description="interrupt followup"),
             ephemeral=True)
@@ -318,7 +316,7 @@ async def followup_forwarding_expire(item: UserActionItem):
         Logging.info(f"followup expiration message failed to send to {followup.interaction.user.id}: {e}")
 
 
-def prepare_author_embed(user: User):
+def prepare_author_embed(user: Union[User, Member]):
     # the embed to display who was the author in dropbox channel
     try:
         avatar = user.avatar.replace(size=32) if user.avatar else None
@@ -380,7 +378,7 @@ async def open_thread(source_message, author_name, subject, message):
         raise e
 
 
-def author_info(user: User, mention: bool = False):
+def author_info(user: Union[User,Member], mention: bool = False):
     return f"{user.mention if mention else user.display_name} [{user.name}]({user.id})"
 
 async def drop_to_target(
@@ -408,6 +406,10 @@ async def drop_to_target(
     target_channel = Utils.BOT.get_channel(target.channelid)
     author_name = author_info(interaction.user, False)
     author_name_mention = author_info(interaction.user, True)
+
+    if not target_channel:
+        Logging.error(f"Dropbox target channel not found: {target.channelid}")
+        return None, False
 
     if len(subject) > 0:
         message = f"## {subject}\n{message}"
@@ -466,7 +468,7 @@ async def drop_to_target(
 
 async def send_receipt(
         interaction: Interaction,
-        dropped_message: Message,
+        dropped_message: Optional[Message],
         target_row: DropboxTarget,
         subject: str,
         message: str,
@@ -480,6 +482,7 @@ async def send_receipt(
         await interaction.followup.send(
             content=Lang.get_locale_string('dropbox/msg_blank', interaction),
             ephemeral=True)
+        unlock_user(interaction.user.id)
         return
 
     lines_quoted = [f"> {line}" for line in message.splitlines(keepends=True)]
@@ -489,7 +492,8 @@ async def send_receipt(
     status_msg = Lang.get_locale_string(
         'dropbox/msg_delivered' if delivery_success else 'dropbox/msg_not_delivered', interaction, author="")
     receipt_msg_header = Lang.get_locale_string('dropbox/msg_receipt_ephemeral', interaction)
-    msg_followup_instructions = Lang.get_locale_string('dropbox/msg_followup_instructions', interaction)
+    msg_followup_instructions = (Lang.get_locale_string('dropbox/msg_followup_instructions', interaction)
+                                 if dropped_message else "")
 
     # Pagination in case the message length is over 2k
     pages = Utils.paginate(f"{status_msg} {receipt_msg_header}\n{message}\n\n{msg_followup_instructions}")
@@ -521,16 +525,25 @@ async def send_receipt(
             canceled_label="Report Complete",
             timeout=confirm_view_timeout)
 
+    Logging.debug(f"receipt last page {page_count} length: {len(last_page)}")
+    Logging.debug(f"sending last receipt page {page_count} of {page_count}")
+
     # Modal confirming DM request
     confirm_view = get_confirm_view()
 
-    Logging.debug(f"receipt last page {page_count} length: {len(last_page)}")
-    Logging.debug(f"sending last receipt page {page_count} of {page_count}")
-    confirm_message = await interaction.followup.send(last_page, ephemeral=True, view=confirm_view)
+    my_args = {}
+    if dropped_message:
+        my_args['view'] = confirm_view
 
-    await confirm_view.wait()
+    confirm_message = await interaction.followup.send(last_page, ephemeral=True, **my_args)
 
-    if confirm_view.value is None:
+    if not dropped_message: # Error message has been sent, not further action
+        unlock_user(interaction.user.id)
+        return
+
+    view_timeout = await confirm_view.wait()
+
+    if view_timeout:
         unlock_user(interaction.user.id)
         # timed out. edit message
         edited_content = confirm_message.content.replace(
@@ -583,26 +596,34 @@ async def send_receipt(
                         # DM is closed
                         edited_content += Lang.get_locale_string('dropbox/dm_unable', interaction)
                         confirm_view = get_confirm_view()
-                        await asyncio.sleep(1)
                         try:
                             await confirm_message.edit(content=edited_content, view=confirm_view)
-                            await confirm_view.wait()
+                            view_timeout = await confirm_view.wait()
                         except NotFound as e:
+                            unlock_user(interaction.user.id)
+                            unregister_user_action(interaction.user)
                             Logging.error(f"dropbox confirm modal failed to edit {e}", exc_info=True)
                             return
                         Logging.debug(f"dropbox dm attempt. second try modal response: {confirm_view.value}")
                         ask_again = confirm_view.value
-                if confirm_view.value is None:
+
+                if view_timeout:
                     edited_content += f"\n\n{get_chat_emoji('SNAIL')} You took took long, so I give up"
+                    unlock_user(interaction.user.id)
+                    unregister_user_action(interaction.user)
                 else:
-                    # add dm channel to listening_for_followup channels
-                    Logging.debug(f"should now listen for messages from {interaction.user.id} and forward them to [[{target_channel}]]")
-                    edited_content += (f"{get_chat_emoji('WARNING')} "
-                                       f"I sent you a DM asking for more: {dm_result.jump_url}")
+                    if dm_result is not None:
+                        # add dm channel to listening_for_followup channels
+                        Logging.debug(f"should now listen for messages from {interaction.user.id} and forward them to [[{target_channel}]]")
+                        edited_content += (f"{get_chat_emoji('WARNING')} "
+                                           f"I sent you a DM asking for more: {dm_result.jump_url}")
+                    elif not ask_again:
+                        # DM retry was declined, DM not opened.
+                        unlock_user(interaction.user.id)
+                        unregister_user_action(interaction.user)
         else:
-            # user declined followup
+            # User declined followup
             unlock_user(interaction.user.id)
-        await asyncio.sleep(0.1)
         await confirm_message.edit(content=edited_content, view=None)
 
 async def followup_dm(interaction: Interaction, target_channel: Messageable) -> Optional[Message]:
@@ -641,7 +662,7 @@ async def handle_followup(message: Message, followup: DropboxFollowup):
                     pass
     except Exception as e:
         Logging.info(f"drop fail {e}", exc_info=True)
-        ctx = Utils.BOT.get_context(message)
+        ctx = await Utils.BOT.get_context(message)
         await followup.target_channel.send(
             Lang.get_locale_string('dropbox/attachment_fail', ctx, author=message.author.mention))
 
@@ -664,11 +685,11 @@ async def handle_followup(message: Message, followup: DropboxFollowup):
 
 async def send_receipt_old(
         ctx: Union[Context, Interaction],
-        user: User,
+        user: Union[User, Member],
         pages: list[str],
         embed: Embed,
         attachment_names: set[str],
-        drop_message: Message,
+        drop_message: Optional[Message],
         delivery_success: bool):
     """Send a receipt: to DMs for old dropbox, to ephemeral for new dropbox"""
     if isinstance(ctx, Context):
@@ -816,9 +837,21 @@ class DropBox(BaseCog):
         send_tasks = []
         try:
             for guild_id, guild_queue in self.drop_messages.items():
-                for channel_id, message_queue in guild_queue.items():
+                for channel_id, message_queue in list(guild_queue.items()):
                     # get dropbox channel
-                    drop_channel = self.bot.get_channel(self.dropboxes[guild_id][channel_id].targetchannelid)
+                    my_row: DropboxChannel = self.dropboxes[guild_id][channel_id]
+                    target_channel_id: int = my_row.targetchannelid
+                    drop_channel = self.bot.get_channel(target_channel_id)
+                    if not isinstance(drop_channel, discord.TextChannel):
+                        await Logging.bot_log(
+                            f"Disabling invalid config until restart:\n"
+                            f"\tsourcechannelid: {my_row.sourcechannelid}\n"
+                            f"\ttargetchannelid: {my_row.targetchannelid}\n"
+                            f"\tdeletedelayms: {my_row.deletedelayms}\n"
+                            f"\tsendreceipt: {my_row.sendreceipt}\n")
+                        self.dropboxes[guild_id].pop(channel_id, None)
+                        guild_queue.pop(channel_id, None)
+                        continue
                     working_queue = dict(message_queue)
                     for message_id, message in working_queue.items():
                         if channel_id not in self.delivery_in_progress[guild_id]:
@@ -1049,7 +1082,7 @@ class DropBox(BaseCog):
         default_permissions=Permissions(manage_channels=True))
 
     @dropbox_command.command()
-    async def prepare_channel(self, interaction: Interaction, message: str = None):
+    async def prepare_channel(self, interaction: Interaction, message: Optional[str] = None):
         """
         Create a dropbox member interaction message. This must be run in a
         channel that already has drop-targets configured.
@@ -1215,9 +1248,9 @@ class DropBox(BaseCog):
                 f"This target already exists. should I replace these settings:\n{target}",
                 view=confirm_view,
                 ephemeral=True)
-            await confirm_view.wait()
+            view_timeout = await confirm_view.wait()
 
-            if confirm_view.value is None:
+            if view_timeout:
                 await interaction.followup.send("You didn't respond in time. Canceled", ephemeral=True)
                 return
             elif confirm_view.value:
@@ -1288,7 +1321,7 @@ class DropBox(BaseCog):
         else:
             await interaction.followup.send("dropbox target does not exist", ephemeral=True)
 
-    @removetarget.autocomplete('target')
+    @removetarget.autocomplete('target')  # type: ignore[attr-defined] linter is deficient
     async def target_autocomplete(
             self,
             interaction: discord.Interaction,
@@ -1302,12 +1335,12 @@ class DropBox(BaseCog):
             return f"#{channel.name}: [{target.button_label}]"
 
         # generator for all cog names:
-        all_matching_targets = [i for i in targets if current.lower() in await make_target_name(i)]
+        all_targets_formatted = [app_commands.Choice(name=await make_target_name(i), value=i.id) for i in targets]
+        all_matching_targets = [i for i in all_targets_formatted if current.lower() in i.name.lower()]
         # islice to limit to 25 options (discord API limit)
         some_targets = list(islice(all_matching_targets, 25))
         # convert matched list into list of choices
-        ret = [app_commands.Choice(name=await make_target_name(c), value=c.id) for c in some_targets]
-        return ret
+        return some_targets
 
     #########################
     # Chat commands
@@ -1564,7 +1597,7 @@ class DropBox(BaseCog):
                             message.channel.guild.id is not None)
             guild_id = message.channel.guild.id if guild_has_id else None
             channel_not_in_dropboxes = (guild_id not in self.dropboxes or
-                                        message.channel.id not in self.dropboxes[guild_id])
+                                        guild_id and message.channel.id not in self.dropboxes[guild_id])
             author_not_in_guild = not hasattr(message.author, "guild") or message.author.guild is None
             is_mod = (guild_id is not None and message.author.guild_permissions.ban_members
                       or await self.bot.member_is_admin(message.author.id))
@@ -1591,9 +1624,10 @@ class DropBox(BaseCog):
             return
 
         # queue this message id for delivery/deletion
-        if message.channel.id not in self.drop_messages[guild_id]:
-            self.drop_messages[guild_id][message.channel.id] = {}
-        self.drop_messages[guild_id][message.channel.id][message.id] = message
+        if guild_id:
+            if message.channel.id not in self.drop_messages[guild_id]:
+                self.drop_messages[guild_id][message.channel.id] = {}
+            self.drop_messages[guild_id][message.channel.id][message.id] = message
 
 
 async def setup(bot):

@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional, Union, Literal, List, Any
 
 import discord
-from discord import AllowedMentions, Message, TextChannel, Guild
+from discord import AllowedMentions, Message, TextChannel, Guild, Member
 from discord.errors import NotFound, HTTPException, Forbidden
 from discord.ext import commands, tasks
 from discord.ext.commands import (Context, ChannelNotFound,
@@ -177,19 +177,17 @@ class AutoResponders(BaseCog):
     @staticmethod
     async def describe_raw_response_embeds(timestamp, input_label, embed_color, input_deque):
         embeds = []
-        my_embed: Optional[discord.Embed] = None
 
         def current_embed() -> discord.Embed:
-            nonlocal my_embed
-            if my_embed is None or len(my_embed.fields) >= AutoResponders.raw_response_fields_per_embed:
-                my_embed = discord.Embed(
-                    timestamp=timestamp,
-                    color=embed_color,
-                    title=f"**{input_label}** responses")
-                embeds.append(my_embed)
-            # TODO: figure out why inspection needs this assertion
-            assert my_embed is not None
-            return my_embed
+            if embeds and len(embeds[-1].fields) < AutoResponders.raw_response_fields_per_embed:
+                return embeds[-1]
+
+            embed = discord.Embed(
+                timestamp=timestamp,
+                color=embed_color,
+                title=f"**{input_label}** responses")
+            embeds.append(embed)
+            return embed
 
         if len(input_deque) == 0:
             return embeds
@@ -544,12 +542,7 @@ class AutoResponders(BaseCog):
                 # check for trigger by db id
                 my_id = int(trigger)
                 try:
-                    trigger_by_id = self.find_trigger_by_id(ctx.guild.id, my_id)
-                    if str(trigger) in self.triggers[ctx.guild.id]:
-                        # TODO: detect trigger text that also matches id and offer a choice
-                        #  e.g. if trigger "134" and ar id 134 are different rules, choose
-                        pass
-                    return trigger_by_id
+                    return self.find_trigger_by_id(ctx.guild.id, my_id)
                 except ValueError:
                    # Not found by id, fall through and prompt for trigger
                    pass
@@ -629,6 +622,14 @@ class AutoResponders(BaseCog):
             await ctx.send(f"{Emoji.get_chat_emoji('WHAT')} Trigger exists already. "
                            f"Duplicates not allowed.")
         else:
+            # A bare-integer trigger collides with AR-id lookup in choose_trigger
+            # (int(trigger) succeeds there). Store it as a single-element JSON list
+            # so it matches identically but can never be parsed as an id.
+            try:
+                int(trigger)
+                return json.dumps([trigger])
+            except ValueError:
+                pass
             p1 = re.compile(r"(\[|, )'")
             p2 = re.compile(r"'(, |])")
             fixed = p1.sub(r'\1"', trigger)
@@ -945,13 +946,6 @@ class AutoResponders(BaseCog):
         except Exception as e:
             await Utils.handle_exception("unknown AR Remove exception", e)
 
-    # TODO: ar subscribe
-    #  command to subscribe to matches
-    #  ar subscription table with subscriber IDs
-    #  send alert in guild log:
-    #   `{trigger}` {link} [@mentions...]
-    #   ```content```
-
     @autor.command()
     @commands.guild_only()
     async def response(self,
@@ -978,7 +972,12 @@ class AutoResponders(BaseCog):
         try:
             trigger = await self.choose_trigger(ctx, trigger)
         except (ValueError, asyncio.TimeoutError):
-            raise BadArgument  # TODO: test and maybe replace other CommandErrors
+            raise BadArgument  # user gave bad trigger or timed out
+        except KeyError:
+            raise CommandError(f"No autoresponders loaded for this guild.")
+        except (Forbidden, HTTPException) as e:
+            await Utils.handle_exception("AR response choose_trigger send failure", e)
+            raise CommandError("Couldn't prompt for a trigger (channel perms?).")
 
         response_types = {
             ArResponseType.Public: AutoResponseType.public,
@@ -1067,10 +1066,11 @@ class AutoResponders(BaseCog):
                                                 escape=False)
 
         try:
-            if int(response):
+            int_response = int(response)  # type: ignore - bad input will raise exception
+            if int_response:
                 # Check if the answer is a number from the zero-indexed list
                 try:
-                    response = my_responses[int(response)-1]
+                    response = my_responses[int_response-1]
                 except IndexError:
                     pass
         except (ValueError, TypeError):
@@ -1093,7 +1093,7 @@ class AutoResponders(BaseCog):
                 f"`{response}`")
             return
 
-        # TODO: multi-response handling
+        # TODO: multi-response handling, e.g. list of randomly selected responses
         escaped_response = await Utils.clean(response)
 
         if mode == ArCommandMode.Add:
@@ -1805,8 +1805,9 @@ class AutoResponders(BaseCog):
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):
-        my_event = None
-        message = None
+        my_event: Optional[ArEvent] = None
+        member: Optional[Member] = None
+        message: Optional[Message] = None
 
         try:
             channel = self.bot.get_channel(event.channel_id)
@@ -1839,7 +1840,7 @@ class AutoResponders(BaseCog):
             await Utils.handle_exception("auto-responder generic exception", e)
             return
 
-        if my_event:
+        if my_event and member and message:
             await self.do_mod_action(my_event, member, message, event.emoji)
 
     async def update_list_message(self, my_pager: ArPager, event):
@@ -1865,7 +1866,9 @@ class AutoResponders(BaseCog):
                 value=f"{next_page+1} of {len(self.ar_list[guild_id])}",
                 inline=False)
             page = next_page
-            await my_pager.message.remove_reaction(event.emoji, self.bot.get_user(event.user_id))
+            my_user = self.bot.get_user(event.user_id)
+            if my_user:
+                await my_pager.message.remove_reaction(event.emoji, my_user)
             edited_message = await my_pager.message.edit(
                 content='\n'.join(my_ar_list[next_page]),
                 embed=embed)

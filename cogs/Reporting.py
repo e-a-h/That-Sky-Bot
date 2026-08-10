@@ -1,7 +1,7 @@
 import os
 import re
 import sys
-import typing
+from typing import Optional, Union
 from datetime import datetime
 
 from discord import File
@@ -26,10 +26,10 @@ class Reporting(BaseCog):
     async def csv(
             self,
             ctx: commands.Context,
-            start: typing.Optional[int] = -100,
-            end: typing.Optional[int] = None,
-            branch: typing.Optional[str] = "",
-            platform: typing.Optional[str] = ""):
+            start: Optional[int] = -100,
+            end: Optional[int] = None,
+            branch: Optional[str] = "",
+            platform: Optional[str] = ""):
         """
         Export bug reports starting from {start} to CSV file
         csv                      exports 100 most recent reports
@@ -49,7 +49,7 @@ class Reporting(BaseCog):
 
             return branches
 
-        async def get_platform(a_platform):
+        async def get_platform(a_platform: str):
             platforms = [p.platform for p in await BugReportingPlatform.all()]
 
             for this_platform in platforms:
@@ -59,8 +59,13 @@ class Reporting(BaseCog):
             return platforms
 
         # dashes at the start of text are interpreted as formulas by excel. replace with *
-        def filter_hyphens(text):
+        def filter_hyphens(text: str):
             return re.sub(r'^\s*[-=+]\s*', '* ', text, flags=re.MULTILINE)
+
+        # Enforce defaults (redundant to assist type checking)
+        start = -100 if start is None else start
+        platform = "" if platform is None else platform
+        branch = "" if branch is None else branch
 
         pl = await get_platform(platform)
         br = await get_branch(branch)
@@ -113,11 +118,14 @@ class Reporting(BaseCog):
                   "additional"]
 
         for report in query:
-            reporter_formatted = report.reporter
-            reporter = self.bot.get_user(report.reporter)
-            if reporter is not None:
-                reporter_formatted = f"@{reporter.name}#{reporter.discriminator}({report.reporter})"
+            reporter_id: int = report.reporter
+            user = self.bot.get_user(reporter_id)
+            reporter_formatted: Union[int, str] = report.reporter
             attachments = []
+
+            if user is not None:
+                reporter_formatted = f"@{user.name}#{user.discriminator}({user.id})"
+
             for attachment in await report.attachments:
                 attachments.append(attachment.url)
 

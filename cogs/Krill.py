@@ -3,6 +3,7 @@ import re
 from datetime import datetime
 from functools import reduce
 from random import randint, random, choice
+from typing import Optional
 
 import discord
 from discord import utils, NotFound
@@ -507,11 +508,11 @@ class Krill(BaseCog):
             await ctx.send("None")
 
     @staticmethod
-    async def nope(ctx, msg: str = None):
+    async def nope(ctx, msg: Optional[str] = None):
         msg = msg or Lang.get_locale_string('common/nope', ctx)
         await ctx.send(f"{Emoji.get_chat_emoji('WARNING')} {msg}")
 
-    async def choose_byline(self, ctx, line_id):
+    async def choose_byline(self, ctx, line_id) -> Optional[KrillByLines]:
         guild_bylines = await self.configs[ctx.guild.id].bylines.order_by('id')
         if line_id != 0:
             try:
@@ -522,7 +523,7 @@ class Krill(BaseCog):
             except DoesNotExist:
                 no_bylines = "There are no krill bylines. Try making some first!"
                 await ctx.send(f"{Emoji.get_chat_emoji('NO')} {no_bylines}")
-                return
+                return None
 
         # failed to find by id. Ask
         options = []
@@ -571,10 +572,10 @@ class Krill(BaseCog):
             await self.nope(ctx, Lang.get_locale_string("common/expect_integer", ctx, keys=key_dump))
             raise
 
-    async def choose_byline_type(self, ctx, line_id):
+    async def choose_byline_type(self, ctx, line_id: Optional[int]):
 
         try:
-            if 0 <= int(line_id) < len(self.byline_types):
+            if line_id is not None and 0 <= int(line_id) < len(self.byline_types):
                 return int(line_id)
         except TypeError:
             pass
@@ -691,7 +692,7 @@ class Krill(BaseCog):
     @commands.check(Utils.can_mod_official)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
-    async def set_byline_type(self, ctx, byline_id: int = 0, byline_type: int = None):
+    async def set_byline_type(self, ctx, byline_id: int = 0, byline_type: Optional[int] = None):
         """
         Set Krill byline type
 
@@ -703,6 +704,8 @@ class Krill(BaseCog):
         """
         try:
             my_byline = await self.choose_byline(ctx, byline_id)
+            if my_byline is None:
+                return
         except ValueError:
             return
 
@@ -741,7 +744,7 @@ class Krill(BaseCog):
     @commands.check(Utils.can_mod_official)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
-    async def return_home(self, ctx, percent: int = None):
+    async def return_home(self, ctx, percent: Optional[int] = None):
         """
         Configure return-home frequency for krill command
 
@@ -760,7 +763,7 @@ class Krill(BaseCog):
     @commands.check(Utils.can_mod_official)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
-    async def shadow_roll(self, ctx, percent: int = None):
+    async def shadow_roll(self, ctx, percent: Optional[int] = None):
         """
         Configure shadow-roll frequency for krill command
 
@@ -779,7 +782,7 @@ class Krill(BaseCog):
     @commands.check(Utils.can_mod_official)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
-    async def krill_rider(self, ctx, percent: int = None):
+    async def krill_rider(self, ctx, percent: Optional[int] = None):
         """
         Configure krill-rider frequency for krill command
 
@@ -797,7 +800,7 @@ class Krill(BaseCog):
     @commands.check(Utils.can_mod_official)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
-    async def crab(self, ctx, percent: int = None):
+    async def crab(self, ctx, percent: Optional[int] = None):
         """
         Configure crab-attack frequency for krill command
 
@@ -816,7 +819,7 @@ class Krill(BaseCog):
     @commands.check(Utils.can_mod_official)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
-    async def allow_text(self, ctx, allow: bool = None):
+    async def allow_text(self, ctx, allow: Optional[bool] = None):
         """
         Configure text permission for krill command
 
@@ -832,7 +835,7 @@ class Krill(BaseCog):
     @commands.check(Utils.can_mod_official)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()
-    async def monster_duration(self, ctx, monster_time: int = None):
+    async def monster_duration(self, ctx, monster_time: Optional[int] = None):
         """
         Configure text permission for krill command
 
@@ -941,8 +944,12 @@ class Krill(BaseCog):
         if name_has_or:
             captured_pattern.append(name_has_or.group(2))
         for pattern in captured_pattern:
-            name_cleaned = re.sub(re.escape(pattern), '', victim_name)
-            if oreo_pattern.match(name_cleaned):
+            escaped_pattern = re.escape(pattern)
+            name_cleaned = re.sub(
+                str(escaped_pattern),
+                '',
+                victim_name)
+            if oreo_pattern.match(str(name_cleaned)):
                 self.monsters[ctx.author.id] = datetime.now().timestamp()
                 await ctx.send(f"you smell funny, {ctx.author.mention}")
                 return
@@ -1036,8 +1043,8 @@ class Krill(BaseCog):
             crab_attacking = True
 
         out = [
-            dict(action=lambda: go_home(), raw=guild_krill_config.return_home_freq),
-            dict(action=lambda: crab_attack(), raw=guild_krill_config.crab_freq),
+            dict(action=lambda: go_home(), raw=int(guild_krill_config.return_home_freq)),
+            dict(action=lambda: crab_attack(), raw=int(guild_krill_config.crab_freq)),
             dict(action=None, raw=0)
         ]
 
@@ -1128,7 +1135,7 @@ class Krill(BaseCog):
         #  if reaction count >= 3 remove id from persistent
         #  announce victim has been rescued
 
-    @krill.error
+    @krill.error  # type: ignore[attr-defined]
     async def krill_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
             if ctx.message.author.guild_permissions.mute_members \

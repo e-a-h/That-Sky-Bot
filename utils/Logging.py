@@ -2,6 +2,7 @@ import functools
 import logging
 import os
 import sys
+import traceback
 import typing
 from enum import Enum
 from logging.handlers import TimedRotatingFileHandler
@@ -29,6 +30,21 @@ class TCol(Enum):
     Underline = '\033[4m'
 
 
+class RateLimitStackFilter(logging.Filter):
+    """Attach the awaiting coroutine stack to discord.py's 429 warnings.
+
+    discord.py logs the rate limited route but not the caller. Coroutine frames
+    stay on the stack while awaiting, so the stack captured here names the cog
+    or task loop that issued the request. Formatter.format() appends
+    record.stack_info on its own, so no format string change is needed.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.levelno >= logging.WARNING and "being rate limited" in record.getMessage():
+            record.stack_info = "".join(traceback.format_stack())
+        return True
+
+
 def init():
     LOGGER.setLevel(logging.INFO)
     DISCORD_LOGGER.setLevel(logging.INFO)
@@ -48,6 +64,9 @@ def init():
     handler.setFormatter(formatter)
     DISCORD_LOGGER.addHandler(handler)
     LOGGER.addHandler(handler)
+
+    # discord.py logs 429s from discord.http; the filter adds the calling stack
+    logging.getLogger('discord.http').addFilter(RateLimitStackFilter())
 
 
 async def bot_log(message: typing.Optional[str]=None, embed: typing.Optional[Embed]=None):
@@ -103,7 +122,7 @@ def log_always(message, *styles: TCol, level: int = logging.INFO, logger: loggin
     if logger.isEnabledFor(level):
         logger.log(level, formatted)
     else:
-        record = logger.makeRecord(logger.name, level, "(unknown)", 0, formatted, None, None)
+        record = logger.makeRecord(logger.name, level, "(unknown)", 0, formatted, (), None)
         logger.handle(record)
 
 

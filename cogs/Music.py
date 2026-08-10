@@ -286,9 +286,9 @@ class Music(BaseCog):
             view = ConfirmView(interaction.user, timeout=10.0)
             question = Lang.get_locale_string("music/start_over", interaction, user=user.mention)
             await interaction.followup.send(question, view=view, ephemeral=True)
-            await view.wait()
+            view_timeout = await view.wait()
 
-            if view.value is None:
+            if view_timeout:
                 await interaction.followup.send("You didn't respond in time. Not starting over (head back to DMs!)", ephemeral=True)
                 return
             elif view.value:
