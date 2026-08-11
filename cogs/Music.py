@@ -228,24 +228,26 @@ class Music(BaseCog):
         Logging.info(f"{self.qualified_name} shutdown", TCol.Underline, TCol.Header)
 
     async def cog_unload(self):
-        Logging.info("\tCancel bug cleanup tasks...", TCol.Warning)
         cancelling = set(self.in_progress.values())
-        Logging.info(cancelling)
-        i=1
-        for task in cancelling:
-            Logging.info(f"\tcanceling {i}...")
-            Logging.info(f"\t\ttask {i} is already done? {task.done()}")
-            Logging.info(f"\t\ttask {i} is canceled? {task.cancelled()}")
-            if not task.done() and not task.cancelled():
-                Logging.info(f"task {i} is not done or canceled")
-                Logging.info(task)
-                task.cancel()
-            i += 1
-        Logging.info("\tdone queuing cancels...", TCol.Warning)
+        if len(cancelling) > 0:
+            Logging.info("\tCancel music cleanup tasks...", TCol.Warning)
+            i=1
+            for task in cancelling:
+                Logging.info(f"\tcanceling {i}...")
+                Logging.info(f"\t\ttask {i} is already done? {task.done()}")
+                Logging.info(f"\t\ttask {i} is canceled? {task.cancelled()}")
+                if not task.done() and not task.cancelled():
+                    Logging.info(f"task {i} is not done or canceled")
+                    Logging.info(task)
+                    task.cancel()
+                i += 1
+            Logging.info("\tdone queuing cancels...", TCol.Warning)
+        else:
+            Logging.info("\tThere are no music cleanup tasks to cancel.", TCol.Green)
         if cancelling:
             await asyncio.gather(*cancelling, return_exceptions=True)
-        Logging.info("\tdone canceling tasks...", TCol.Warning)
-        Logging.info(f"\t{self.qualified_name}::cog_unload")
+        Logging.info("\tdone canceling tasks", TCol.Warning)
+        Logging.info(f"{self.qualified_name}::cog_unload complete", TCol.Bold, TCol.Blue)
 
     async def init_guild(self, guild):
         Logging.info(f"\t{self.qualified_name}::init_guild")

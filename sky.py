@@ -8,6 +8,7 @@ Skybot : discord.ext.commands.Bot
     A specialized subclass of Bot to handle the bot's lifecycle, events, extensions, and configuration.
 """
 import asyncio
+import faulthandler
 import os
 import signal
 import sys
@@ -389,7 +390,7 @@ async def queue_worker(name, queue, job, shielded=False):
                     await asyncio.create_task(job(work_item))
             except asyncio.CancelledError:
                 Logging.info(f"job canceled for worker {name}")
-                if not this_bot:
+                if not running:
                     Logging.info(f"stopping worker {name}")
                     raise
                 Logging.info(f"worker {name} continues")
@@ -495,9 +496,26 @@ async def main():
 
     def close_bot():
         global this_bot
+
+        # def double ctrl-c handler to exit immediately
+        if getattr(close_bot, "_called", False):
+            os._exit(1)  # second signal → die now
+        close_bot._called = True
+
         if this_bot:
             Logging.info("sending close signal")
-            asyncio.ensure_future(this_bot.close())
+            faulthandler.dump_traceback_later(15, exit=True)
+            fut = asyncio.ensure_future(this_bot.close())
+
+            def _closed(f):
+                if f.cancelled():
+                    Logging.warn("close() cancelled")
+                elif f.exception():
+                    Logging.error(f"close() raised: {f.exception()!r}")
+                else:
+                    Logging.info("close() complete")
+
+            fut.add_done_callback(_closed)
 
     try:
         for this_signal in (signal.SIGINT, signal.SIGTERM):
@@ -513,6 +531,15 @@ async def main():
     except KeyboardInterrupt:
         pass
     finally:
+        async def _shutdown_watchdog(timeout=10):
+            await asyncio.sleep(timeout)
+            Logging.warn("shutdown watchdog fired — pending tasks:")
+            for t in asyncio.all_tasks():
+                if not t.done():
+                    Logging.warn(f"  task={t.get_name()} coro={t.get_coro()}")
+                    t.print_stack()
+
+        watchdog = asyncio.create_task(_shutdown_watchdog())
         this_bot.loaded = False
         running = False
         Logging.info("shutdown finally?", TCol.Warning)
@@ -526,11 +553,18 @@ async def main():
         persistent_data_task.cancel("shutdown")
         try:
             await persistent_data_task
+            Logging.info("shutdown: worker stopped", TCol.Warning)
         except asyncio.CancelledError:
             pass
 
+        Logging.info("shutdown: queue drained", TCol.Warning)
+
         if not this_bot.is_closed():
-            await this_bot.close()
+            try:
+                await asyncio.wait_for(this_bot.close(), timeout=10)
+            except asyncio.TimeoutError:
+                Logging.warn("close() timed out on dead socket — forcing exit")
+                os._exit(1)  # supervisor/dev restart; skips wedged loop cleanup
 
 this_bot: Optional[Skybot] = None
 
@@ -543,4 +577,5 @@ if __name__ == '__main__':
         # Who knows... log this.
         Logging.error(f"Unhandled exception: {ex}")
     finally:
+        faulthandler.cancel_dump_traceback_later()
         Logging.info("bot shutdown complete", TCol.Green)
