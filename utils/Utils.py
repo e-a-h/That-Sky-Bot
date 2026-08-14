@@ -200,14 +200,14 @@ async def permission_manage_bot(ctx: Union[Context, Interaction]) -> bool:
         guild_row = await BOT.get_guild_db_config(guild.id)
         if guild_row is None:
             return False
-        config_role_ids = Configuration.get_var("admin_roles", [])  # roles saved in the config
         db_admin_roles = await guild_row.admin_roles.filter()  # Roles saved in the db for this guild
         db_admin_role_ids = [row.roleid for row in db_admin_roles]
+        config_role_ids = Configuration.get_var("admin_roles", [])  # roles saved in the config
         admin_role_ids = db_admin_role_ids + config_role_ids
         admin_roles = id_list_to_roles(guild, admin_role_ids)
 
-        for role in author.roles:
-            if role in admin_roles:
+        for role in admin_roles:
+            if role in author.roles:
                 Logging.info(f"admin granted by {role.name} role to {author.name}", TCol.Green)
                 return True
     return False
@@ -267,7 +267,7 @@ async def guild_log( guild_id: int, msg: Optional[str] = None, embed: Optional[E
     return sent
 
 
-def id_list_to_roles(guild: Guild, id_list: list[int]) -> list[Role]:
+def id_list_to_roles(guild: Guild, id_list: list[int]) -> set[Role]:
     """Convert a list of integer role IDs to a list of validated roles for the requested guild.
 
     Parameters
@@ -277,13 +277,14 @@ def id_list_to_roles(guild: Guild, id_list: list[int]) -> list[Role]:
 
     Returns
     -------
-    role_list: list[Role]
+    set[Role]
     """
-    output = []
-    for role_id in id_list:
+    id_set = set(id_list)
+    output = set()
+    for role_id in id_set:
         my_role = guild.get_role(role_id)
         if my_role:
-            output.append(my_role)
+            output.add(my_role)
     return output
 
 
