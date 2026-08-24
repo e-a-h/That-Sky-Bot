@@ -679,7 +679,7 @@ class Mischief(BaseCog):
     # Chat Commands
     ############################
 
-    @commands.group(name="name_mischief", invoke_without_command=True)
+    @commands.group(name="name_mischief", invoke_without_command=True, cls=commands.Group)
     @commands.guild_only()
     @commands.check(Utils.can_mod_official)
     async def name_mischief(self, ctx):

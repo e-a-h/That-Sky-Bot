@@ -328,7 +328,6 @@ class CustCommands(BaseCog):
                 f"I don't know about that command",
                 ephemeral=True)
 
-
     # set_command_context causes inspection to fail here.
     # if `describe` and `choices` decorators are removed from that function, it works. :(
     @do_command.autocomplete('topic')
@@ -378,7 +377,7 @@ class CustCommands(BaseCog):
     # chat commands
     ####################
 
-    @commands.group(name="commands", aliases=['command'])
+    @commands.group(name="commands", aliases=['command'], cls=commands.Group)
     @commands.guild_only()
     @commands.bot_has_permissions(embed_links=True)
     async def custom_command(self, ctx: commands.Context):

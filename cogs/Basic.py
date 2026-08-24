@@ -7,19 +7,35 @@ from typing import Optional, Union, Literal
 import discord
 from discord import app_commands, Interaction
 from discord.app_commands import Choice
-from discord.ext.commands import Context, Greedy, is_owner, guild_only, command
+from discord.ext.commands import Context, Greedy, is_owner, guild_only, command, parameter
 
 from cogs.BaseCog import BaseCog
 from utils import Utils, Logging
+from utils.Converters import EnumChoice
 from utils.Helper import Sender
 from utils.Logging import TCol
 from utils.Utils import interaction_response, parse_date_with_pacific_fallback, check_is_owner
 
 
 class SyncValues(Enum):
-    Current ="~"
+    Current = "~"
     GlobalToLocal = "*"
     ClearTree = "^"
+
+    @classmethod
+    def _missing_(cls, value):
+        """Accept a member name (case-insensitive) as well as its symbol."""
+        if isinstance(value, str):
+            folded = value.casefold()
+            for member in cls:
+                if member.name.casefold() == folded:
+                    return member
+        return None
+
+    @classmethod
+    def help_text(cls) -> str:
+        return ", ".join(f"[{member.value}] {member.name}" for member in cls)
+
 
 class Basic(BaseCog):
 
@@ -127,6 +143,9 @@ class Basic(BaseCog):
 
     @app_commands.guild_only()
     @app_commands.command()
+    @app_commands.describe(
+        operation=f"Sync type: {SyncValues.help_text()}",
+        guild_id="Guild to sync to. Omit for global.")
     @app_commands.check(check_is_owner)
     @app_commands.default_permissions(manage_channels=True)
     async def sync_app_commands(
@@ -143,7 +162,7 @@ class Basic(BaseCog):
         Logging.debug(f"Syncing --\n"
                       f"\tguilds: {guilds}\n"
                       f"\tspec: {operation.name if operation else 'global'}")
-        await self.do_sync(interaction, guilds=guilds, spec=operation.value if operation else "")
+        await self.do_sync(interaction, guilds=guilds, spec=operation)
 
     @sync_app_commands.autocomplete('guild_id')
     async def guild_autocomplete(
@@ -159,12 +178,21 @@ class Basic(BaseCog):
 
     @is_owner()
     @guild_only()
-    @command(aliases=["sync"])
+    @command(
+        aliases=["sync"],
+        brief="Sync app commands by guild or globally",
+        help="Sync app commands to the given guilds, or globally when no guild is given.")
     async def app_command_sync(
             self,
             ctx: Context,
-            guilds: Greedy[discord.Object] = None,  # type: ignore
-            spec: Optional[SyncValues] = None) -> None:
+            guilds: Greedy[discord.Object] = parameter(  # type: ignore
+                default=None,
+                description="Guilds to sync. Omit for global sync."),
+            spec: Optional[SyncValues] = parameter(
+                converter=EnumChoice(SyncValues),
+                default=None,
+                displayed_default="global",
+                description=f"Sync type: {SyncValues.help_text()}")) -> None:
         """
         Sync commands by guild or globally
 
@@ -173,8 +201,8 @@ class Basic(BaseCog):
         ctx
         guilds: list
             Guilds to sync. Omit for global sync
-        spec: str
-            Sync type: [~]current [*]global to local [^]clear tree"""
+        spec: SyncValues
+            Sync type, by name or symbol"""
         validated_guilds = []
         Logging.debug("guilds: "+repr(guilds))
         if guilds:
@@ -182,9 +210,9 @@ class Basic(BaseCog):
                 validated_guilds.append(i.id)
         Logging.debug("my_guilds: "+repr(validated_guilds))
         Logging.debug("spec: "+repr(spec))
-        await self.do_sync(ctx, validated_guilds, spec if spec else '')
+        await self.do_sync(ctx, validated_guilds, spec)
 
-    async def do_sync(self, ctx: Union[Context, Interaction], guilds: list[int], spec: str = "") -> None:
+    async def do_sync(self, ctx: Union[Context, Interaction], guilds: list[int], spec: Optional[SyncValues] = None) -> None:
         sender = Sender(ctx)
         guild = ctx.guild
         if guild is None:
@@ -192,12 +220,12 @@ class Basic(BaseCog):
             return
         if not guilds:
             guild_arg = {"guild": guild}
-            if spec == SyncValues.Current.value:
+            if spec is SyncValues.Current:
                 Logging.debug("Syncing current guild")
-            elif spec == SyncValues.GlobalToLocal.value:
+            elif spec is SyncValues.GlobalToLocal:
                 Logging.debug("Syncing global to local")
                 self.bot.tree.copy_global_to(guild=guild)
-            elif spec == SyncValues.ClearTree.value:
+            elif spec is SyncValues.ClearTree:
                 Logging.debug("Clearing command tree")
                 self.bot.tree.clear_commands(guild=guild)
             else:

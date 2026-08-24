@@ -326,7 +326,8 @@ class ReactMonitor(BaseCog):
 
     @commands.group(name="reactmonitor",
                     aliases=['reactmon', 'reactwatch', 'watcher'],
-                    invoke_without_command=True)
+                    invoke_without_command=True,
+                    cls=commands.Group)
     @commands.guild_only()
     @commands.bot_has_permissions(embed_links=True)
     async def react_monitor(self, ctx: commands.Context):

@@ -7,6 +7,20 @@ from utils import Utils
 from utils.Constants import ID_MATCHER, SIGNED_64_BIT_INTEGER_LIMIT
 
 
+class EnumChoice(Converter):
+    """Convert an argument to an Enum member by value or case-insensitive name."""
+
+    def __init__(self, enum_cls) -> None:
+        self.enum_cls = enum_cls
+
+    async def convert(self, ctx, argument):
+        try:
+            return self.enum_cls(argument)
+        except ValueError:
+            options = ", ".join(f"{member.name} ({member.value})" for member in self.enum_cls)
+            raise BadArgument(f"expected one of: {options}")
+
+
 class Timezone(Converter):
     async def convert(self, ctx, argument):
         try:

@@ -149,7 +149,7 @@ class Sweepstakes(BaseCog):
     #  publicly and adding reactions. paving the way for full reaction tracking and better automation, including
     #  message edits via bot for e.g. status updates.
 
-    @commands.group(name="sweeps", aliases=['drawing'])
+    @commands.group(name="sweeps", aliases=['drawing'], cls=commands.Group)
     @commands.guild_only()
     @commands.bot_has_permissions(embed_links=True)
     async def sweepstakes(self, ctx: Context):

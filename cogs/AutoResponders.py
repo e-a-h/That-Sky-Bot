@@ -641,7 +641,7 @@ class AutoResponders(BaseCog):
                 return trigger
         raise ValueError("Invalid trigger")
 
-    @commands.group(name="autoresponder", aliases=['ar'])
+    @commands.group(name="autoresponder", aliases=['ar'], cls=commands.Group)
     @commands.guild_only()
     @commands.bot_has_permissions(embed_links=True)
     async def autor(self, ctx: Context):

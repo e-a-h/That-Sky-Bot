@@ -166,7 +166,7 @@ class Krill(BaseCog):
         #  remove mute role
         pass
 
-    @commands.group(name="oreo", invoke_without_command=True)
+    @commands.group(name="oreo", invoke_without_command=True, cls=commands.Group)
     @commands.guild_only()
     @commands.check(Utils.can_mod_official)
     @commands.bot_has_permissions(embed_links=True)
@@ -414,7 +414,7 @@ class Krill(BaseCog):
 
         return dict(en=oreo_pattern, jp=oreo_jp_pattern, chars=oreo_chars, or_pattern=or_pattern)
 
-    @commands.group(name="krill_config", aliases=['kcfg', 'kfg'], invoke_without_command=True)
+    @commands.group(name="krill_config", aliases=['kcfg', 'kfg'], invoke_without_command=True, cls=commands.Group)
     @commands.check(Utils.can_mod_official)
     @commands.bot_has_permissions(embed_links=True)
     @commands.guild_only()

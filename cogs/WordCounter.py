@@ -50,7 +50,11 @@ class WordCounter(BaseCog):
         del self.words[guild.id]
         await CountWord.filter(serverid=guild.id).delete()
 
-    @commands.group(name="wordcounter", aliases=['wordcount', 'word_count', 'countword', 'count_word'], invoke_without_command=True)
+    @commands.group(
+        name="wordcounter",
+        aliases=['wordcount', 'word_count', 'countword', 'count_word'],
+        invoke_without_command=True,
+        cls=commands.Group)
     @commands.guild_only()
     @commands.bot_has_permissions(embed_links=True)
     async def word_counter(self, ctx: commands.Context):

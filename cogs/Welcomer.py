@@ -54,7 +54,7 @@ class Welcomer(BaseCog):
             is_mod = my_member and my_member.guild_permissions.ban_members
         return manage_bot or is_mod
 
-    @commands.group(name="welcome", invoke_without_command=True)
+    @commands.group(name="welcome", invoke_without_command=True, cls=commands.Group)
     @commands.guild_only()
     async def welcome(self, ctx):
         """Configure welcome message settings"""

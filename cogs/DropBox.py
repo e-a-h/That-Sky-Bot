@@ -43,7 +43,7 @@ from asyncio import CancelledError
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from itertools import islice
-from typing import Dict, Set, Union, Optional, Tuple
+from typing import Dict, Set, Union, Optional, Tuple, Any
 
 import aiohttp
 import discord
@@ -99,7 +99,7 @@ class DropboxFollowup:
         The communication channel where the follow-up occurs.
     created_at : datetime
         The timestamp indicating when the follow-up was created.
-    last_message : Message, optional
+    last_message : Message
         The most recent message associated with the follow-up.
     action_register_name : str
         The associated action registration name.
@@ -107,8 +107,8 @@ class DropboxFollowup:
     interaction: Interaction
     target_channel: Messageable
     created_at: datetime
-    last_message: Message = None
-    action_register_name = "listen_for_followup"
+    last_message: Optional[Message] = None
+    action_register_name: str = "listen_for_followup"
 
 
 class DropModal(discord.ui.Modal):
@@ -202,7 +202,7 @@ class DropboxButton(
 
     # This is called when the button is clicked and the custom_id matches the template.
     @classmethod
-    async def from_custom_id(cls, interaction: discord.Interaction, item: discord.ui.Button, match: re.Match[str], /):
+    async def from_custom_id(cls, interaction: discord.Interaction, item: discord.ui.Item[Any], match: re.Match[str], /):
         target_id = int(match['id'])
         # my_target = await DropboxTarget.get_or_none(id=target_id)
         try:
@@ -1346,7 +1346,7 @@ class DropBox(BaseCog):
     # Chat commands
     #########################
 
-    @commands.group(name="dropbox", invoke_without_command=True)
+    @commands.group(name="dropbox", invoke_without_command=True, cls=commands.Group)
     @commands.guild_only()
     async def dropbox(self, ctx):
         """List the dropbox settings. Use sub-commands to configure dropboxes

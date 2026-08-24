@@ -68,7 +68,7 @@ class ArtCollector(BaseCog):
         del self.collection_channels[guild.id]
         await ArtChannel.filter(serverid=guild.id).delete()
 
-    @commands.group(name="artchannel", aliases=['art_channel', 'artchan', 'ac'], invoke_without_command=True)
+    @commands.group(name="artchannel", aliases=['art_channel', 'artchan', 'ac'], invoke_without_command=True, cls=commands.Group)
     @commands.guild_only()
     @commands.bot_has_permissions(embed_links=True)
     async def art_channel(self, ctx: commands.Context):
@@ -97,10 +97,10 @@ class ArtCollector(BaseCog):
     @commands.guild_only()
     async def add(self, ctx: commands.Context, listen_channel_id: int, collect_channel_id: int, tag: str = ""):
         """
-        Add channel to art collector setup.
+        Add a channel to art collector setup.
 
-        listen_channel_id: id of channel to listen in
-        collect_channel_id: id of channel to collect into
+        listen_channel_id: id of a channel to listen in
+        collect_channel_id: id of a channel to collect into
         tag: [no_tag|listen|any random tag to track] (default "")
         """
         # TODO: use better Converter for channel_id
@@ -152,10 +152,10 @@ class ArtCollector(BaseCog):
     @commands.guild_only()
     async def remove(self, ctx: commands.Context, listen_channel_id: int, collect_channel_id: int, tag=""):
         """
-        Remove channel from art collector setup.
+        Remove a channel from art collector setup.
 
-        listen_channel_id: id of channel to listen in
-        collect_channel_id: id of channel to collect into
+        listen_channel_id: id of a channel to listen in
+        collect_channel_id: id of a channel to collect into
         tag: [no_tag|listen|any random tag to track] (default "")
         """
         key = tag or self.no_tag
@@ -199,7 +199,7 @@ class ArtCollector(BaseCog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """
-        Message listener. watch art channels for attachments. share attachments to collection channel
+        Message listener. watch art channels for attachments. Share attachments to a collection channel
         optionally use tags for sort posts into tag collection channels.
         """
         try:
@@ -256,7 +256,7 @@ class ArtCollector(BaseCog):
     async def on_raw_reaction_add(self, event):
         """
         reaction listener for art collection channels.
-        Clears reactions and on "no" reaction, removes post from collection
+        Clears reactions and on "no" reaction, removes post from a collection
         """
         try:
             m_id = event.message_id
